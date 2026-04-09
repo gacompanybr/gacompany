@@ -1,4 +1,5 @@
 import { Instagram, Linkedin, Mail, Phone } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const FooterSection = () => {
   return (
@@ -6,10 +7,7 @@ const FooterSection = () => {
       <div className="container mx-auto px-4 lg:px-8">
         <div className="grid md:grid-cols-3 gap-8 items-center">
           <div>
-            <span className="font-heading text-2xl font-bold">
-              <span className="text-gradient-gold">GA</span>
-              <span className="text-foreground"> Company</span>
-            </span>
+            <img src={logo} alt="GA Company" className="h-10 w-auto" />
             <p className="text-muted-foreground text-sm mt-2">Assessoria de Marketing Digital que gera resultados reais.</p>
           </div>
 
