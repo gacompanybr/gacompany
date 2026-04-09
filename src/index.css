@@ -15,7 +15,7 @@
     --popover: 0 0% 8%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 48 100% 50%;
+    --primary: 37 99% 53%;
     --primary-foreground: 0 0% 5%;
 
     --secondary: 0 0% 12%;
@@ -24,7 +24,7 @@
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 60%;
 
-    --accent: 48 100% 50%;
+    --accent: 37 99% 53%;
     --accent-foreground: 0 0% 5%;
 
     --destructive: 0 84.2% 60.2%;
@@ -32,25 +32,25 @@
 
     --border: 0 0% 18%;
     --input: 0 0% 18%;
-    --ring: 48 100% 50%;
+    --ring: 37 99% 53%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 8%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 48 100% 50%;
+    --sidebar-primary: 37 99% 53%;
     --sidebar-primary-foreground: 0 0% 5%;
     --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 18%;
-    --sidebar-ring: 48 100% 50%;
+    --sidebar-ring: 37 99% 53%;
 
     /* Custom tokens */
-    --gradient-gold: linear-gradient(135deg, hsl(48 100% 50%), hsl(40 100% 40%));
+    --gradient-gold: linear-gradient(135deg, hsl(37 99% 53%), hsl(30 100% 40%));
     --gradient-dark: linear-gradient(180deg, hsl(0 0% 5%), hsl(0 0% 8%));
-    --shadow-gold: 0 0 30px hsl(48 100% 50% / 0.2);
-    --shadow-gold-lg: 0 0 60px hsl(48 100% 50% / 0.3);
-    --glow-gold: 0 0 20px hsl(48 100% 50% / 0.4);
+    --shadow-gold: 0 0 30px hsl(37 99% 53% / 0.2);
+    --shadow-gold-lg: 0 0 60px hsl(37 99% 53% / 0.3);
+    --glow-gold: 0 0 20px hsl(37 99% 53% / 0.4);
   }
 }
 
@@ -72,15 +72,15 @@
 @layer utilities {
   .text-gradient-gold {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(48 100% 50%), hsl(40 100% 65%));
+    background-image: linear-gradient(135deg, hsl(37 99% 53%), hsl(30 100% 65%));
   }
 
   .bg-gradient-gold {
-    background-image: linear-gradient(135deg, hsl(48 100% 50%), hsl(40 100% 40%));
+    background-image: linear-gradient(135deg, hsl(37 99% 53%), hsl(30 100% 40%));
   }
 
   .border-glow {
-    box-shadow: 0 0 20px hsl(48 100% 50% / 0.15);
+    box-shadow: 0 0 20px hsl(37 99% 53% / 0.15);
   }
 
   .animate-float {
@@ -107,8 +107,8 @@
 }
 
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 20px hsl(48 100% 50% / 0.2); }
-  50% { box-shadow: 0 0 40px hsl(48 100% 50% / 0.4); }
+  0%, 100% { box-shadow: 0 0 20px hsl(37 99% 53% / 0.2); }
+  50% { box-shadow: 0 0 40px hsl(37 99% 53% / 0.4); }
 }
 
 html {
