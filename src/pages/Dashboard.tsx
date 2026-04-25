@@ -1,0 +1,374 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowLeft, Target, DollarSign, Wallet, Eye, Users, TrendingUp,
+  TrendingDown, Activity, Calendar,
+} from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, Legend,
+} from "recharts";
+import { usePortfolios, defaultTheme } from "@/dashboard/store";
+import { applyTheme, resetTheme } from "@/dashboard/theme";
+import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import gaLogo from "@/assets/logo.png";
+
+const fmtBRL = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtNum = (n: number) => n.toLocaleString("pt-BR");
+
+function KpiCard({
+  icon: Icon, label, value, hint, accent = false,
+}: { icon: any; label: string; value: string; hint?: string; accent?: boolean }) {
+  return (
+    <Card className={`p-5 border-border/60 ${accent ? "bg-gradient-to-br from-primary/15 to-transparent border-primary/40" : ""}`}>
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+        <div className={`p-2 rounded-lg ${accent ? "bg-primary/20" : "bg-muted"}`}>
+          <Icon size={16} className={accent ? "text-primary" : "text-muted-foreground"} />
+        </div>
+      </div>
+      <div className="text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      {hint && <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{hint}</p>}
+    </Card>
+  );
+}
+
+const Dashboard = () => {
+  const portfolios = usePortfolios();
+  const [portfolioId, setPortfolioId] = useState<string>(portfolios[0]?.id ?? "");
+  const [accountId, setAccountId] = useState<string>("all");
+  const [campaignId, setCampaignId] = useState<string>("all");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [period, setPeriod] = useState("custom");
+
+  const portfolio = useMemo(
+    () => portfolios.find((p) => p.id === portfolioId) ?? portfolios[0],
+    [portfolios, portfolioId]
+  );
+
+  // Apply branded theme on account selection
+  useEffect(() => {
+    if (!portfolio) return resetTheme();
+    if (accountId !== "all") applyTheme(portfolio.theme);
+    else applyTheme(defaultTheme);
+    return () => resetTheme();
+  }, [portfolio, accountId]);
+
+  const accounts = portfolio?.accounts ?? [];
+  const activeAccounts = accountId === "all" ? accounts : accounts.filter((a) => a.id === accountId);
+
+  // Default date range from data
+  useEffect(() => {
+    if (!start && activeAccounts[0]) {
+      setStart(activeAccounts[0].startDate);
+      setEnd(activeAccounts[0].endDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolio, accountId]);
+
+  // Period quick-set
+  useEffect(() => {
+    if (period === "custom") return;
+    const today = new Date();
+    const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+    const s = new Date(today);
+    s.setDate(s.getDate() - days);
+    setStart(s.toISOString().slice(0, 10));
+    setEnd(today.toISOString().slice(0, 10));
+  }, [period]);
+
+  const allCampaigns = activeAccounts.flatMap((a) =>
+    a.campaigns.map((c) => ({ ...c, accountName: a.name, accountId: a.id }))
+  );
+
+  const filteredCampaigns = allCampaigns.filter((c) => {
+    if (campaignId !== "all" && c.id !== campaignId) return false;
+    if (start && c.date && c.date < start) return false;
+    if (end && c.date && c.date > end) return false;
+    return true;
+  });
+
+  const totals = filteredCampaigns.reduce(
+    (acc, c) => {
+      acc.results += c.results;
+      acc.spent += c.spent;
+      acc.budget += c.budget;
+      acc.impressions += c.impressions;
+      acc.reach += c.reach;
+      return acc;
+    },
+    { results: 0, spent: 0, budget: 0, impressions: 0, reach: 0 }
+  );
+  const cpr = totals.results > 0 ? totals.spent / totals.results : 0;
+
+  const primaryResultType =
+    filteredCampaigns.find((c) => c.resultType !== "Sem resultado")?.resultType ?? "Resultados";
+  const resultDescription =
+    activeAccounts[0]?.resultDescription ?? "Resultados consolidados de todas as campanhas selecionadas.";
+
+  const sortedBySpent = [...filteredCampaigns].sort((a, b) => b.spent - a.spent);
+  const best = [...filteredCampaigns]
+    .filter((c) => c.results > 0)
+    .sort((a, b) => a.costPerResult - b.costPerResult)[0];
+  const worst = [...filteredCampaigns]
+    .filter((c) => c.results > 0)
+    .sort((a, b) => b.costPerResult - a.costPerResult)[0];
+
+  const isBranded = accountId !== "all" && portfolio;
+
+  if (!portfolio) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-4">
+        <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
+        <ImportSheetDialog portfolios={[]} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Top bar */}
+      <header className="border-b border-border bg-card/40 backdrop-blur sticky top-0 z-40">
+        <div className="container mx-auto px-4 lg:px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" className="text-muted-foreground hover:text-foreground shrink-0">
+              <ArrowLeft size={18} />
+            </Link>
+            <div className="flex items-center gap-3 min-w-0">
+              {isBranded && portfolio.logo ? (
+                <img src={portfolio.logo} alt={portfolio.name} className="h-9 w-auto rounded" />
+              ) : (
+                <img src={gaLogo} alt="GA Company" className="h-8 w-auto" />
+              )}
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground leading-none">Painel Gerencial</p>
+                <h1 className="text-base lg:text-lg font-bold truncate">
+                  {isBranded ? portfolio.theme.accentName : "GA Company"}
+                </h1>
+              </div>
+            </div>
+          </div>
+          <ImportSheetDialog portfolios={portfolios} />
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
+        {/* Filters */}
+        <Card className="p-4 lg:p-5">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div className="col-span-2 lg:col-span-1">
+              <Label className="text-xs">Portfólio / BM</Label>
+              <Select value={portfolioId} onValueChange={(v) => { setPortfolioId(v); setAccountId("all"); setCampaignId("all"); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {portfolios.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Conta de anúncios</Label>
+              <Select value={accountId} onValueChange={(v) => { setAccountId(v); setCampaignId("all"); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Campanha</Label>
+              <Select value={campaignId} onValueChange={setCampaignId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {allCampaigns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Período</Label>
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                  <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Data inicial</Label>
+              <Input type="date" value={start} onChange={(e) => { setStart(e.target.value); setPeriod("custom"); }} />
+            </div>
+            <div>
+              <Label className="text-xs">Data final</Label>
+              <Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); setPeriod("custom"); }} />
+            </div>
+          </div>
+        </Card>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4">
+          <KpiCard
+            icon={Target}
+            label={primaryResultType}
+            value={fmtNum(totals.results)}
+            hint={resultDescription}
+            accent
+          />
+          <KpiCard
+            icon={DollarSign}
+            label="Custo por resultado"
+            value={fmtBRL(cpr)}
+            hint="Valor médio gasto para gerar 1 resultado."
+          />
+          <KpiCard
+            icon={Wallet}
+            label="Orçamento"
+            value={totals.budget ? fmtBRL(totals.budget) : "—"}
+            hint="Soma dos orçamentos definidos."
+          />
+          <KpiCard
+            icon={Activity}
+            label="Valor usado"
+            value={fmtBRL(totals.spent)}
+            hint="Investimento real consumido pelas campanhas."
+          />
+          <KpiCard
+            icon={Eye}
+            label="Impressões"
+            value={fmtNum(totals.impressions)}
+            hint="Total de exibições dos anúncios."
+          />
+          <KpiCard
+            icon={Users}
+            label="Alcance"
+            value={fmtNum(totals.reach)}
+            hint="Pessoas únicas atingidas."
+          />
+        </div>
+
+        {/* Best / Worst */}
+        {(best || worst) && (
+          <div className="grid md:grid-cols-2 gap-4">
+            {best && (
+              <Card className="p-5 border-l-4 border-l-emerald-500">
+                <div className="flex items-center gap-2 text-emerald-500 text-xs font-semibold uppercase mb-2">
+                  <TrendingUp size={14} /> Melhor performance
+                </div>
+                <p className="font-semibold truncate">{best.name}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {fmtNum(best.results)} {best.resultType.toLowerCase()} • CPR {fmtBRL(best.costPerResult)}
+                </p>
+              </Card>
+            )}
+            {worst && worst.id !== best?.id && (
+              <Card className="p-5 border-l-4 border-l-red-500">
+                <div className="flex items-center gap-2 text-red-500 text-xs font-semibold uppercase mb-2">
+                  <TrendingDown size={14} /> Pior performance
+                </div>
+                <p className="font-semibold truncate">{worst.name}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {fmtNum(worst.results)} {worst.resultType.toLowerCase()} • CPR {fmtBRL(worst.costPerResult)}
+                </p>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Charts */}
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Card className="p-5">
+            <h3 className="font-semibold mb-4">Resultados por campanha</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={filteredCampaigns}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(v: number) => fmtNum(v)}
+                />
+                <Bar dataKey="results" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="font-semibold mb-4">Investimento vs Custo por resultado</h3>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={filteredCampaigns}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="l" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="r" orientation="right" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(v: number, name) => name === "spent" ? fmtBRL(v) : fmtBRL(v)}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line yAxisId="l" type="monotone" dataKey="spent" name="Valor usado" stroke="hsl(var(--primary))" strokeWidth={2} />
+                <Line yAxisId="r" type="monotone" dataKey="costPerResult" name="Custo/resultado" stroke="hsl(var(--muted-foreground))" strokeWidth={2} strokeDasharray="4 3" />
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
+        </div>
+
+        {/* Table */}
+        <Card className="p-5 overflow-x-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Detalhamento por campanha</h3>
+            <Badge variant="secondary">{filteredCampaigns.length} campanha(s)</Badge>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase text-muted-foreground border-b border-border">
+                <th className="py-3 pr-4">Campanha</th>
+                <th className="py-3 pr-4">Tipo de resultado</th>
+                <th className="py-3 pr-4 text-right">Resultados</th>
+                <th className="py-3 pr-4 text-right">Custo/result.</th>
+                <th className="py-3 pr-4 text-right">Valor usado</th>
+                <th className="py-3 pr-4 text-right">Impressões</th>
+                <th className="py-3 text-right">Alcance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedBySpent.map((c) => (
+                <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
+                  <td className="py-3 pr-4 font-medium">{c.name}</td>
+                  <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
+                  <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
+                  <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
+                  <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
+                  <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
+                  <td className="py-3 text-right">{fmtNum(c.reach)}</td>
+                </tr>
+              ))}
+              {!filteredCampaigns.length && (
+                <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </Card>
+
+        <p className="text-xs text-muted-foreground flex items-center gap-2 pt-2">
+          <Calendar size={12} />
+          Dados de {start || "—"} até {end || "—"} • {activeAccounts.length} conta(s) selecionada(s)
+        </p>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;
