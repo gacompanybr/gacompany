@@ -32,6 +32,9 @@ const Navbar = () => {
               {link.label}
             </a>
           ))}
+          <a href="/dashboard" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Painel
+          </a>
           <a href="#formulario" className="bg-primary text-primary-foreground px-6 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
             Fale Conosco
           </a>
