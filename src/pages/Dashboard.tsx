@@ -139,14 +139,47 @@ const Dashboard = () => {
     setEnd(today.toISOString().slice(0, 10));
   }, [period]);
 
+  // Re-aggregate per-campaign within the selected date range when daily data exists.
+  // Falls back to full campaign totals (XLSX-imported Meta Ads) when there is no breakdown.
   const allCampaigns = activeAccounts.flatMap((a) =>
-    a.campaigns.map((c) => ({ ...c, accountName: a.name, accountId: a.id }))
+    a.campaigns.map((c) => {
+      if (!c.dailyMetrics?.length) {
+        return { ...c, accountName: a.name, accountId: a.id };
+      }
+      const inRange = c.dailyMetrics.filter((m) => {
+        if (start && m.date < start) return false;
+        if (end && m.date > end) return false;
+        return true;
+      });
+      const sum = inRange.reduce(
+        (acc, m) => {
+          acc.impressions += m.impressions;
+          acc.clicks += m.clicks;
+          acc.cost += m.cost;
+          acc.conversions += m.conversions;
+          acc.reach += m.reach;
+          return acc;
+        },
+        { impressions: 0, clicks: 0, cost: 0, conversions: 0, reach: 0 },
+      );
+      const results = sum.conversions > 0 ? sum.conversions : sum.clicks;
+      return {
+        ...c,
+        accountName: a.name,
+        accountId: a.id,
+        results,
+        spent: sum.cost,
+        impressions: sum.impressions,
+        reach: sum.reach || sum.impressions,
+        costPerResult: results > 0 ? sum.cost / results : 0,
+      };
+    }),
   );
 
   const filteredCampaigns = allCampaigns.filter((c) => {
     if (campaignId !== "all" && c.id !== campaignId) return false;
-    if (start && c.date && c.date < start) return false;
-    if (end && c.date && c.date > end) return false;
+    // Hide campaigns that had no activity in this range
+    if (c.dailyMetrics?.length && c.impressions === 0 && c.spent === 0) return false;
     return true;
   });
 

@@ -11,6 +11,15 @@ export type AccountTheme = {
   accentName: string;
 };
 
+export type DailyMetric = {
+  date: string; // YYYY-MM-DD
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+  reach: number;
+};
+
 export type Campaign = {
   id: string;
   name: string;
@@ -22,6 +31,8 @@ export type Campaign = {
   impressions: number;
   reach: number;
   date?: string; // YYYY-MM-DD start
+  /** Optional daily breakdown — when present, dashboard re-aggregates by date filter. */
+  dailyMetrics?: DailyMetric[];
 };
 
 export type AdAccount = {
