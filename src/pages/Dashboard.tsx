@@ -10,8 +10,11 @@ import {
   LineChart, Line, Legend,
 } from "recharts";
 import { defaultTheme } from "@/dashboard/types";
-import { useDbPortfolios, triggerSync } from "@/dashboard/useDbPortfolios";
+import { useCombinedPortfolios } from "@/dashboard/useCombinedPortfolios";
+import { triggerSync } from "@/dashboard/useDbPortfolios";
 import { applyTheme, resetTheme } from "@/dashboard/theme";
+import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
