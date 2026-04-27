@@ -99,8 +99,25 @@ const Dashboard = () => {
     return () => resetTheme();
   }, [portfolio, accountId]);
 
-  const accounts = portfolio?.accounts ?? [];
+  const allPortfolioAccounts = portfolio?.accounts ?? [];
+  const hasMeta = allPortfolioAccounts.some((a) => a.source !== "google_ads");
+  const hasGoogle = allPortfolioAccounts.some((a) => a.source === "google_ads");
+  const accounts = allPortfolioAccounts.filter((a) =>
+    sourceTab === "google_ads" ? a.source === "google_ads" : a.source !== "google_ads",
+  );
   const activeAccounts = accountId === "all" ? accounts : accounts.filter((a) => a.id === accountId);
+
+  // Auto-switch tab if current source has no accounts
+  useEffect(() => {
+    if (sourceTab === "meta_ads" && !hasMeta && hasGoogle) setSourceTab("google_ads");
+    if (sourceTab === "google_ads" && !hasGoogle && hasMeta) setSourceTab("meta_ads");
+  }, [portfolioId, hasMeta, hasGoogle, sourceTab]);
+
+  // Reset account/campaign when switching tab
+  useEffect(() => {
+    setAccountId("all");
+    setCampaignId("all");
+  }, [sourceTab, portfolioId]);
 
   // Default date range from data
   useEffect(() => {
