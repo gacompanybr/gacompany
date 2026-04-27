@@ -32,6 +32,7 @@ export type AdAccount = {
   currency: string;
   startDate: string;
   endDate: string;
+  source?: "meta_ads" | "google_ads"; // origem dos dados
 };
 
 export type Portfolio = {
