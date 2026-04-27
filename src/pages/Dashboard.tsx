@@ -201,7 +201,22 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          <ImportSheetDialog portfolios={portfolios} />
+          <Button
+            onClick={handleSync}
+            disabled={syncing}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            {syncing ? (
+              <Loader2 className="animate-spin" size={14} />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            <span className="hidden sm:inline">
+              {syncing ? "Sincronizando..." : "Sincronizar"}
+            </span>
+          </Button>
         </div>
       </header>
 
