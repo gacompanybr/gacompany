@@ -190,11 +190,8 @@ const Dashboard = () => {
   if (!portfolio) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-4">
-        <p className="text-muted-foreground">Nenhum portfólio cadastrado no banco.</p>
-        <Button onClick={handleSync} disabled={syncing}>
-          {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
-          Sincronizar Google Ads
-        </Button>
+        <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
+        <ImportSheetDialog portfolios={[]} />
       </div>
     );
   }
