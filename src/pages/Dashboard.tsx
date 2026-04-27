@@ -314,24 +314,31 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-2">
             {sourceTab === "google_ads" && hasGoogle && (
-              <Button
-                onClick={handleSync}
-                disabled={syncing}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
-                {syncing ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <RefreshCw size={14} />
-                )}
-                <span className="hidden sm:inline">
-                  {syncing ? "Sincronizando..." : "Sincronizar"}
-                </span>
+              <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm" className="gap-2">
+                {syncing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                <span className="hidden sm:inline">{syncing ? "Sincronizando..." : "Sincronizar Google"}</span>
               </Button>
             )}
-            <ImportSheetDialog portfolios={portfolios} />
+            {sourceTab === "meta_ads" && hasMeta && isAdmin && (
+              <Button onClick={handleSyncMeta} disabled={syncing} variant="outline" size="sm" className="gap-2">
+                {syncing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                <span className="hidden sm:inline">{syncing ? "Atualizando..." : "Atualizar dados Meta Ads"}</span>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button asChild variant="ghost" size="sm" className="gap-2">
+                <Link to="/admin/integracoes"><Settings size={14} /><span className="hidden sm:inline">Integrações</span></Link>
+              </Button>
+            )}
+            {user ? (
+              <Button onClick={signOut} variant="ghost" size="sm" className="gap-2">
+                <LogOut size={14} /><span className="hidden sm:inline">Sair</span>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="gap-2">
+                <Link to="/auth"><LogIn size={14} /><span className="hidden sm:inline">Entrar</span></Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
