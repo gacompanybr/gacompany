@@ -219,22 +219,27 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          <Button
-            onClick={handleSync}
-            disabled={syncing}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            {syncing ? (
-              <Loader2 className="animate-spin" size={14} />
-            ) : (
-              <RefreshCw size={14} />
+          <div className="flex items-center gap-2">
+            {sourceTab === "google_ads" && hasGoogle && (
+              <Button
+                onClick={handleSync}
+                disabled={syncing}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                {syncing ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                <span className="hidden sm:inline">
+                  {syncing ? "Sincronizando..." : "Sincronizar"}
+                </span>
+              </Button>
             )}
-            <span className="hidden sm:inline">
-              {syncing ? "Sincronizando..." : "Sincronizar"}
-            </span>
-          </Button>
+            <ImportSheetDialog portfolios={portfolios} />
+          </div>
         </div>
       </header>
 
