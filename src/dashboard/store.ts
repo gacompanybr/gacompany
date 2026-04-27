@@ -15,6 +15,7 @@ const seed: Portfolio[] = [
         id: "vila-gym-meta",
         name: "Vila Gym - Meta Ads",
         currency: "BRL",
+        source: "meta_ads",
         startDate: "2026-04-01",
         endDate: "2026-04-25",
         resultDescription: "Conversas iniciadas no Meta Ads (WhatsApp/Direct)",

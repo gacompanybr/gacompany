@@ -10,8 +10,11 @@ import {
   LineChart, Line, Legend,
 } from "recharts";
 import { defaultTheme } from "@/dashboard/types";
-import { useDbPortfolios, triggerSync } from "@/dashboard/useDbPortfolios";
+import { useCombinedPortfolios } from "@/dashboard/useCombinedPortfolios";
+import { triggerSync } from "@/dashboard/useDbPortfolios";
 import { applyTheme, resetTheme } from "@/dashboard/theme";
+import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -45,10 +48,11 @@ function KpiCard({
 }
 
 const Dashboard = () => {
-  const { data: portfolios = [], isLoading } = useDbPortfolios();
+  const { portfolios, isLoading } = useCombinedPortfolios();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [portfolioId, setPortfolioId] = useState<string>("");
+  const [sourceTab, setSourceTab] = useState<"meta_ads" | "google_ads">("meta_ads");
   const [accountId, setAccountId] = useState<string>("all");
   const [campaignId, setCampaignId] = useState<string>("all");
   const [start, setStart] = useState("");
@@ -95,8 +99,25 @@ const Dashboard = () => {
     return () => resetTheme();
   }, [portfolio, accountId]);
 
-  const accounts = portfolio?.accounts ?? [];
+  const allPortfolioAccounts = portfolio?.accounts ?? [];
+  const hasMeta = allPortfolioAccounts.some((a) => a.source !== "google_ads");
+  const hasGoogle = allPortfolioAccounts.some((a) => a.source === "google_ads");
+  const accounts = allPortfolioAccounts.filter((a) =>
+    sourceTab === "google_ads" ? a.source === "google_ads" : a.source !== "google_ads",
+  );
   const activeAccounts = accountId === "all" ? accounts : accounts.filter((a) => a.id === accountId);
+
+  // Auto-switch tab if current source has no accounts
+  useEffect(() => {
+    if (sourceTab === "meta_ads" && !hasMeta && hasGoogle) setSourceTab("google_ads");
+    if (sourceTab === "google_ads" && !hasGoogle && hasMeta) setSourceTab("meta_ads");
+  }, [portfolioId, hasMeta, hasGoogle, sourceTab]);
+
+  // Reset account/campaign when switching tab
+  useEffect(() => {
+    setAccountId("all");
+    setCampaignId("all");
+  }, [sourceTab, portfolioId]);
 
   // Default date range from data
   useEffect(() => {
@@ -169,11 +190,8 @@ const Dashboard = () => {
   if (!portfolio) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-4">
-        <p className="text-muted-foreground">Nenhum portfólio cadastrado no banco.</p>
-        <Button onClick={handleSync} disabled={syncing}>
-          {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
-          Sincronizar Google Ads
-        </Button>
+        <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
+        <ImportSheetDialog portfolios={[]} />
       </div>
     );
   }
@@ -201,27 +219,46 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          <Button
-            onClick={handleSync}
-            disabled={syncing}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            {syncing ? (
-              <Loader2 className="animate-spin" size={14} />
-            ) : (
-              <RefreshCw size={14} />
+          <div className="flex items-center gap-2">
+            {sourceTab === "google_ads" && hasGoogle && (
+              <Button
+                onClick={handleSync}
+                disabled={syncing}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                {syncing ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                <span className="hidden sm:inline">
+                  {syncing ? "Sincronizando..." : "Sincronizar"}
+                </span>
+              </Button>
             )}
-            <span className="hidden sm:inline">
-              {syncing ? "Sincronizando..." : "Sincronizar"}
-            </span>
-          </Button>
+            <ImportSheetDialog portfolios={portfolios} />
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
         {/* Filters */}
+        {/* Tabs por origem dos dados */}
+        {(hasMeta || hasGoogle) && (
+          <Tabs value={sourceTab} onValueChange={(v) => setSourceTab(v as any)}>
+            <TabsList>
+              <TabsTrigger value="meta_ads" disabled={!hasMeta}>
+                Meta Ads
+              </TabsTrigger>
+              <TabsTrigger value="google_ads" disabled={!hasGoogle}>
+                Google Ads
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
         <Card className="p-4 lg:p-5">
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="col-span-2 lg:col-span-1">
