@@ -2,3 +2,6 @@ project_id = "ouarszsnukpjbvsymmts"
 
 [functions.sync-google-ads]
 verify_jwt = false
+
+[functions.sync-meta-ads]
+verify_jwt = false
