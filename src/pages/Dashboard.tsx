@@ -144,7 +144,13 @@ const Dashboard = () => {
   const allCampaigns = activeAccounts.flatMap((a) =>
     a.campaigns.map((c) => {
       if (!c.dailyMetrics?.length) {
-        return { ...c, accountName: a.name, accountId: a.id };
+        return {
+          ...c,
+          accountName: a.name,
+          accountId: a.id,
+          conversions: 0,
+          clicks: 0,
+        };
       }
       const inRange = c.dailyMetrics.filter((m) => {
         if (start && m.date < start) return false;
@@ -172,6 +178,8 @@ const Dashboard = () => {
         impressions: sum.impressions,
         reach: sum.reach || sum.impressions,
         costPerResult: results > 0 ? sum.cost / results : 0,
+        conversions: sum.conversions,
+        clicks: sum.clicks,
       };
     }),
   );
@@ -190,11 +198,15 @@ const Dashboard = () => {
       acc.budget += c.budget;
       acc.impressions += c.impressions;
       acc.reach += c.reach;
+      acc.conversions += c.conversions ?? 0;
+      acc.clicks += c.clicks ?? 0;
       return acc;
     },
-    { results: 0, spent: 0, budget: 0, impressions: 0, reach: 0 }
+    { results: 0, spent: 0, budget: 0, impressions: 0, reach: 0, conversions: 0, clicks: 0 }
   );
   const cpr = totals.results > 0 ? totals.spent / totals.results : 0;
+  const costPerConversion = totals.conversions > 0 ? totals.spent / totals.conversions : 0;
+  const showConversionsKpi = sourceTab === "google_ads" && totals.conversions > 0;
 
   const primaryResultType =
     filteredCampaigns.find((c) => c.resultType !== "Sem resultado")?.resultType ?? "Resultados";
