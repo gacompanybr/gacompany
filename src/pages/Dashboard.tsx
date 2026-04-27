@@ -12,8 +12,10 @@ import {
 import { defaultTheme } from "@/dashboard/types";
 import { useCombinedPortfolios } from "@/dashboard/useCombinedPortfolios";
 import { triggerSync } from "@/dashboard/useDbPortfolios";
+import { syncMetaIntegration } from "@/dashboard/useMetaPortfolios";
 import { applyTheme, resetTheme } from "@/dashboard/theme";
-import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { Settings, LogOut, LogIn } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
