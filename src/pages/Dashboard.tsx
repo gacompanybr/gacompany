@@ -48,10 +48,11 @@ function KpiCard({
 }
 
 const Dashboard = () => {
-  const { data: portfolios = [], isLoading } = useDbPortfolios();
+  const { portfolios, isLoading } = useCombinedPortfolios();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [portfolioId, setPortfolioId] = useState<string>("");
+  const [sourceTab, setSourceTab] = useState<"meta_ads" | "google_ads">("meta_ads");
   const [accountId, setAccountId] = useState<string>("all");
   const [campaignId, setCampaignId] = useState<string>("all");
   const [start, setStart] = useState("");
