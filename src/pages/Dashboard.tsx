@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Target, DollarSign, Wallet, Eye, Users, TrendingUp,
-  TrendingDown, Activity, Calendar,
+  TrendingDown, Activity, Calendar, RefreshCw, Loader2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   LineChart, Line, Legend,
 } from "recharts";
-import { usePortfolios, defaultTheme } from "@/dashboard/store";
+import { defaultTheme } from "@/dashboard/types";
+import { useDbPortfolios, triggerSync } from "@/dashboard/useDbPortfolios";
 import { applyTheme, resetTheme } from "@/dashboard/theme";
-import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import { toast } from "sonner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -43,13 +45,42 @@ function KpiCard({
 }
 
 const Dashboard = () => {
-  const portfolios = usePortfolios();
-  const [portfolioId, setPortfolioId] = useState<string>(portfolios[0]?.id ?? "");
+  const { data: portfolios = [], isLoading } = useDbPortfolios();
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const [portfolioId, setPortfolioId] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("all");
   const [campaignId, setCampaignId] = useState<string>("all");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [period, setPeriod] = useState("custom");
+
+  // Pick first portfolio once data arrives
+  useEffect(() => {
+    if (!portfolioId && portfolios[0]) setPortfolioId(portfolios[0].id);
+  }, [portfolios, portfolioId]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const accId = accountId !== "all" ? accountId : undefined;
+      const res: any = await triggerSync(accId, 30);
+      const summary = res?.results?.[0];
+      if (summary?.error) {
+        toast.error(`Falha na sincronização: ${summary.error}`);
+      } else {
+        toast.success(
+          `Sincronizado: ${summary?.campaigns ?? 0} campanhas, ${summary?.metric_rows ?? 0} dias.`,
+        );
+        await queryClient.invalidateQueries({ queryKey: ["portfolios-with-data"] });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
 
   const portfolio = useMemo(
     () => portfolios.find((p) => p.id === portfolioId) ?? portfolios[0],
@@ -126,11 +157,23 @@ const Dashboard = () => {
 
   const isBranded = accountId !== "all" && portfolio;
 
+  if (isLoading && !portfolio) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-3">
+        <Loader2 className="animate-spin text-primary" size={28} />
+        <p className="text-muted-foreground text-sm">Carregando dados do banco...</p>
+      </div>
+    );
+  }
+
   if (!portfolio) {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-4">
-        <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
-        <ImportSheetDialog portfolios={[]} />
+        <p className="text-muted-foreground">Nenhum portfólio cadastrado no banco.</p>
+        <Button onClick={handleSync} disabled={syncing}>
+          {syncing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+          Sincronizar Google Ads
+        </Button>
       </div>
     );
   }
@@ -158,7 +201,22 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          <ImportSheetDialog portfolios={portfolios} />
+          <Button
+            onClick={handleSync}
+            disabled={syncing}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            {syncing ? (
+              <Loader2 className="animate-spin" size={14} />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            <span className="hidden sm:inline">
+              {syncing ? "Sincronizando..." : "Sincronizar"}
+            </span>
+          </Button>
         </div>
       </header>
 
