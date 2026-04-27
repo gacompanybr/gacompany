@@ -144,7 +144,13 @@ const Dashboard = () => {
   const allCampaigns = activeAccounts.flatMap((a) =>
     a.campaigns.map((c) => {
       if (!c.dailyMetrics?.length) {
-        return { ...c, accountName: a.name, accountId: a.id };
+        return {
+          ...c,
+          accountName: a.name,
+          accountId: a.id,
+          conversions: 0,
+          clicks: 0,
+        };
       }
       const inRange = c.dailyMetrics.filter((m) => {
         if (start && m.date < start) return false;
@@ -172,6 +178,8 @@ const Dashboard = () => {
         impressions: sum.impressions,
         reach: sum.reach || sum.impressions,
         costPerResult: results > 0 ? sum.cost / results : 0,
+        conversions: sum.conversions,
+        clicks: sum.clicks,
       };
     }),
   );
@@ -190,11 +198,15 @@ const Dashboard = () => {
       acc.budget += c.budget;
       acc.impressions += c.impressions;
       acc.reach += c.reach;
+      acc.conversions += c.conversions ?? 0;
+      acc.clicks += c.clicks ?? 0;
       return acc;
     },
-    { results: 0, spent: 0, budget: 0, impressions: 0, reach: 0 }
+    { results: 0, spent: 0, budget: 0, impressions: 0, reach: 0, conversions: 0, clicks: 0 }
   );
   const cpr = totals.results > 0 ? totals.spent / totals.results : 0;
+  const costPerConversion = totals.conversions > 0 ? totals.spent / totals.conversions : 0;
+  const showConversionsKpi = sourceTab === "google_ads" && totals.conversions > 0;
 
   const primaryResultType =
     filteredCampaigns.find((c) => c.resultType !== "Sem resultado")?.resultType ?? "Resultados";
@@ -347,20 +359,41 @@ const Dashboard = () => {
         </Card>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4">
+        <div className={`grid grid-cols-2 lg:grid-cols-3 ${showConversionsKpi ? "xl:grid-cols-4 2xl:grid-cols-7" : "xl:grid-cols-6"} gap-3 lg:gap-4`}>
+          {showConversionsKpi && (
+            <>
+              <KpiCard
+                icon={Target}
+                label="Conversões"
+                value={fmtNum(totals.conversions)}
+                hint="Ações de conversão registradas no Google Ads (leads, formulários, etc.)."
+                accent
+              />
+              <KpiCard
+                icon={DollarSign}
+                label="Custo por conversão"
+                value={fmtBRL(costPerConversion)}
+                hint="Investimento médio para gerar 1 conversão."
+              />
+            </>
+          )}
           <KpiCard
-            icon={Target}
-            label={primaryResultType}
-            value={fmtNum(totals.results)}
-            hint={resultDescription}
-            accent
+            icon={Activity}
+            label={showConversionsKpi ? "Cliques" : primaryResultType}
+            value={fmtNum(showConversionsKpi ? totals.clicks : totals.results)}
+            hint={showConversionsKpi
+              ? "Total de cliques nos anúncios."
+              : resultDescription}
+            accent={!showConversionsKpi}
           />
-          <KpiCard
-            icon={DollarSign}
-            label="Custo por resultado"
-            value={fmtBRL(cpr)}
-            hint="Valor médio gasto para gerar 1 resultado."
-          />
+          {!showConversionsKpi && (
+            <KpiCard
+              icon={DollarSign}
+              label="Custo por resultado"
+              value={fmtBRL(cpr)}
+              hint="Valor médio gasto para gerar 1 resultado."
+            />
+          )}
           <KpiCard
             icon={Wallet}
             label="Orçamento"
