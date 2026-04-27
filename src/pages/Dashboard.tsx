@@ -276,7 +276,15 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-4">
         <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
-        <ImportSheetDialog portfolios={[]} />
+        {isAdmin ? (
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/admin/integracoes"><Settings size={14} /> Configurar integração Meta Ads</Link>
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link to="/auth"><LogIn size={14} className="mr-2" /> Entrar</Link>
+          </Button>
+        )}
       </div>
     );
   }
