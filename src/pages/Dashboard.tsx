@@ -245,6 +245,20 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
         {/* Filters */}
+        {/* Tabs por origem dos dados */}
+        {(hasMeta || hasGoogle) && (
+          <Tabs value={sourceTab} onValueChange={(v) => setSourceTab(v as any)}>
+            <TabsList>
+              <TabsTrigger value="meta_ads" disabled={!hasMeta}>
+                Meta Ads
+              </TabsTrigger>
+              <TabsTrigger value="google_ads" disabled={!hasGoogle}>
+                Google Ads
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
         <Card className="p-4 lg:p-5">
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="col-span-2 lg:col-span-1">
