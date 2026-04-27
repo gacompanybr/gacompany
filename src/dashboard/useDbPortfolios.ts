@@ -96,6 +96,14 @@ function mapToPortfolios(rows: PortfolioRow[]): Portfolio[] {
             impressions: totals.impressions,
             reach: totals.reach || totals.impressions, // reach not available on Google
             date: totals.startDate || undefined,
+            dailyMetrics: c.campaign_metrics.map((m) => ({
+              date: m.date,
+              impressions: Number(m.impressions ?? 0),
+              clicks: Number(m.clicks ?? 0),
+              cost: Number(m.cost ?? 0),
+              conversions: Number(m.conversions ?? 0),
+              reach: Number(m.reach ?? 0),
+            })),
           } satisfies Campaign;
         })
         // hide campaigns with no activity at all
