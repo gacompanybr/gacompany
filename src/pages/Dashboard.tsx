@@ -12,8 +12,10 @@ import {
 import { defaultTheme } from "@/dashboard/types";
 import { useCombinedPortfolios } from "@/dashboard/useCombinedPortfolios";
 import { triggerSync } from "@/dashboard/useDbPortfolios";
+import { syncMetaIntegration } from "@/dashboard/useMetaPortfolios";
 import { applyTheme, resetTheme } from "@/dashboard/theme";
-import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { Settings, LogOut, LogIn } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
@@ -50,6 +52,7 @@ function KpiCard({
 const Dashboard = () => {
   const { portfolios, isLoading } = useCombinedPortfolios();
   const queryClient = useQueryClient();
+  const { user, isAdmin, signOut } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [portfolioId, setPortfolioId] = useState<string>("");
   const [sourceTab, setSourceTab] = useState<"meta_ads" | "google_ads">("meta_ads");
@@ -84,6 +87,37 @@ const Dashboard = () => {
       setSyncing(false);
     }
   };
+
+  // Atualizar dados Meta Ads — chama edge function para cada integração do portfólio atual
+  const handleSyncMeta = async () => {
+    if (!portfolio) return;
+    const metaAccounts = portfolio.accounts.filter((a) => a.source === "meta_ads");
+    const ids = accountId === "all"
+      ? metaAccounts.map((a) => a.id)
+      : metaAccounts.filter((a) => a.id === accountId).map((a) => a.id);
+    if (ids.length === 0) return toast.error("Nenhuma integração Meta para sincronizar.");
+    setSyncing(true);
+    try {
+      const dateFrom = start || undefined;
+      const dateTo = end || undefined;
+      const results = await Promise.allSettled(
+        ids.map((id) => syncMetaIntegration(id, dateFrom, dateTo)),
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const fail = results.length - ok;
+      if (fail > 0) {
+        const firstErr = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        toast.error(`Falha em ${fail} integração(ões): ${firstErr?.reason?.message ?? "erro desconhecido"}`);
+      }
+      if (ok > 0) {
+        toast.success(`Atualizado: ${ok} integração(ões) Meta Ads.`);
+        await queryClient.invalidateQueries({ queryKey: ["meta-portfolios"] });
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
 
 
   const portfolio = useMemo(
@@ -242,7 +276,15 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-8 gap-4">
         <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
-        <ImportSheetDialog portfolios={[]} />
+        {isAdmin ? (
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/admin/integracoes"><Settings size={14} /> Configurar integração Meta Ads</Link>
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link to="/auth"><LogIn size={14} className="mr-2" /> Entrar</Link>
+          </Button>
+        )}
       </div>
     );
   }
@@ -272,24 +314,31 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-2">
             {sourceTab === "google_ads" && hasGoogle && (
-              <Button
-                onClick={handleSync}
-                disabled={syncing}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
-                {syncing ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <RefreshCw size={14} />
-                )}
-                <span className="hidden sm:inline">
-                  {syncing ? "Sincronizando..." : "Sincronizar"}
-                </span>
+              <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm" className="gap-2">
+                {syncing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                <span className="hidden sm:inline">{syncing ? "Sincronizando..." : "Sincronizar Google"}</span>
               </Button>
             )}
-            <ImportSheetDialog portfolios={portfolios} />
+            {sourceTab === "meta_ads" && hasMeta && isAdmin && (
+              <Button onClick={handleSyncMeta} disabled={syncing} variant="outline" size="sm" className="gap-2">
+                {syncing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                <span className="hidden sm:inline">{syncing ? "Atualizando..." : "Atualizar dados Meta Ads"}</span>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button asChild variant="ghost" size="sm" className="gap-2">
+                <Link to="/admin/integracoes"><Settings size={14} /><span className="hidden sm:inline">Integrações</span></Link>
+              </Button>
+            )}
+            {user ? (
+              <Button onClick={signOut} variant="ghost" size="sm" className="gap-2">
+                <LogOut size={14} /><span className="hidden sm:inline">Sair</span>
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="gap-2">
+                <Link to="/auth"><LogIn size={14} /><span className="hidden sm:inline">Entrar</span></Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>

@@ -1,40 +1,32 @@
 import { useMemo } from "react";
 import { useDbPortfolios } from "./useDbPortfolios";
-import { usePortfolios } from "./store";
+import { useMetaPortfolios } from "./useMetaPortfolios";
 import type { Portfolio } from "./types";
 
 /**
- * Combines:
- * - local store portfolios (Meta Ads via XLSX import)
- * - DB portfolios (Google Ads via sync edge function)
- *
- * Same-named portfolios are merged so a single client can show
- * both Meta Ads and Google Ads accounts side by side.
+ * Combines Meta Ads (DB cache from sync-meta-ads) and Google Ads (DB cache from sync-google-ads).
+ * Same-portfolio merging keeps Meta + Google side-by-side per client.
  */
 export function useCombinedPortfolios() {
-  const local = usePortfolios();
-  const { data: dbPortfolios = [], isLoading } = useDbPortfolios();
+  const { data: googlePortfolios = [], isLoading: lG } = useDbPortfolios();
+  const { data: metaPortfolios = [], isLoading: lM } = useMetaPortfolios();
 
   const combined = useMemo<Portfolio[]>(() => {
-    const byKey = new Map<string, Portfolio>();
-    const keyOf = (name: string) =>
-      name.toLowerCase().replace(/^bm\s*[-–]\s*/i, "").trim();
-
-    for (const p of local) {
-      byKey.set(keyOf(p.name), { ...p, accounts: [...p.accounts] });
+    const byId = new Map<string, Portfolio>();
+    for (const p of metaPortfolios) {
+      byId.set(p.id, { ...p, accounts: [...p.accounts] });
     }
-    for (const p of dbPortfolios) {
-      const key = keyOf(p.name);
-      const existing = byKey.get(key);
+    for (const p of googlePortfolios) {
+      const existing = byId.get(p.id);
       if (existing) {
         existing.accounts = [...existing.accounts, ...p.accounts];
         if (!existing.logo && p.logo) existing.logo = p.logo;
       } else {
-        byKey.set(key, p);
+        byId.set(p.id, p);
       }
     }
-    return Array.from(byKey.values());
-  }, [local, dbPortfolios]);
+    return Array.from(byId.values());
+  }, [googlePortfolios, metaPortfolios]);
 
-  return { portfolios: combined, isLoading };
+  return { portfolios: combined, isLoading: lG || lM };
 }
