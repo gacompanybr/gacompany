@@ -116,6 +116,7 @@ function mapToPortfolios(rows: PortfolioRow[]): Portfolio[] {
         id: a.id,
         name: a.name,
         currency: a.currency ?? "BRL",
+        source: "google_ads",
         startDate: acctTotals.start || new Date().toISOString().slice(0, 10),
         endDate: acctTotals.end || new Date().toISOString().slice(0, 10),
         resultDescription:
