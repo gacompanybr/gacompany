@@ -128,15 +128,21 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolio, accountId]);
 
-  // Period quick-set
+  // Period quick-set — sempre usa a data atual no momento da seleção
   useEffect(() => {
     if (period === "custom") return;
     const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    if (period === "today") {
+      setStart(todayStr);
+      setEnd(todayStr);
+      return;
+    }
     const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
     const s = new Date(today);
     s.setDate(s.getDate() - days);
     setStart(s.toISOString().slice(0, 10));
-    setEnd(today.toISOString().slice(0, 10));
+    setEnd(todayStr);
   }, [period]);
 
   // Re-aggregate per-campaign within the selected date range when daily data exists.
