@@ -52,6 +52,7 @@ function KpiCard({
 const Dashboard = () => {
   const { portfolios, isLoading } = useCombinedPortfolios();
   const queryClient = useQueryClient();
+  const { user, isAdmin, signOut } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [portfolioId, setPortfolioId] = useState<string>("");
   const [sourceTab, setSourceTab] = useState<"meta_ads" | "google_ads">("meta_ads");
@@ -86,6 +87,37 @@ const Dashboard = () => {
       setSyncing(false);
     }
   };
+
+  // Atualizar dados Meta Ads — chama edge function para cada integração do portfólio atual
+  const handleSyncMeta = async () => {
+    if (!portfolio) return;
+    const metaAccounts = portfolio.accounts.filter((a) => a.source === "meta_ads");
+    const ids = accountId === "all"
+      ? metaAccounts.map((a) => a.id)
+      : metaAccounts.filter((a) => a.id === accountId).map((a) => a.id);
+    if (ids.length === 0) return toast.error("Nenhuma integração Meta para sincronizar.");
+    setSyncing(true);
+    try {
+      const dateFrom = start || undefined;
+      const dateTo = end || undefined;
+      const results = await Promise.allSettled(
+        ids.map((id) => syncMetaIntegration(id, dateFrom, dateTo)),
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const fail = results.length - ok;
+      if (fail > 0) {
+        const firstErr = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        toast.error(`Falha em ${fail} integração(ões): ${firstErr?.reason?.message ?? "erro desconhecido"}`);
+      }
+      if (ok > 0) {
+        toast.success(`Atualizado: ${ok} integração(ões) Meta Ads.`);
+        await queryClient.invalidateQueries({ queryKey: ["meta-portfolios"] });
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
 
 
   const portfolio = useMemo(
