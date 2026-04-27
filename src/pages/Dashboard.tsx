@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Target, DollarSign, Wallet, Eye, Users, TrendingUp,
-  TrendingDown, Activity, Calendar,
+  TrendingDown, Activity, Calendar, RefreshCw, Loader2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   LineChart, Line, Legend,
 } from "recharts";
-import { usePortfolios, defaultTheme } from "@/dashboard/store";
+import { defaultTheme } from "@/dashboard/types";
+import { useDbPortfolios, triggerSync } from "@/dashboard/useDbPortfolios";
 import { applyTheme, resetTheme } from "@/dashboard/theme";
-import { ImportSheetDialog } from "@/dashboard/ImportSheetDialog";
+import { toast } from "sonner";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
