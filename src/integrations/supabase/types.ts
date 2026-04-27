@@ -161,6 +161,218 @@ export type Database = {
           },
         ]
       }
+      meta_campanhas: {
+        Row: {
+          budget: number | null
+          campaign_id: string
+          campaign_name: string
+          created_at: string
+          id: string
+          integration_id: string
+          objective: string | null
+          start_time: string | null
+          status: string | null
+          stop_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          budget?: number | null
+          campaign_id: string
+          campaign_name: string
+          created_at?: string
+          id?: string
+          integration_id: string
+          objective?: string | null
+          start_time?: string | null
+          status?: string | null
+          stop_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          budget?: number | null
+          campaign_id?: string
+          campaign_name?: string
+          created_at?: string
+          id?: string
+          integration_id?: string
+          objective?: string | null
+          start_time?: string | null
+          status?: string | null
+          stop_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_campanhas_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "meta_integracoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_integracoes: {
+        Row: {
+          access_token: string
+          ad_account_id: string
+          business_manager_id: string | null
+          created_at: string
+          id: string
+          nome_conta_anuncio: string
+          nome_portfolio: string
+          portfolio_id: string
+          status: string
+          ultima_atualizacao: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          ad_account_id: string
+          business_manager_id?: string | null
+          created_at?: string
+          id?: string
+          nome_conta_anuncio: string
+          nome_portfolio: string
+          portfolio_id: string
+          status?: string
+          ultima_atualizacao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          ad_account_id?: string
+          business_manager_id?: string | null
+          created_at?: string
+          id?: string
+          nome_conta_anuncio?: string
+          nome_portfolio?: string
+          portfolio_id?: string
+          status?: string
+          ultima_atualizacao?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_integracoes_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_logs_integracao: {
+        Row: {
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          detalhe_erro: string | null
+          id: string
+          integration_id: string | null
+          mensagem: string | null
+          rows_synced: number | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          detalhe_erro?: string | null
+          id?: string
+          integration_id?: string | null
+          mensagem?: string | null
+          rows_synced?: number | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          detalhe_erro?: string | null
+          id?: string
+          integration_id?: string | null
+          mensagem?: string | null
+          rows_synced?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_logs_integracao_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "meta_integracoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_metricas_campanhas: {
+        Row: {
+          campaign_id: string
+          clicks: number
+          cost_per_result: number | null
+          cpc: number | null
+          cpm: number | null
+          created_at: string
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number
+          integration_id: string
+          raw_actions_json: Json | null
+          reach: number
+          result_type: string | null
+          results: number
+          spend: number
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number
+          cost_per_result?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number
+          integration_id: string
+          raw_actions_json?: Json | null
+          reach?: number
+          result_type?: string | null
+          results?: number
+          spend?: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number
+          cost_per_result?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number
+          integration_id?: string
+          raw_actions_json?: Json | null
+          reach?: number
+          result_type?: string | null
+          results?: number
+          spend?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_metricas_campanhas_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "meta_integracoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolios: {
         Row: {
           created_at: string
@@ -188,6 +400,30 @@ export type Database = {
           slug?: string
           theme?: Json | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -235,15 +471,42 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -370,6 +633,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "viewer"],
+    },
   },
 } as const
