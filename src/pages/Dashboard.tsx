@@ -359,20 +359,41 @@ const Dashboard = () => {
         </Card>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4">
+        <div className={`grid grid-cols-2 lg:grid-cols-3 ${showConversionsKpi ? "xl:grid-cols-4 2xl:grid-cols-7" : "xl:grid-cols-6"} gap-3 lg:gap-4`}>
+          {showConversionsKpi && (
+            <>
+              <KpiCard
+                icon={Target}
+                label="Conversões"
+                value={fmtNum(totals.conversions)}
+                hint="Ações de conversão registradas no Google Ads (leads, formulários, etc.)."
+                accent
+              />
+              <KpiCard
+                icon={DollarSign}
+                label="Custo por conversão"
+                value={fmtBRL(costPerConversion)}
+                hint="Investimento médio para gerar 1 conversão."
+              />
+            </>
+          )}
           <KpiCard
-            icon={Target}
-            label={primaryResultType}
-            value={fmtNum(totals.results)}
-            hint={resultDescription}
-            accent
+            icon={Activity}
+            label={showConversionsKpi ? "Cliques" : primaryResultType}
+            value={fmtNum(showConversionsKpi ? totals.clicks : totals.results)}
+            hint={showConversionsKpi
+              ? "Total de cliques nos anúncios."
+              : resultDescription}
+            accent={!showConversionsKpi}
           />
-          <KpiCard
-            icon={DollarSign}
-            label="Custo por resultado"
-            value={fmtBRL(cpr)}
-            hint="Valor médio gasto para gerar 1 resultado."
-          />
+          {!showConversionsKpi && (
+            <KpiCard
+              icon={DollarSign}
+              label="Custo por resultado"
+              value={fmtBRL(cpr)}
+              hint="Valor médio gasto para gerar 1 resultado."
+            />
+          )}
           <KpiCard
             icon={Wallet}
             label="Orçamento"
