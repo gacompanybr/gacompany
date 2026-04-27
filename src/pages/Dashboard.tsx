@@ -45,13 +45,42 @@ function KpiCard({
 }
 
 const Dashboard = () => {
-  const portfolios = usePortfolios();
-  const [portfolioId, setPortfolioId] = useState<string>(portfolios[0]?.id ?? "");
+  const { data: portfolios = [], isLoading } = useDbPortfolios();
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const [portfolioId, setPortfolioId] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("all");
   const [campaignId, setCampaignId] = useState<string>("all");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [period, setPeriod] = useState("custom");
+
+  // Pick first portfolio once data arrives
+  useEffect(() => {
+    if (!portfolioId && portfolios[0]) setPortfolioId(portfolios[0].id);
+  }, [portfolios, portfolioId]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const accId = accountId !== "all" ? accountId : undefined;
+      const res: any = await triggerSync(accId, 30);
+      const summary = res?.results?.[0];
+      if (summary?.error) {
+        toast.error(`Falha na sincronização: ${summary.error}`);
+      } else {
+        toast.success(
+          `Sincronizado: ${summary?.campaigns ?? 0} campanhas, ${summary?.metric_rows ?? 0} dias.`,
+        );
+        await queryClient.invalidateQueries({ queryKey: ["portfolios-with-data"] });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
 
   const portfolio = useMemo(
     () => portfolios.find((p) => p.id === portfolioId) ?? portfolios[0],
