@@ -14,7 +14,227 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ad_accounts: {
+        Row: {
+          created_at: string
+          currency: string | null
+          customer_id: string
+          id: string
+          login_customer_id: string | null
+          name: string
+          platform: string
+          portfolio_id: string
+          result_description: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          customer_id: string
+          id?: string
+          login_customer_id?: string | null
+          name: string
+          platform?: string
+          portfolio_id: string
+          result_description?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          customer_id?: string
+          id?: string
+          login_customer_id?: string | null
+          name?: string
+          platform?: string
+          portfolio_id?: string
+          result_description?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_accounts_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_metrics: {
+        Row: {
+          avg_cpc: number | null
+          campaign_id: string
+          clicks: number
+          conversions: number
+          conversions_value: number
+          cost: number
+          cost_per_conversion: number | null
+          created_at: string
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number
+          reach: number | null
+        }
+        Insert: {
+          avg_cpc?: number | null
+          campaign_id: string
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost?: number
+          cost_per_conversion?: number | null
+          created_at?: string
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number
+          reach?: number | null
+        }
+        Update: {
+          avg_cpc?: number | null
+          campaign_id?: string
+          clicks?: number
+          conversions?: number
+          conversions_value?: number
+          cost?: number
+          cost_per_conversion?: number | null
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number
+          reach?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_metrics_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          ad_account_id: string
+          budget_amount: number | null
+          channel_type: string | null
+          created_at: string
+          external_id: string
+          id: string
+          name: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id: string
+          budget_amount?: number | null
+          channel_type?: string | null
+          created_at?: string
+          external_id: string
+          id?: string
+          name: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          budget_amount?: number | null
+          channel_type?: string | null
+          created_at?: string
+          external_id?: string
+          id?: string
+          name?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolios: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          slug: string
+          theme: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          slug: string
+          theme?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          slug?: string
+          theme?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_logs: {
+        Row: {
+          ad_account_id: string | null
+          date_from: string | null
+          date_to: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          rows_synced: number | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_synced?: number | null
+          started_at?: string
+          status: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_synced?: number | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_logs_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
