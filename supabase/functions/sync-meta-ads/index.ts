@@ -102,38 +102,8 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-  // Auth — exige usuário logado e admin
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const userClient = createClient(SUPABASE_URL, ANON, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const token = authHeader.replace("Bearer ", "");
-  const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-  if (claimsErr || !claimsData?.claims) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const userId = claimsData.claims.sub;
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { data: roles } = await admin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
-  if (!isAdmin) {
-    return new Response(JSON.stringify({ error: "Forbidden — admin only" }), {
-      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
 
   let body: SyncRequest;
   try { body = await req.json(); } catch {
