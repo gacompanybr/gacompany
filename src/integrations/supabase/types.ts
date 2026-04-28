@@ -209,6 +209,13 @@ export type Database = {
             referencedRelation: "meta_integracoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "meta_campanhas_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "meta_integracoes_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       meta_integracoes: {
@@ -303,6 +310,13 @@ export type Database = {
             referencedRelation: "meta_integracoes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "meta_logs_integracao_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "meta_integracoes_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       meta_metricas_campanhas: {
@@ -369,6 +383,13 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "meta_integracoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_metricas_campanhas_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "meta_integracoes_public"
             referencedColumns: ["id"]
           },
         ]
@@ -494,7 +515,50 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      meta_integracoes_public: {
+        Row: {
+          ad_account_id: string | null
+          created_at: string | null
+          id: string | null
+          nome_conta_anuncio: string | null
+          nome_portfolio: string | null
+          portfolio_id: string | null
+          status: string | null
+          ultima_atualizacao: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          nome_conta_anuncio?: string | null
+          nome_portfolio?: string | null
+          portfolio_id?: string | null
+          status?: string | null
+          ultima_atualizacao?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          nome_conta_anuncio?: string | null
+          nome_portfolio?: string | null
+          portfolio_id?: string | null
+          status?: string | null
+          ultima_atualizacao?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_integracoes_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
