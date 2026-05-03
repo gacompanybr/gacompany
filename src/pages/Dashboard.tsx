@@ -347,6 +347,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
           </div>
         </div>
       </header>
+      )}
 
       <main className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
         {/* Filters */}
