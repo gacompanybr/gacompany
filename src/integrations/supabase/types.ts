@@ -396,29 +396,41 @@ export type Database = {
       }
       portfolios: {
         Row: {
+          cnpj: string | null
           created_at: string
           id: string
           logo_url: string | null
           name: string
+          responsavel_id: string | null
+          servicos: Json
           slug: string
+          status: string
           theme: Json | null
           updated_at: string
         }
         Insert: {
+          cnpj?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
+          responsavel_id?: string | null
+          servicos?: Json
           slug: string
+          status?: string
           theme?: Json | null
           updated_at?: string
         }
         Update: {
+          cnpj?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name?: string
+          responsavel_id?: string | null
+          servicos?: Json
           slug?: string
+          status?: string
           theme?: Json | null
           updated_at?: string
         }
@@ -492,6 +504,35 @@ export type Database = {
           },
         ]
       }
+      user_portfolio_access: {
+        Row: {
+          created_at: string
+          id: string
+          portfolio_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          portfolio_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          portfolio_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_portfolio_access_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -561,6 +602,10 @@ export type Database = {
       }
     }
     Functions: {
+      has_portfolio_access: {
+        Args: { _portfolio_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -49,12 +49,17 @@ function KpiCard({
   );
 }
 
-const Dashboard = () => {
-  const { portfolios, isLoading } = useCombinedPortfolios();
+type DashboardProps = { portfolioId?: string; embedded?: boolean };
+
+const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: DashboardProps = {}) => {
+  const { portfolios: allPortfolios, isLoading } = useCombinedPortfolios();
+  const portfolios = lockedPortfolioId
+    ? allPortfolios.filter((p) => p.id === lockedPortfolioId)
+    : allPortfolios;
   const queryClient = useQueryClient();
   const { user, isAdmin, signOut } = useAuth();
   const [syncing, setSyncing] = useState(false);
-  const [portfolioId, setPortfolioId] = useState<string>("");
+  const [portfolioId, setPortfolioId] = useState<string>(lockedPortfolioId ?? "");
   const [sourceTab, setSourceTab] = useState<"meta_ads" | "google_ads">("meta_ads");
   const [accountId, setAccountId] = useState<string>("all");
   const [campaignId, setCampaignId] = useState<string>("all");
@@ -278,7 +283,7 @@ const Dashboard = () => {
         <p className="text-muted-foreground">Nenhum portfólio cadastrado.</p>
         {isAdmin ? (
           <Button asChild variant="outline" className="gap-2">
-            <Link to="/admin/integracoes"><Settings size={14} /> Configurar integração Meta Ads</Link>
+            <Link to="/admin"><Settings size={14} /> Painel admin</Link>
           </Button>
         ) : (
           <Button asChild variant="outline">
@@ -290,8 +295,8 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top bar */}
+    <div className={embedded ? "bg-background text-foreground" : "min-h-screen bg-background text-foreground"}>
+      {!embedded && (
       <header className="border-b border-border bg-card/40 backdrop-blur sticky top-0 z-40">
         <div className="container mx-auto px-4 lg:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -325,9 +330,9 @@ const Dashboard = () => {
                 <span className="hidden sm:inline">{syncing ? "Atualizando..." : "Atualizar dados Meta Ads"}</span>
               </Button>
             )}
-            {isAdmin && (
+            {isAdmin && !embedded && (
               <Button asChild variant="ghost" size="sm" className="gap-2">
-                <Link to="/admin/integracoes"><Settings size={14} /><span className="hidden sm:inline">Integrações</span></Link>
+                <Link to="/admin"><Settings size={14} /><span className="hidden sm:inline">Admin</span></Link>
               </Button>
             )}
             {user ? (
@@ -342,6 +347,7 @@ const Dashboard = () => {
           </div>
         </div>
       </header>
+      )}
 
       <main className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
         {/* Filters */}

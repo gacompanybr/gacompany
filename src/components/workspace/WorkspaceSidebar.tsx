@@ -1,0 +1,67 @@
+import { BarChart3, Bot, Users, Smartphone, Palette } from "lucide-react";
+import {
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
+} from "@/components/ui/sidebar";
+
+export type WorkspaceModule = "metricas" | "whatsapp" | "crm" | "social" | "criativos";
+
+const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | string[] }[] = [
+  { key: "metricas", label: "Métricas", icon: BarChart3, service: ["meta_ads", "google_ads"] },
+  { key: "whatsapp", label: "Agente WhatsApp", icon: Bot, service: "whatsapp_agent" },
+  { key: "crm", label: "CRM", icon: Users, service: "crm" },
+  { key: "social", label: "Social Media", icon: Smartphone, service: "social_media" },
+  { key: "criativos", label: "Criativos", icon: Palette, service: "criativos" },
+];
+
+export function getAvailableModules(servicos: string[]): typeof ALL {
+  return ALL.filter((m) => {
+    const s = Array.isArray(m.service) ? m.service : [m.service];
+    return s.some((x) => servicos.includes(x));
+  });
+}
+
+export function WorkspaceSidebar({
+  servicos, active, onChange, portfolioName,
+}: {
+  servicos: string[];
+  active: WorkspaceModule;
+  onChange: (m: WorkspaceModule) => void;
+  portfolioName: string;
+}) {
+  const modules = getAvailableModules(servicos);
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="p-4">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">Workspace</div>
+        <div className="font-semibold truncate">{portfolioName}</div>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {modules.length === 0 && (
+                <div className="text-xs text-muted-foreground p-3">
+                  Nenhum módulo contratado.
+                </div>
+              )}
+              {modules.map((m) => (
+                <SidebarMenuItem key={m.key}>
+                  <SidebarMenuButton
+                    isActive={active === m.key}
+                    onClick={() => onChange(m.key)}
+                    className="gap-2"
+                  >
+                    <m.icon className="h-4 w-4" />
+                    <span>{m.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
