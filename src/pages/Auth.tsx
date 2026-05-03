@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,14 +18,35 @@ const schema = z.object({
 });
 
 export default function Auth() {
-  const { user, loading } = useAuth();
-  const nav = useNavigate();
+  const { user, loading, isAdmin, getUserPortfolios } = useAuth();
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [redirectTo, setRedirectTo] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (loading || !user) return;
+    (async () => {
+      if (isAdmin) {
+        if (active) setRedirectTo("/admin");
+        return;
+      }
+      const ps = await getUserPortfolios();
+      if (active) setRedirectTo(ps[0] ? `/workspace/${ps[0].id}` : "/dashboard");
+    })();
+    return () => { active = false; };
+  }, [loading, user, isAdmin, getUserPortfolios]);
 
   if (loading) return null;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user && redirectTo) return <Navigate to={redirectTo} replace />;
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={20} />
+      </div>
+    );
+  }
 
   async function handleSignIn() {
     const parsed = schema.safeParse({ email, password });
@@ -34,7 +55,6 @@ export default function Auth() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return toast.error(error.message);
-    nav("/dashboard");
   }
 
   async function handleSignUp() {
@@ -43,7 +63,7 @@ export default function Auth() {
     setBusy(true);
     const { error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      options: { emailRedirectTo: `${window.location.origin}/auth` },
     });
     setBusy(false);
     if (error) return toast.error(error.message);
@@ -54,7 +74,7 @@ export default function Auth() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     });
     if (error) { toast.error(error.message); setBusy(false); }
   }
