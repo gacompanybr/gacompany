@@ -167,9 +167,13 @@ export type Database = {
           campaign_id: string
           campaign_name: string
           created_at: string
+          data_fim: string | null
+          data_inicio: string | null
           id: string
           integration_id: string
           objective: string | null
+          observacoes: string | null
+          orcamento_diario: number | null
           start_time: string | null
           status: string | null
           stop_time: string | null
@@ -180,9 +184,13 @@ export type Database = {
           campaign_id: string
           campaign_name: string
           created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
           id?: string
           integration_id: string
           objective?: string | null
+          observacoes?: string | null
+          orcamento_diario?: number | null
           start_time?: string | null
           status?: string | null
           stop_time?: string | null
@@ -193,9 +201,13 @@ export type Database = {
           campaign_id?: string
           campaign_name?: string
           created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
           id?: string
           integration_id?: string
           objective?: string | null
+          observacoes?: string | null
+          orcamento_diario?: number | null
           start_time?: string | null
           status?: string | null
           stop_time?: string | null
@@ -553,6 +565,83 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_agents: {
+        Row: {
+          created_at: string
+          dias_semana: Json
+          faqs: Json
+          fora_horario_msg: string | null
+          horario_fim: string | null
+          horario_inicio: string | null
+          id: string
+          instancia_id: string | null
+          instrucoes_base: string | null
+          max_tokens: number
+          mensagem_boas_vindas: string | null
+          modelo_ia: string
+          nome: string
+          nome_atendente: string
+          portfolio_id: string
+          status: string
+          telefone: string | null
+          temperatura: number
+          tom_de_voz: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dias_semana?: Json
+          faqs?: Json
+          fora_horario_msg?: string | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          instancia_id?: string | null
+          instrucoes_base?: string | null
+          max_tokens?: number
+          mensagem_boas_vindas?: string | null
+          modelo_ia?: string
+          nome: string
+          nome_atendente?: string
+          portfolio_id: string
+          status?: string
+          telefone?: string | null
+          temperatura?: number
+          tom_de_voz?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dias_semana?: Json
+          faqs?: Json
+          fora_horario_msg?: string | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          instancia_id?: string | null
+          instrucoes_base?: string | null
+          max_tokens?: number
+          mensagem_boas_vindas?: string | null
+          modelo_ia?: string
+          nome?: string
+          nome_atendente?: string
+          portfolio_id?: string
+          status?: string
+          telefone?: string | null
+          temperatura?: number
+          tom_de_voz?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_agents_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: true
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

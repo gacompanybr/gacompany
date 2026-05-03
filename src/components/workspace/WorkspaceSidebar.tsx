@@ -1,13 +1,14 @@
-import { BarChart3, Bot, Users, Smartphone, Palette } from "lucide-react";
+import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
 } from "@/components/ui/sidebar";
 
-export type WorkspaceModule = "metricas" | "whatsapp" | "crm" | "social" | "criativos";
+export type WorkspaceModule = "metricas" | "campanhas" | "whatsapp" | "crm" | "social" | "criativos";
 
 const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | string[] }[] = [
   { key: "metricas", label: "Métricas", icon: BarChart3, service: ["meta_ads", "google_ads"] },
+  { key: "campanhas", label: "Campanhas", icon: Megaphone, service: ["meta_ads", "google_ads"] },
   { key: "whatsapp", label: "Agente WhatsApp", icon: Bot, service: "whatsapp_agent" },
   { key: "crm", label: "CRM", icon: Users, service: "crm" },
   { key: "social", label: "Social Media", icon: Smartphone, service: "social_media" },

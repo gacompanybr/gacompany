@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Bot, Users, Smartphone, Palette, LogOut } from "lucide-react";
+import { ArrowLeft, Loader2, Users, Smartphone, Palette, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -11,6 +11,8 @@ import {
 } from "@/components/workspace/WorkspaceSidebar";
 import { ModulePlaceholder } from "@/components/workspace/ModulePlaceholder";
 import Dashboard from "./Dashboard";
+import WhatsappAgentModule from "@/modules/WhatsappAgent";
+import CampanhasModule from "@/modules/Campanhas";
 import gaLogo from "@/assets/logo.png";
 
 export default function Workspace() {
@@ -100,14 +102,14 @@ export default function Workspace() {
             {activeModule === "metricas" && (
               <Dashboard portfolioId={portfolio.id} embedded />
             )}
+            {activeModule === "campanhas" && (
+              <CampanhasModule
+                portfolioId={portfolio.id}
+                onOpenMetricas={() => setActiveModule("metricas")}
+              />
+            )}
             {activeModule === "whatsapp" && (
-              <div className="p-6">
-                <ModulePlaceholder
-                  icon={Bot}
-                  title="Agente WhatsApp"
-                  description="Atendimento automático com IA, qualificação de leads e follow-up via WhatsApp."
-                />
-              </div>
+              <WhatsappAgentModule portfolioId={portfolio.id} />
             )}
             {activeModule === "crm" && (
               <div className="p-6">
