@@ -25,7 +25,7 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
         .eq("portfolio_id", portfolioId)
         .maybeSingle();
       if (error) throw error;
-      return data as WhatsappAgent | null;
+      return data as unknown as WhatsappAgent | null;
     },
   });
 
