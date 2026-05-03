@@ -1,0 +1,42 @@
+import { ReactNode, useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+
+export function RequireAdmin({ children }: { children: ReactNode }) {
+  const { user, isAdmin, loading, getUserPortfolios } = useAuth();
+  const [redirect, setRedirect] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function resolve() {
+      if (loading) return;
+      if (!user) {
+        if (active) { setRedirect("/auth"); setResolving(false); }
+        return;
+      }
+      if (isAdmin) {
+        if (active) setResolving(false);
+        return;
+      }
+      // Viewer: redireciona para o primeiro portfolio acessível
+      const ps = await getUserPortfolios();
+      if (!active) return;
+      setRedirect(ps[0] ? `/workspace/${ps[0].id}` : "/auth");
+      setResolving(false);
+    }
+    resolve();
+    return () => { active = false; };
+  }, [loading, user, isAdmin, getUserPortfolios]);
+
+  if (loading || resolving) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={24} />
+      </div>
+    );
+  }
+  if (redirect) return <Navigate to={redirect} replace />;
+  return <>{children}</>;
+}
