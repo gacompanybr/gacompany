@@ -295,8 +295,8 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top bar */}
+    <div className={embedded ? "bg-background text-foreground" : "min-h-screen bg-background text-foreground"}>
+      {!embedded && (
       <header className="border-b border-border bg-card/40 backdrop-blur sticky top-0 z-40">
         <div className="container mx-auto px-4 lg:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
