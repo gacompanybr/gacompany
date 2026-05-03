@@ -11,6 +11,8 @@ import {
 } from "@/components/workspace/WorkspaceSidebar";
 import { ModulePlaceholder } from "@/components/workspace/ModulePlaceholder";
 import Dashboard from "./Dashboard";
+import WhatsappAgentModule from "@/modules/WhatsappAgent";
+import CampanhasModule from "@/modules/Campanhas";
 import gaLogo from "@/assets/logo.png";
 
 export default function Workspace() {
