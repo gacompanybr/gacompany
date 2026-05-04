@@ -185,6 +185,19 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
       setEnd(todayStr);
       return;
     }
+    if (period === "current_month") {
+      const first = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+      setStart(first);
+      setEnd(todayStr);
+      return;
+    }
+    if (period === "last_month") {
+      const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const last = new Date(today.getFullYear(), today.getMonth(), 0);
+      setStart(first.toISOString().slice(0, 10));
+      setEnd(last.toISOString().slice(0, 10));
+      return;
+    }
     const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
     const s = new Date(today);
     s.setDate(s.getDate() - days);
