@@ -460,6 +460,8 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
                   <SelectItem value="7d">Últimos 7 dias</SelectItem>
                   <SelectItem value="30d">Últimos 30 dias</SelectItem>
                   <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                  <SelectItem value="current_month">Mês atual</SelectItem>
+                  <SelectItem value="last_month">Mês anterior</SelectItem>
                 </SelectContent>
               </Select>
             </div>
