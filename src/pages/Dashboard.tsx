@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  LineChart, Line, Legend,
+  LineChart, Line, Legend, AreaChart, Area,
 } from "recharts";
 import { defaultTheme } from "@/dashboard/types";
 import { useCombinedPortfolios } from "@/dashboard/useCombinedPortfolios";
@@ -33,8 +33,10 @@ const fmtBRL = (n: number) =>
 const fmtNum = (n: number) => n.toLocaleString("pt-BR");
 
 function KpiCard({
-  icon: Icon, label, value, hint, accent = false,
-}: { icon: any; label: string; value: string; hint?: string; accent?: boolean }) {
+  icon: Icon, label, value, hint, accent = false, delta,
+}: { icon: any; label: string; value: string; hint?: string; accent?: boolean; delta?: number | null }) {
+  const showDelta = typeof delta === "number" && isFinite(delta);
+  const positive = (delta ?? 0) >= 0;
   return (
     <Card className={`p-5 border-border/60 ${accent ? "bg-gradient-to-br from-primary/15 to-transparent border-primary/40" : ""}`}>
       <div className="flex items-start justify-between mb-3">
@@ -44,6 +46,12 @@ function KpiCard({
         </div>
       </div>
       <div className="text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      {showDelta && (
+        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-semibold ${positive ? "text-emerald-500" : "text-red-500"}`}>
+          {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {positive ? "+" : ""}{delta!.toFixed(0)}%
+        </div>
+      )}
       {hint && <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{hint}</p>}
     </Card>
   );
@@ -177,6 +185,19 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
       setEnd(todayStr);
       return;
     }
+    if (period === "current_month") {
+      const first = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+      setStart(first);
+      setEnd(todayStr);
+      return;
+    }
+    if (period === "last_month") {
+      const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const last = new Date(today.getFullYear(), today.getMonth(), 0);
+      setStart(first.toISOString().slice(0, 10));
+      setEnd(last.toISOString().slice(0, 10));
+      return;
+    }
     const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
     const s = new Date(today);
     s.setDate(s.getDate() - days);
@@ -265,6 +286,39 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
   const worst = [...filteredCampaigns]
     .filter((c) => c.results > 0)
     .sort((a, b) => b.costPerResult - a.costPerResult)[0];
+
+  // Daily timeline aggregation across all filtered campaigns within selected period
+  const dailySeries = useMemo(() => {
+    const map = new Map<string, { date: string; cost: number; results: number; impressions: number; clicks: number }>();
+    for (const c of filteredCampaigns) {
+      for (const m of c.dailyMetrics ?? []) {
+        if (start && m.date < start) continue;
+        if (end && m.date > end) continue;
+        if (!map.has(m.date)) {
+          map.set(m.date, { date: m.date, cost: 0, results: 0, impressions: 0, clicks: 0 });
+        }
+        const r = map.get(m.date)!;
+        r.cost += m.cost;
+        r.results += m.conversions || m.clicks;
+        r.impressions += m.impressions;
+        r.clicks += m.clicks;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredCampaigns, start, end]);
+
+  // Variation: compare second half vs first half of dailySeries
+  function variation(field: "cost" | "results" | "impressions" | "clicks"): number | null {
+    if (dailySeries.length < 4) return null;
+    const half = Math.floor(dailySeries.length / 2);
+    const first = dailySeries.slice(0, half).reduce((s, r) => s + r[field], 0);
+    const second = dailySeries.slice(half).reduce((s, r) => s + r[field], 0);
+    if (first <= 0) return null;
+    return ((second - first) / first) * 100;
+  }
+  const deltaSpent = variation("cost");
+  const deltaResults = variation("results");
+  const deltaImpressions = variation("impressions");
 
   const isBranded = accountId !== "all" && portfolio;
 
@@ -365,6 +419,15 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
           </Tabs>
         )}
 
+        {embedded && sourceTab === "meta_ads" && hasMeta && isAdmin && (
+          <div className="flex justify-end">
+            <Button onClick={handleSyncMeta} disabled={syncing} variant="outline" size="sm" className="gap-2">
+              {syncing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+              {syncing ? "Atualizando..." : "Atualizar dados"}
+            </Button>
+          </div>
+        )}
+
         <Card className="p-4 lg:p-5">
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="col-span-2 lg:col-span-1">
@@ -406,6 +469,8 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
                   <SelectItem value="7d">Últimos 7 dias</SelectItem>
                   <SelectItem value="30d">Últimos 30 dias</SelectItem>
                   <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                  <SelectItem value="current_month">Mês atual</SelectItem>
+                  <SelectItem value="last_month">Mês anterior</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -447,6 +512,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
               ? "Total de cliques nos anúncios."
               : resultDescription}
             accent={!showConversionsKpi}
+            delta={deltaResults}
           />
           {!showConversionsKpi && (
             <KpiCard
@@ -467,12 +533,14 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             label="Valor usado"
             value={fmtBRL(totals.spent)}
             hint="Investimento real consumido pelas campanhas."
+            delta={deltaSpent}
           />
           <KpiCard
             icon={Eye}
             label="Impressões"
             value={fmtNum(totals.impressions)}
             hint="Total de exibições dos anúncios."
+            delta={deltaImpressions}
           />
           <KpiCard
             icon={Users}
@@ -481,6 +549,54 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             hint="Pessoas únicas atingidas."
           />
         </div>
+
+        {/* Evolução diária */}
+        {dailySeries.length > 0 && (
+          <Card className="p-5">
+            <h3 className="font-semibold mb-4">Evolução diária no período</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={dailySeries}>
+                <defs>
+                  <linearGradient id="gradCost" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradRes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="l" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="r" orientation="right" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(v: number, name) => name === "Gasto diário" ? fmtBRL(v) : fmtNum(v)}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  yAxisId="l"
+                  type="monotone"
+                  dataKey="cost"
+                  name="Gasto diário"
+                  stroke="hsl(var(--primary))"
+                  fill="url(#gradCost)"
+                  strokeWidth={2}
+                />
+                <Area
+                  yAxisId="r"
+                  type="monotone"
+                  dataKey="results"
+                  name="Resultados diários"
+                  stroke="hsl(var(--muted-foreground))"
+                  fill="url(#gradRes)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
 
         {/* Best / Worst */}
         {(best || worst) && (
@@ -563,23 +679,28 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
                 <th className="py-3 pr-4 text-right">Custo/result.</th>
                 <th className="py-3 pr-4 text-right">Valor usado</th>
                 <th className="py-3 pr-4 text-right">Impressões</th>
+                <th className="py-3 pr-4 text-right">CTR</th>
                 <th className="py-3 text-right">Alcance</th>
               </tr>
             </thead>
             <tbody>
-              {sortedBySpent.map((c) => (
-                <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
-                  <td className="py-3 pr-4 font-medium">{c.name}</td>
-                  <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
-                  <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
-                  <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
-                  <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
-                  <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
-                  <td className="py-3 text-right">{fmtNum(c.reach)}</td>
-                </tr>
-              ))}
+              {sortedBySpent.map((c) => {
+                const ctr = c.impressions > 0 ? ((c.clicks ?? 0) / c.impressions) * 100 : 0;
+                return (
+                  <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="py-3 pr-4 font-medium">{c.name}</td>
+                    <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
+                    <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
+                    <td className="py-3 pr-4 text-right">{ctr.toFixed(2)}%</td>
+                    <td className="py-3 text-right">{fmtNum(c.reach)}</td>
+                  </tr>
+                );
+              })}
               {!filteredCampaigns.length && (
-                <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
               )}
             </tbody>
           </table>
