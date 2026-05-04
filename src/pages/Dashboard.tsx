@@ -419,6 +419,15 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
           </Tabs>
         )}
 
+        {embedded && sourceTab === "meta_ads" && hasMeta && isAdmin && (
+          <div className="flex justify-end">
+            <Button onClick={handleSyncMeta} disabled={syncing} variant="outline" size="sm" className="gap-2">
+              {syncing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+              {syncing ? "Atualizando..." : "Atualizar dados"}
+            </Button>
+          </div>
+        )}
+
         <Card className="p-4 lg:p-5">
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="col-span-2 lg:col-span-1">
