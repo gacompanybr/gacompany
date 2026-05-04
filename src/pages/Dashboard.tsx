@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  LineChart, Line, Legend,
+  LineChart, Line, Legend, AreaChart, Area,
 } from "recharts";
 import { defaultTheme } from "@/dashboard/types";
 import { useCombinedPortfolios } from "@/dashboard/useCombinedPortfolios";
