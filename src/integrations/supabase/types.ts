@@ -161,6 +161,94 @@ export type Database = {
           },
         ]
       }
+      crm_interacoes: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          lead_id: string
+          tipo: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          id?: string
+          lead_id: string
+          tipo: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          lead_id?: string
+          tipo?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_interacoes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_leads: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          origem: string
+          portfolio_id: string
+          responsavel_id: string | null
+          status: string
+          telefone: string | null
+          updated_at: string
+          valor_estimado: number | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          origem?: string
+          portfolio_id: string
+          responsavel_id?: string | null
+          status?: string
+          telefone?: string | null
+          updated_at?: string
+          valor_estimado?: number | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          origem?: string
+          portfolio_id?: string
+          responsavel_id?: string | null
+          status?: string
+          telefone?: string | null
+          updated_at?: string
+          valor_estimado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_leads_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_campanhas: {
         Row: {
           budget: number | null
@@ -471,6 +559,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      social_posts: {
+        Row: {
+          conteudo: string
+          created_at: string
+          data_agendada: string | null
+          hashtags: string | null
+          id: string
+          imagem_url: string | null
+          legenda: string | null
+          plataformas: Json
+          portfolio_id: string
+          responsavel_id: string | null
+          status: string
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          conteudo?: string
+          created_at?: string
+          data_agendada?: string | null
+          hashtags?: string | null
+          id?: string
+          imagem_url?: string | null
+          legenda?: string | null
+          plataformas?: Json
+          portfolio_id: string
+          responsavel_id?: string | null
+          status?: string
+          tipo?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          data_agendada?: string | null
+          hashtags?: string | null
+          id?: string
+          imagem_url?: string | null
+          legenda?: string | null
+          plataformas?: Json
+          portfolio_id?: string
+          responsavel_id?: string | null
+          status?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sync_logs: {
         Row: {
