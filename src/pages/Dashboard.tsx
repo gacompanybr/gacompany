@@ -33,8 +33,10 @@ const fmtBRL = (n: number) =>
 const fmtNum = (n: number) => n.toLocaleString("pt-BR");
 
 function KpiCard({
-  icon: Icon, label, value, hint, accent = false,
-}: { icon: any; label: string; value: string; hint?: string; accent?: boolean }) {
+  icon: Icon, label, value, hint, accent = false, delta,
+}: { icon: any; label: string; value: string; hint?: string; accent?: boolean; delta?: number | null }) {
+  const showDelta = typeof delta === "number" && isFinite(delta);
+  const positive = (delta ?? 0) >= 0;
   return (
     <Card className={`p-5 border-border/60 ${accent ? "bg-gradient-to-br from-primary/15 to-transparent border-primary/40" : ""}`}>
       <div className="flex items-start justify-between mb-3">
@@ -44,6 +46,12 @@ function KpiCard({
         </div>
       </div>
       <div className="text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
+      {showDelta && (
+        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-semibold ${positive ? "text-emerald-500" : "text-red-500"}`}>
+          {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {positive ? "+" : ""}{delta!.toFixed(0)}%
+        </div>
+      )}
       {hint && <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{hint}</p>}
     </Card>
   );
