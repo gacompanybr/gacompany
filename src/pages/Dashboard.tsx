@@ -287,6 +287,39 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
     .filter((c) => c.results > 0)
     .sort((a, b) => b.costPerResult - a.costPerResult)[0];
 
+  // Daily timeline aggregation across all filtered campaigns within selected period
+  const dailySeries = useMemo(() => {
+    const map = new Map<string, { date: string; cost: number; results: number; impressions: number; clicks: number }>();
+    for (const c of filteredCampaigns) {
+      for (const m of c.dailyMetrics ?? []) {
+        if (start && m.date < start) continue;
+        if (end && m.date > end) continue;
+        if (!map.has(m.date)) {
+          map.set(m.date, { date: m.date, cost: 0, results: 0, impressions: 0, clicks: 0 });
+        }
+        const r = map.get(m.date)!;
+        r.cost += m.cost;
+        r.results += m.conversions || m.clicks;
+        r.impressions += m.impressions;
+        r.clicks += m.clicks;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredCampaigns, start, end]);
+
+  // Variation: compare second half vs first half of dailySeries
+  function variation(field: "cost" | "results" | "impressions" | "clicks"): number | null {
+    if (dailySeries.length < 4) return null;
+    const half = Math.floor(dailySeries.length / 2);
+    const first = dailySeries.slice(0, half).reduce((s, r) => s + r[field], 0);
+    const second = dailySeries.slice(half).reduce((s, r) => s + r[field], 0);
+    if (first <= 0) return null;
+    return ((second - first) / first) * 100;
+  }
+  const deltaSpent = variation("cost");
+  const deltaResults = variation("results");
+  const deltaImpressions = variation("impressions");
+
   const isBranded = accountId !== "all" && portfolio;
 
   if (isLoading && !portfolio) {
