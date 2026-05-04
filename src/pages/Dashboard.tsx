@@ -679,23 +679,28 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
                 <th className="py-3 pr-4 text-right">Custo/result.</th>
                 <th className="py-3 pr-4 text-right">Valor usado</th>
                 <th className="py-3 pr-4 text-right">Impressões</th>
+                <th className="py-3 pr-4 text-right">CTR</th>
                 <th className="py-3 text-right">Alcance</th>
               </tr>
             </thead>
             <tbody>
-              {sortedBySpent.map((c) => (
-                <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
-                  <td className="py-3 pr-4 font-medium">{c.name}</td>
-                  <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
-                  <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
-                  <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
-                  <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
-                  <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
-                  <td className="py-3 text-right">{fmtNum(c.reach)}</td>
-                </tr>
-              ))}
+              {sortedBySpent.map((c) => {
+                const ctr = c.impressions > 0 ? ((c.clicks ?? 0) / c.impressions) * 100 : 0;
+                return (
+                  <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="py-3 pr-4 font-medium">{c.name}</td>
+                    <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
+                    <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
+                    <td className="py-3 pr-4 text-right">{ctr.toFixed(2)}%</td>
+                    <td className="py-3 text-right">{fmtNum(c.reach)}</td>
+                  </tr>
+                );
+              })}
               {!filteredCampaigns.length && (
-                <tr><td colSpan={7} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
               )}
             </tbody>
           </table>
