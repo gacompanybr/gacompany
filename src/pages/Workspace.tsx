@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Users, Smartphone, Palette, LogOut } from "lucide-react";
+import { ArrowLeft, Loader2, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import {
   WorkspaceSidebar, type WorkspaceModule, getAvailableModules,
 } from "@/components/workspace/WorkspaceSidebar";
-import { ModulePlaceholder } from "@/components/workspace/ModulePlaceholder";
 import Dashboard from "./Dashboard";
 import WhatsappAgentModule from "@/modules/WhatsappAgent";
 import CampanhasModule from "@/modules/Campanhas";
+import CRMModule from "@/modules/CRM";
+import SocialMediaModule from "@/modules/SocialMedia";
+import CriativosModule from "@/modules/Criativos";
 import gaLogo from "@/assets/logo.png";
 
 export default function Workspace() {
@@ -111,33 +113,9 @@ export default function Workspace() {
             {activeModule === "whatsapp" && (
               <WhatsappAgentModule portfolioId={portfolio.id} />
             )}
-            {activeModule === "crm" && (
-              <div className="p-6">
-                <ModulePlaceholder
-                  icon={Users}
-                  title="CRM"
-                  description="Funil de vendas, gestão de oportunidades e histórico de interações com leads."
-                />
-              </div>
-            )}
-            {activeModule === "social" && (
-              <div className="p-6">
-                <ModulePlaceholder
-                  icon={Smartphone}
-                  title="Social Media"
-                  description="Calendário de postagens, métricas orgânicas e aprovação de conteúdo."
-                />
-              </div>
-            )}
-            {activeModule === "criativos" && (
-              <div className="p-6">
-                <ModulePlaceholder
-                  icon={Palette}
-                  title="Criativos"
-                  description="Biblioteca de peças, briefings e versionamento de criativos para campanhas."
-                />
-              </div>
-            )}
+            {activeModule === "crm" && <CRMModule portfolioId={portfolio.id} />}
+            {activeModule === "social" && <SocialMediaModule portfolioId={portfolio.id} />}
+            {activeModule === "criativos" && <CriativosModule portfolioId={portfolio.id} />}
           </main>
         </div>
       </div>
