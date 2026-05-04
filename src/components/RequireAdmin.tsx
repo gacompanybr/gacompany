@@ -9,34 +9,38 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   const [resolving, setResolving] = useState(true);
 
   useEffect(() => {
+    if (loading) return;
+
     let active = true;
+
     async function resolve() {
-      if (loading) return;
       if (!user) {
         if (active) { setRedirect("/auth"); setResolving(false); }
         return;
       }
       if (isAdmin) {
-        if (active) setResolving(false);
+        if (active) { setRedirect(null); setResolving(false); }
         return;
       }
-      // Viewer: redireciona para o primeiro portfolio acessível
       const ps = await getUserPortfolios();
       if (!active) return;
       setRedirect(ps[0] ? `/workspace/${ps[0].id}` : "/auth");
       setResolving(false);
     }
+
     resolve();
     return () => { active = false; };
   }, [loading, user, isAdmin, getUserPortfolios]);
 
   if (loading || resolving) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2">
         <Loader2 className="animate-spin text-primary" size={24} />
+        <p className="text-sm text-muted-foreground">Verificando acesso...</p>
       </div>
     );
   }
+
   if (redirect) return <Navigate to={redirect} replace />;
   return <>{children}</>;
 }

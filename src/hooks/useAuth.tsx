@@ -21,6 +21,22 @@ const Ctx = createContext<AuthCtx>({
   hasPortfolioAccess: async () => false,
 });
 
+async function fetchRole(userId: string): Promise<boolean> {
+  // Tenta até 5 vezes com backoff — o trigger pode demorar alguns ms após signup
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    if (!error && data) {
+      return data.some((r: any) => r.role === "admin");
+    }
+    await new Promise((res) => setTimeout(res, 300 * (attempt + 1)));
+  }
+  return false;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -30,21 +46,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
 
     async function applySession(s: Session | null) {
+      if (!active) return;
       setLoading(true);
       setSession(s);
 
-      const admin = s?.user ? await fetchRole(s.user.id) : false;
-      if (!active) return;
+      if (s?.user) {
+        const admin = await fetchRole(s.user.id);
+        if (active) setIsAdmin(admin);
+      } else {
+        if (active) setIsAdmin(false);
+      }
 
-      setIsAdmin(admin);
-      setLoading(false);
+      if (active) setLoading(false);
     }
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setTimeout(() => applySession(s), 0);
+    supabase.auth.getSession().then(({ data }) => {
+      applySession(data.session);
     });
 
-    supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      applySession(s);
+    });
 
     return () => {
       active = false;
@@ -52,29 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function fetchRole(userId: string) {
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-
-      if (!error) return (data ?? []).some((r: any) => r.role === "admin");
-      await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
-    }
-
-    return false;
-  }
-
   const getUserPortfolios = useCallback(async (): Promise<PortfolioMini[]> => {
     if (!session?.user) return [];
-    // Admin vê todos; viewer só os vinculados (RLS já filtra)
     const { data, error } = await supabase
       .from("portfolios")
       .select("id, name, slug")
       .order("name");
     if (error) {
-      console.warn("getUserPortfolios", error);
+      console.warn("getUserPortfolios error:", error.message);
       return [];
     }
     return data ?? [];
