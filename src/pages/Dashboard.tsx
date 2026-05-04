@@ -503,6 +503,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
               ? "Total de cliques nos anúncios."
               : resultDescription}
             accent={!showConversionsKpi}
+            delta={deltaResults}
           />
           {!showConversionsKpi && (
             <KpiCard
@@ -523,12 +524,14 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             label="Valor usado"
             value={fmtBRL(totals.spent)}
             hint="Investimento real consumido pelas campanhas."
+            delta={deltaSpent}
           />
           <KpiCard
             icon={Eye}
             label="Impressões"
             value={fmtNum(totals.impressions)}
             hint="Total de exibições dos anúncios."
+            delta={deltaImpressions}
           />
           <KpiCard
             icon={Users}
@@ -537,6 +540,54 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             hint="Pessoas únicas atingidas."
           />
         </div>
+
+        {/* Evolução diária */}
+        {dailySeries.length > 0 && (
+          <Card className="p-5">
+            <h3 className="font-semibold mb-4">Evolução diária no período</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={dailySeries}>
+                <defs>
+                  <linearGradient id="gradCost" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradRes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="l" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="r" orientation="right" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(v: number, name) => name === "Gasto diário" ? fmtBRL(v) : fmtNum(v)}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  yAxisId="l"
+                  type="monotone"
+                  dataKey="cost"
+                  name="Gasto diário"
+                  stroke="hsl(var(--primary))"
+                  fill="url(#gradCost)"
+                  strokeWidth={2}
+                />
+                <Area
+                  yAxisId="r"
+                  type="monotone"
+                  dataKey="results"
+                  name="Resultados diários"
+                  stroke="hsl(var(--muted-foreground))"
+                  fill="url(#gradRes)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
 
         {/* Best / Worst */}
         {(best || worst) && (
