@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,9 +9,10 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, Pencil } from "lucide-react";
 import { ServiceBadge } from "./ServiceBadge";
 import { NovoClienteDialog } from "./NovoClienteDialog";
+import { EditarClienteDialog } from "./EditarClienteDialog";
 
 type ClienteRow = {
   id: string;
@@ -28,6 +29,7 @@ export function ClientesTab() {
   const qc = useQueryClient();
   const [busca, setBusca] = useState("");
   const [openNovo, setOpenNovo] = useState(false);
+  const [editando, setEditando] = useState<ClienteRow | null>(null);
 
   const { data: clientes = [], isLoading } = useQuery({
     queryKey: ["admin-clientes"],
@@ -38,7 +40,6 @@ export function ClientesTab() {
         .order("name");
       if (error) throw error;
 
-      // Buscar emails dos responsáveis
       const userIds = Array.from(
         new Set((data ?? []).map((c: any) => c.responsavel_id).filter(Boolean)),
       );
@@ -62,6 +63,10 @@ export function ClientesTab() {
   const filtrados = clientes.filter((c) =>
     c.name.toLowerCase().includes(busca.toLowerCase()),
   );
+
+  function refresh() {
+    qc.invalidateQueries({ queryKey: ["admin-clientes"] });
+  }
 
   return (
     <div className="space-y-4">
@@ -94,12 +99,13 @@ export function ClientesTab() {
                 <TableHead>Serviços</TableHead>
                 <TableHead>Responsável</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtrados.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     Nenhum cliente encontrado.
                   </TableCell>
                 </TableRow>
@@ -131,6 +137,16 @@ export function ClientesTab() {
                       {c.status === "active" ? "Ativo" : "Inativo"}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditando(c)}
+                      title="Editar cliente"
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -141,7 +157,15 @@ export function ClientesTab() {
       <NovoClienteDialog
         open={openNovo}
         onOpenChange={setOpenNovo}
-        onCreated={() => qc.invalidateQueries({ queryKey: ["admin-clientes"] })}
+        onCreated={refresh}
+      />
+
+      <EditarClienteDialog
+        open={!!editando}
+        onOpenChange={(o) => !o && setEditando(null)}
+        cliente={editando}
+        onSaved={refresh}
+        onDeleted={refresh}
       />
     </div>
   );
