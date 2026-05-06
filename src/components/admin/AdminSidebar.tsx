@@ -1,4 +1,4 @@
-import { Building2, Users, Settings, LogOut } from "lucide-react";
+import { Building2, Users, Settings, LogOut, Wallet } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader,
@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import gaLogo from "@/assets/logo.png";
 
-export type AdminTab = "clientes" | "equipe" | "config";
+export type AdminTab = "clientes" | "equipe" | "financeiro" | "config";
 
 const ITEMS: { key: AdminTab; label: string; icon: any }[] = [
   { key: "clientes", label: "Clientes", icon: Building2 },
   { key: "equipe", label: "Equipe", icon: Users },
+  { key: "financeiro", label: "Financeiro", icon: Wallet },
   { key: "config", label: "Configurações", icon: Settings },
 ];
 

@@ -15,6 +15,7 @@ import CampanhasModule from "@/modules/Campanhas";
 import CRMModule from "@/modules/CRM";
 import SocialMediaModule from "@/modules/SocialMedia";
 import CriativosModule from "@/modules/Criativos";
+import FinanceiroModule from "@/modules/Financeiro";
 import gaLogo from "@/assets/logo.png";
 
 export default function Workspace() {
@@ -116,6 +117,7 @@ export default function Workspace() {
             {activeModule === "crm" && <CRMModule portfolioId={portfolio.id} />}
             {activeModule === "social" && <SocialMediaModule portfolioId={portfolio.id} />}
             {activeModule === "criativos" && <CriativosModule portfolioId={portfolio.id} />}
+            {activeModule === "financeiro" && <FinanceiroModule portfolioId={portfolio.id} />}
           </main>
         </div>
       </div>

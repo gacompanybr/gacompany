@@ -1,10 +1,10 @@
-import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone } from "lucide-react";
+import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone, Wallet } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
 } from "@/components/ui/sidebar";
 
-export type WorkspaceModule = "metricas" | "campanhas" | "whatsapp" | "crm" | "social" | "criativos";
+export type WorkspaceModule = "metricas" | "campanhas" | "whatsapp" | "crm" | "social" | "criativos" | "financeiro";
 
 const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | string[] }[] = [
   { key: "metricas", label: "Métricas", icon: BarChart3, service: ["meta_ads", "google_ads"] },
@@ -13,6 +13,7 @@ const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | s
   { key: "crm", label: "CRM", icon: Users, service: "crm" },
   { key: "social", label: "Social Media", icon: Smartphone, service: "social_media" },
   { key: "criativos", label: "Criativos", icon: Palette, service: "criativos" },
+  { key: "financeiro", label: "Financeiro", icon: Wallet, service: "financeiro" },
 ];
 
 export function getAvailableModules(servicos: string[]): typeof ALL {
