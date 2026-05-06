@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/lib/sb";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +28,7 @@ export function RecebimentosTab() {
   const { data: portfolios = [] } = useQuery({
     queryKey: ["portfolios-mini"],
     queryFn: async () => {
-      const { data } = await supabase.from("portfolios").select("id, name").order("name");
+      const { data } = await sb.from("portfolios").select("id, name").order("name");
       return data ?? [];
     },
   });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/lib/sb";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -57,7 +57,7 @@ export function ServicoFinanceiroDialog({
   const { data: portfolios = [] } = useQuery({
     queryKey: ["portfolios-mini"],
     queryFn: async () => {
-      const { data } = await supabase.from("portfolios").select("id, name").order("name");
+      const { data } = await sb.from("portfolios").select("id, name").order("name");
       return data ?? [];
     },
   });
@@ -65,7 +65,7 @@ export function ServicoFinanceiroDialog({
   const { data: categorias = [] } = useQuery({
     queryKey: ["financial-categories"],
     queryFn: async () => {
-      const { data } = await supabase.from("financial_categories").select("id, nome, cor").order("nome");
+      const { data } = await sb.from("financial_categories").select("id, nome, cor").order("nome");
       return data ?? [];
     },
   });
@@ -168,7 +168,7 @@ export function ServicoFinanceiroDialog({
     }
 
     // Sincroniza participantes (apaga e recria — mais simples e atômico do lado do client)
-    await supabase.from("financial_service_participants").delete().eq("service_id", serviceId);
+    await sb.from("financial_service_participants").delete().eq("service_id", serviceId);
     const { error: partErr } = await supabase
       .from("financial_service_participants")
       .insert(
@@ -211,7 +211,7 @@ export function ServicoFinanceiroDialog({
       }
     }
     if (novos.length) {
-      const { error: recErr } = await supabase.from("financial_receivables").insert(novos);
+      const { error: recErr } = await sb.from("financial_receivables").insert(novos);
       if (recErr) {
         setBusy(false);
         return toast.error("Falha ao gerar recebimentos: " + recErr.message);

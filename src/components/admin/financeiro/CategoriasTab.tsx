@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/lib/sb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -37,7 +37,7 @@ export function CategoriasTab() {
 
   async function remove(id: string) {
     if (!confirm("Excluir categoria?")) return;
-    const { error } = await supabase.from("financial_categories").delete().eq("id", id);
+    const { error } = await sb.from("financial_categories").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Categoria excluída");
     qc.invalidateQueries({ queryKey: ["financial-categories"] });

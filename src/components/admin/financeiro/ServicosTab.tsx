@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sb } from "@/lib/sb";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,7 +74,7 @@ export function ServicosTab() {
 
   async function remove(s: ServiceRow) {
     if (!confirm(`Excluir "${s.nome}" e todos os recebimentos vinculados?`)) return;
-    const { error } = await supabase.from("financial_services").delete().eq("id", s.id);
+    const { error } = await sb.from("financial_services").delete().eq("id", s.id);
     if (error) return toast.error(error.message);
     toast.success("Serviço excluído");
     refresh();
@@ -106,7 +106,7 @@ export function ServicosTab() {
     if (error || !created) return toast.error(error?.message ?? "Falha");
 
     if (parts?.length) {
-      await supabase.from("financial_service_participants").insert(
+      await sb.from("financial_service_participants").insert(
         parts.map((p: any) => ({
           service_id: created.id,
           user_id: p.user_id,
@@ -133,7 +133,7 @@ export function ServicosTab() {
           });
         }
       }
-      if (novos.length) await supabase.from("financial_receivables").insert(novos);
+      if (novos.length) await sb.from("financial_receivables").insert(novos);
     }
 
     toast.success("Serviço duplicado");
