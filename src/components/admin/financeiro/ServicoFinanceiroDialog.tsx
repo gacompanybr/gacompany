@@ -84,7 +84,7 @@ export function ServicoFinanceiroDialog({
       setDataInicio(editing.data_inicio);
       setStatus(editing.status);
       setObservacoes(editing.observacoes ?? "");
-      supabase
+      sb
         .from("financial_service_participants")
         .select("user_id, percentual")
         .eq("service_id", editing.id)
@@ -141,7 +141,7 @@ export function ServicoFinanceiroDialog({
     let serviceId = editing?.id;
 
     if (editing) {
-      const { error } = await supabase
+      const { error } = await sb
         .from("financial_services")
         .update(payload)
         .eq("id", editing.id);
@@ -150,7 +150,7 @@ export function ServicoFinanceiroDialog({
         return toast.error(error.message);
       }
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from("financial_services")
         .insert(payload)
         .select("id")
@@ -169,7 +169,7 @@ export function ServicoFinanceiroDialog({
 
     // Sincroniza participantes (apaga e recria — mais simples e atômico do lado do client)
     await sb.from("financial_service_participants").delete().eq("service_id", serviceId);
-    const { error: partErr } = await supabase
+    const { error: partErr } = await sb
       .from("financial_service_participants")
       .insert(
         participants.map((p) => ({
@@ -184,7 +184,7 @@ export function ServicoFinanceiroDialog({
     }
 
     // Regera recebimentos pendentes/atrasados
-    await supabase
+    await sb
       .from("financial_receivables")
       .delete()
       .eq("service_id", serviceId)

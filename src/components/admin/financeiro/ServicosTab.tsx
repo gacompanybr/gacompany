@@ -37,7 +37,7 @@ export function ServicosTab() {
   const { data: servicos = [], isLoading } = useQuery({
     queryKey: ["financial-services"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from("financial_services")
         .select(`
           id, portfolio_id, category_id, nome, descricao, valor_total,
@@ -52,7 +52,7 @@ export function ServicosTab() {
       const ids = (data ?? []).map((s: any) => s.id);
       const counts: Record<string, number> = {};
       if (ids.length) {
-        const { data: parts } = await supabase
+        const { data: parts } = await sb
           .from("financial_service_participants")
           .select("service_id")
           .in("service_id", ids);
@@ -81,12 +81,12 @@ export function ServicosTab() {
   }
 
   async function duplicate(s: ServiceRow) {
-    const { data: parts } = await supabase
+    const { data: parts } = await sb
       .from("financial_service_participants")
       .select("user_id, percentual")
       .eq("service_id", s.id);
 
-    const { data: created, error } = await supabase
+    const { data: created, error } = await sb
       .from("financial_services")
       .insert({
         portfolio_id: s.portfolio_id,

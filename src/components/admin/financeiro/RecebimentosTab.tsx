@@ -40,7 +40,7 @@ export function RecebimentosTab() {
       const start = `${y}-${String(m).padStart(2, "0")}-01`;
       const end = new Date(y, m, 0).toISOString().slice(0, 10);
 
-      let q = supabase
+      let q = sb
         .from("financial_receivables")
         .select(`
           id, service_id, participant_user_id, portfolio_id,
@@ -63,7 +63,7 @@ export function RecebimentosTab() {
       const userIds = Array.from(new Set((data ?? []).map((r: any) => r.participant_user_id)));
       const profilesMap = new Map<string, string>();
       if (userIds.length) {
-        const { data: profs } = await supabase
+        const { data: profs } = await sb
           .from("profiles")
           .select("user_id, display_name")
           .in("user_id", userIds);

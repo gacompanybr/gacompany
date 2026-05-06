@@ -70,7 +70,7 @@ export function RecebimentoDialog({
       payload.valor_recebido = null;
       payload.data_recebimento = null;
     }
-    const { error } = await supabase
+    const { error } = await sb
       .from("financial_receivables")
       .update(payload)
       .eq("id", rec.id);
@@ -84,7 +84,7 @@ export function RecebimentoDialog({
   async function quickReceive() {
     if (!rec) return;
     setBusy(true);
-    const { error } = await supabase
+    const { error } = await sb
       .from("financial_receivables")
       .update({
         status: "recebido",

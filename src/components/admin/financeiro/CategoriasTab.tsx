@@ -15,7 +15,7 @@ export function CategoriasTab() {
   const { data: cats = [], isLoading } = useQuery({
     queryKey: ["financial-categories"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from("financial_categories")
         .select("id, nome, cor")
         .order("nome");
@@ -26,7 +26,7 @@ export function CategoriasTab() {
 
   async function add() {
     if (!nome.trim()) return toast.error("Informe o nome");
-    const { error } = await supabase
+    const { error } = await sb
       .from("financial_categories")
       .insert({ nome: nome.trim(), cor });
     if (error) return toast.error(error.message);
