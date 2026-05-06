@@ -249,6 +249,197 @@ export type Database = {
           },
         ]
       }
+      financial_categories: {
+        Row: {
+          cor: string
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          cor?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      financial_receivables: {
+        Row: {
+          created_at: string
+          data_prevista: string
+          data_recebimento: string | null
+          forma_pagamento:
+            | Database["public"]["Enums"]["financial_payment_method"]
+            | null
+          id: string
+          observacoes: string | null
+          participant_user_id: string
+          portfolio_id: string
+          service_id: string
+          status: Database["public"]["Enums"]["financial_receivable_status"]
+          updated_at: string
+          valor_previsto: number
+          valor_recebido: number | null
+        }
+        Insert: {
+          created_at?: string
+          data_prevista: string
+          data_recebimento?: string | null
+          forma_pagamento?:
+            | Database["public"]["Enums"]["financial_payment_method"]
+            | null
+          id?: string
+          observacoes?: string | null
+          participant_user_id: string
+          portfolio_id: string
+          service_id: string
+          status?: Database["public"]["Enums"]["financial_receivable_status"]
+          updated_at?: string
+          valor_previsto?: number
+          valor_recebido?: number | null
+        }
+        Update: {
+          created_at?: string
+          data_prevista?: string
+          data_recebimento?: string | null
+          forma_pagamento?:
+            | Database["public"]["Enums"]["financial_payment_method"]
+            | null
+          id?: string
+          observacoes?: string | null
+          participant_user_id?: string
+          portfolio_id?: string
+          service_id?: string
+          status?: Database["public"]["Enums"]["financial_receivable_status"]
+          updated_at?: string
+          valor_previsto?: number
+          valor_recebido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_receivables_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_receivables_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "financial_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_service_participants: {
+        Row: {
+          created_at: string
+          id: string
+          percentual: number
+          service_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          percentual: number
+          service_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          percentual?: number
+          service_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_service_participants_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "financial_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_services: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          data_inicio: string
+          descricao: string | null
+          dia_vencimento: number | null
+          id: string
+          nome: string
+          observacoes: string | null
+          portfolio_id: string
+          status: Database["public"]["Enums"]["financial_service_status"]
+          tipo_cobranca: Database["public"]["Enums"]["financial_billing_type"]
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          dia_vencimento?: number | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          portfolio_id: string
+          status?: Database["public"]["Enums"]["financial_service_status"]
+          tipo_cobranca?: Database["public"]["Enums"]["financial_billing_type"]
+          updated_at?: string
+          valor_total?: number
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_inicio?: string
+          descricao?: string | null
+          dia_vencimento?: number | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          portfolio_id?: string
+          status?: Database["public"]["Enums"]["financial_service_status"]
+          tipo_cobranca?: Database["public"]["Enums"]["financial_billing_type"]
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "financial_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_services_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_campanhas: {
         Row: {
           budget: number | null
@@ -852,6 +1043,20 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "viewer"
+      financial_billing_type: "mensal" | "unico" | "trimestral"
+      financial_payment_method:
+        | "pix"
+        | "boleto"
+        | "transferencia"
+        | "dinheiro"
+        | "cartao"
+      financial_receivable_status:
+        | "pendente"
+        | "recebido"
+        | "parcial"
+        | "atrasado"
+        | "cancelado"
+      financial_service_status: "ativo" | "pausado" | "finalizado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -980,6 +1185,22 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "viewer"],
+      financial_billing_type: ["mensal", "unico", "trimestral"],
+      financial_payment_method: [
+        "pix",
+        "boleto",
+        "transferencia",
+        "dinheiro",
+        "cartao",
+      ],
+      financial_receivable_status: [
+        "pendente",
+        "recebido",
+        "parcial",
+        "atrasado",
+        "cancelado",
+      ],
+      financial_service_status: ["ativo", "pausado", "finalizado"],
     },
   },
 } as const
