@@ -98,8 +98,14 @@ function mapToPortfolios(rows: PortfolioRow[]): Portfolio[] {
             budget: Number(c.budget_amount ?? 0),
             spent: totals.cost,
             impressions: totals.impressions,
-            reach: totals.reach || totals.impressions, // reach not available on Google
+            reach: totals.reach || totals.impressions,
             date: totals.startDate || undefined,
+            status: c.status,
+            channelType: c.advertising_channel_type ?? c.channel_type ?? null,
+            startDate: c.start_date,
+            endDate: c.end_date,
+            clicks: totals.clicks,
+            conversions: totals.conversions,
             dailyMetrics: c.campaign_metrics.map((m) => ({
               date: m.date,
               impressions: Number(m.impressions ?? 0),
@@ -110,8 +116,8 @@ function mapToPortfolios(rows: PortfolioRow[]): Portfolio[] {
             })),
           } satisfies Campaign;
         })
-        // hide campaigns with no activity at all
-        .filter((c) => c.spent > 0 || c.impressions > 0);
+        // include all campaigns from Google so paused/finished are visible too
+        .filter((c) => true);
 
       const acctTotals = a.campaigns
         .flatMap((c) => c.campaign_metrics)
