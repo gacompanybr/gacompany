@@ -165,7 +165,7 @@ export function useDbPortfolios() {
           ad_accounts (
             id, name, currency, result_description,
             campaigns (
-              id, name, status, budget_amount,
+              id, name, status, budget_amount, channel_type, advertising_channel_type, start_date, end_date,
               campaign_metrics (
                 date, impressions, clicks, cost, conversions, reach
               )
