@@ -676,37 +676,71 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             <thead>
               <tr className="text-left text-xs uppercase text-muted-foreground border-b border-border">
                 <th className="py-3 pr-4">Campanha</th>
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Tipo</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Status</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Início</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Término</th>}
                 <th className="py-3 pr-4">Tipo de resultado</th>
                 <th className="py-3 pr-4 text-right">Resultados</th>
                 <th className="py-3 pr-4 text-right">Custo/result.</th>
+                {sourceTab === "google_ads" && <th className="py-3 pr-4 text-right">Conversões</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4 text-right">Custo/conv.</th>}
                 <th className="py-3 pr-4 text-right">Valor usado</th>
                 <th className="py-3 pr-4 text-right">Impressões</th>
+                <th className="py-3 pr-4 text-right">Cliques</th>
                 <th className="py-3 pr-4 text-right">CTR</th>
+                {sourceTab === "google_ads" && <th className="py-3 pr-4 text-right">CPC</th>}
                 <th className="py-3 text-right">Alcance</th>
               </tr>
             </thead>
             <tbody>
               {sortedBySpent.map((c) => {
-                const ctr = c.impressions > 0 ? ((c.clicks ?? 0) / c.impressions) * 100 : 0;
+                const clicks = c.clicks ?? 0;
+                const ctr = c.impressions > 0 ? (clicks / c.impressions) * 100 : 0;
+                const cpc = clicks > 0 ? c.spent / clicks : 0;
+                const convs = c.conversions ?? 0;
+                const cpconv = convs > 0 ? c.spent / convs : 0;
                 return (
                   <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 pr-4 font-medium">{c.name}</td>
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-muted-foreground">{c.channelType ?? "—"}</td>}
+                    {sourceTab === "google_ads" && (
+                      <td className="py-3 pr-4">
+                        <Badge variant={c.status === "ENABLED" ? "default" : "secondary"} className="text-[10px]">
+                          {c.status ?? "—"}
+                        </Badge>
+                      </td>
+                    )}
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-muted-foreground">{c.startDate ?? "—"}</td>}
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-muted-foreground">{c.endDate ?? "—"}</td>}
                     <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
                     <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
                     <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-right">{fmtNum(convs)}</td>}
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-right">{convs > 0 ? fmtBRL(cpconv) : "—"}</td>}
                     <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
                     <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtNum(clicks)}</td>
                     <td className="py-3 pr-4 text-right">{ctr.toFixed(2)}%</td>
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-right">{clicks > 0 ? fmtBRL(cpc) : "—"}</td>}
                     <td className="py-3 text-right">{fmtNum(c.reach)}</td>
                   </tr>
                 );
               })}
               {!filteredCampaigns.length && (
-                <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
+                <tr><td colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
               )}
             </tbody>
           </table>
         </Card>
+
+        {sourceTab === "google_ads" && (
+          <GoogleKeywordsAndTerms
+            campaignIds={filteredCampaigns.map((c) => c.id)}
+            start={start}
+            end={end}
+          />
+        )}
 
         <p className="text-xs text-muted-foreground flex items-center gap-2 pt-2">
           <Calendar size={12} />
