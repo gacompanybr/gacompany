@@ -356,7 +356,9 @@ Deno.serve(async (req) => {
     } catch {
       // empty body is fine
     }
-    const days = body.days ?? 30;
+    // Default lookback covers current month + previous month so dashboards always
+    // have enough data to display the current period without manual sync requests.
+    const days = body.days ?? 60;
 
     const accountQuery = supabase
       .from("ad_accounts")
