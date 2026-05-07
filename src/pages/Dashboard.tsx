@@ -73,7 +73,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
   const [campaignId, setCampaignId] = useState<string>("all");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [period, setPeriod] = useState("custom");
+  const [period, setPeriod] = useState("current_month");
 
   // Pick first portfolio once data arrives
   useEffect(() => {
@@ -84,7 +84,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
     setSyncing(true);
     try {
       const accId = accountId !== "all" ? accountId : undefined;
-      const res: any = await triggerSync(accId, 30);
+      const res: any = await triggerSync(accId, 60);
       const summary = res?.results?.[0];
       if (summary?.error) {
         toast.error(`Falha na sincronização: ${summary.error}`);
@@ -166,12 +166,14 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
     setCampaignId("all");
   }, [sourceTab, portfolioId]);
 
-  // Default date range from data
+  // Default date range = current month (so dashboard always reflects ongoing month).
   useEffect(() => {
-    if (!start && activeAccounts[0]) {
-      setStart(activeAccounts[0].startDate);
-      setEnd(activeAccounts[0].endDate);
-    }
+    if (start || end) return;
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const first = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    setStart(first);
+    setEnd(todayStr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolio, accountId]);
 
