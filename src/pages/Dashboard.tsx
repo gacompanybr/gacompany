@@ -27,6 +27,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import gaLogo from "@/assets/logo.png";
+import { GoogleKeywordsAndTerms } from "@/dashboard/GoogleKeywordsAndTerms";
 
 const fmtBRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
