@@ -61,6 +61,57 @@ export type Database = {
           },
         ]
       }
+      campaign_keywords: {
+        Row: {
+          ad_group_id: string | null
+          avg_cpc: number | null
+          campaign_id: string
+          clicks: number
+          conversions: number
+          cost: number
+          created_at: string
+          criterion_id: string
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number
+          keyword_text: string
+          match_type: string | null
+        }
+        Insert: {
+          ad_group_id?: string | null
+          avg_cpc?: number | null
+          campaign_id: string
+          clicks?: number
+          conversions?: number
+          cost?: number
+          created_at?: string
+          criterion_id: string
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number
+          keyword_text: string
+          match_type?: string | null
+        }
+        Update: {
+          ad_group_id?: string | null
+          avg_cpc?: number | null
+          campaign_id?: string
+          clicks?: number
+          conversions?: number
+          cost?: number
+          created_at?: string
+          criterion_id?: string
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number
+          keyword_text?: string
+          match_type?: string | null
+        }
+        Relationships: []
+      }
       campaign_metrics: {
         Row: {
           avg_cpc: number | null
@@ -117,37 +168,82 @@ export type Database = {
           },
         ]
       }
+      campaign_search_terms: {
+        Row: {
+          campaign_id: string
+          clicks: number
+          conversions: number
+          cost: number
+          created_at: string
+          date: string
+          id: string
+          impressions: number
+          search_term: string
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number
+          conversions?: number
+          cost?: number
+          created_at?: string
+          date: string
+          id?: string
+          impressions?: number
+          search_term: string
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number
+          conversions?: number
+          cost?: number
+          created_at?: string
+          date?: string
+          id?: string
+          impressions?: number
+          search_term?: string
+        }
+        Relationships: []
+      }
       campaigns: {
         Row: {
           ad_account_id: string
+          advertising_channel_type: string | null
           budget_amount: number | null
           channel_type: string | null
           created_at: string
+          end_date: string | null
           external_id: string
           id: string
           name: string
+          start_date: string | null
           status: string | null
           updated_at: string
         }
         Insert: {
           ad_account_id: string
+          advertising_channel_type?: string | null
           budget_amount?: number | null
           channel_type?: string | null
           created_at?: string
+          end_date?: string | null
           external_id: string
           id?: string
           name: string
+          start_date?: string | null
           status?: string | null
           updated_at?: string
         }
         Update: {
           ad_account_id?: string
+          advertising_channel_type?: string | null
           budget_amount?: number | null
           channel_type?: string | null
           created_at?: string
+          end_date?: string | null
           external_id?: string
           id?: string
           name?: string
+          start_date?: string | null
           status?: string | null
           updated_at?: string
         }

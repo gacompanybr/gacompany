@@ -27,6 +27,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import gaLogo from "@/assets/logo.png";
+import { GoogleKeywordsAndTerms } from "@/dashboard/GoogleKeywordsAndTerms";
 
 const fmtBRL = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -73,7 +74,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
   const [campaignId, setCampaignId] = useState<string>("all");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [period, setPeriod] = useState("custom");
+  const [period, setPeriod] = useState("current_month");
 
   // Pick first portfolio once data arrives
   useEffect(() => {
@@ -84,7 +85,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
     setSyncing(true);
     try {
       const accId = accountId !== "all" ? accountId : undefined;
-      const res: any = await triggerSync(accId, 30);
+      const res: any = await triggerSync(accId, 60);
       const summary = res?.results?.[0];
       if (summary?.error) {
         toast.error(`Falha na sincronização: ${summary.error}`);
@@ -166,12 +167,14 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
     setCampaignId("all");
   }, [sourceTab, portfolioId]);
 
-  // Default date range from data
+  // Default date range = current month (so dashboard always reflects ongoing month).
   useEffect(() => {
-    if (!start && activeAccounts[0]) {
-      setStart(activeAccounts[0].startDate);
-      setEnd(activeAccounts[0].endDate);
-    }
+    if (start || end) return;
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const first = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    setStart(first);
+    setEnd(todayStr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolio, accountId]);
 
@@ -674,37 +677,71 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             <thead>
               <tr className="text-left text-xs uppercase text-muted-foreground border-b border-border">
                 <th className="py-3 pr-4">Campanha</th>
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Tipo</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Status</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Início</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4">Término</th>}
                 <th className="py-3 pr-4">Tipo de resultado</th>
                 <th className="py-3 pr-4 text-right">Resultados</th>
                 <th className="py-3 pr-4 text-right">Custo/result.</th>
+                {sourceTab === "google_ads" && <th className="py-3 pr-4 text-right">Conversões</th>}
+                {sourceTab === "google_ads" && <th className="py-3 pr-4 text-right">Custo/conv.</th>}
                 <th className="py-3 pr-4 text-right">Valor usado</th>
                 <th className="py-3 pr-4 text-right">Impressões</th>
+                <th className="py-3 pr-4 text-right">Cliques</th>
                 <th className="py-3 pr-4 text-right">CTR</th>
+                {sourceTab === "google_ads" && <th className="py-3 pr-4 text-right">CPC</th>}
                 <th className="py-3 text-right">Alcance</th>
               </tr>
             </thead>
             <tbody>
               {sortedBySpent.map((c) => {
-                const ctr = c.impressions > 0 ? ((c.clicks ?? 0) / c.impressions) * 100 : 0;
+                const clicks = c.clicks ?? 0;
+                const ctr = c.impressions > 0 ? (clicks / c.impressions) * 100 : 0;
+                const cpc = clicks > 0 ? c.spent / clicks : 0;
+                const convs = c.conversions ?? 0;
+                const cpconv = convs > 0 ? c.spent / convs : 0;
                 return (
                   <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-3 pr-4 font-medium">{c.name}</td>
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-muted-foreground">{c.channelType ?? "—"}</td>}
+                    {sourceTab === "google_ads" && (
+                      <td className="py-3 pr-4">
+                        <Badge variant={c.status === "ENABLED" ? "default" : "secondary"} className="text-[10px]">
+                          {c.status ?? "—"}
+                        </Badge>
+                      </td>
+                    )}
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-muted-foreground">{c.startDate ?? "—"}</td>}
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-muted-foreground">{c.endDate ?? "—"}</td>}
                     <td className="py-3 pr-4 text-muted-foreground">{c.resultType}</td>
                     <td className="py-3 pr-4 text-right font-semibold">{fmtNum(c.results)}</td>
                     <td className="py-3 pr-4 text-right">{fmtBRL(c.costPerResult)}</td>
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-right">{fmtNum(convs)}</td>}
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-right">{convs > 0 ? fmtBRL(cpconv) : "—"}</td>}
                     <td className="py-3 pr-4 text-right">{fmtBRL(c.spent)}</td>
                     <td className="py-3 pr-4 text-right">{fmtNum(c.impressions)}</td>
+                    <td className="py-3 pr-4 text-right">{fmtNum(clicks)}</td>
                     <td className="py-3 pr-4 text-right">{ctr.toFixed(2)}%</td>
+                    {sourceTab === "google_ads" && <td className="py-3 pr-4 text-right">{clicks > 0 ? fmtBRL(cpc) : "—"}</td>}
                     <td className="py-3 text-right">{fmtNum(c.reach)}</td>
                   </tr>
                 );
               })}
               {!filteredCampaigns.length && (
-                <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
+                <tr><td colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma campanha no filtro selecionado.</td></tr>
               )}
             </tbody>
           </table>
         </Card>
+
+        {sourceTab === "google_ads" && (
+          <GoogleKeywordsAndTerms
+            campaignIds={filteredCampaigns.map((c) => c.id)}
+            start={start}
+            end={end}
+          />
+        )}
 
         <p className="text-xs text-muted-foreground flex items-center gap-2 pt-2">
           <Calendar size={12} />
