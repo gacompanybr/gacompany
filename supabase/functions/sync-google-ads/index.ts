@@ -205,6 +205,110 @@ async function syncAccount(
       }
     }
 
+    // 3) Keyword performance (search/display campaigns)
+    let keywordRowsCount = 0;
+    try {
+      const kwQuery = `
+        SELECT
+          campaign.id,
+          ad_group.id,
+          ad_group_criterion.criterion_id,
+          ad_group_criterion.keyword.text,
+          ad_group_criterion.keyword.match_type,
+          segments.date,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions,
+          metrics.ctr,
+          metrics.average_cpc
+        FROM keyword_view
+        WHERE segments.date BETWEEN '${fromStr}' AND '${toStr}'
+          AND ad_group_criterion.status != 'REMOVED'
+      `;
+      const kwRows = await runGAQL(customerId, loginCid, accessToken, kwQuery);
+      const kwUpsert: any[] = [];
+      for (const r of kwRows) {
+        const cid = String(r.campaign.id);
+        const campaignUuid = campaignMap.get(cid);
+        if (!campaignUuid) continue;
+        const m = r.metrics ?? {};
+        const k = r.adGroupCriterion ?? {};
+        kwUpsert.push({
+          campaign_id: campaignUuid,
+          ad_group_id: r.adGroup?.id ? String(r.adGroup.id) : null,
+          criterion_id: String(k.criterionId),
+          keyword_text: k.keyword?.text ?? "",
+          match_type: k.keyword?.matchType ?? null,
+          date: r.segments.date,
+          impressions: Number(m.impressions ?? 0),
+          clicks: Number(m.clicks ?? 0),
+          cost: m.costMicros ? Number(m.costMicros) / 1_000_000 : 0,
+          conversions: Number(m.conversions ?? 0),
+          ctr: m.ctr ? Number(m.ctr) : null,
+          avg_cpc: m.averageCpc ? Number(m.averageCpc) / 1_000_000 : null,
+        });
+      }
+      keywordRowsCount = kwUpsert.length;
+      const chunkSize = 500;
+      for (let i = 0; i < kwUpsert.length; i += chunkSize) {
+        const chunk = kwUpsert.slice(i, i + chunkSize);
+        const { error } = await supabase
+          .from("campaign_keywords")
+          .upsert(chunk, { onConflict: "campaign_id,criterion_id,date" });
+        if (error) throw new Error(`Upsert keywords failed: ${error.message}`);
+      }
+    } catch (err) {
+      console.warn("keyword sync skipped:", err instanceof Error ? err.message : err);
+    }
+
+    // 4) Search terms
+    let searchTermRowsCount = 0;
+    try {
+      const stQuery = `
+        SELECT
+          campaign.id,
+          search_term_view.search_term,
+          segments.date,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.cost_micros,
+          metrics.conversions
+        FROM search_term_view
+        WHERE segments.date BETWEEN '${fromStr}' AND '${toStr}'
+      `;
+      const stRows = await runGAQL(customerId, loginCid, accessToken, stQuery);
+      const stUpsert: any[] = [];
+      for (const r of stRows) {
+        const cid = String(r.campaign.id);
+        const campaignUuid = campaignMap.get(cid);
+        if (!campaignUuid) continue;
+        const m = r.metrics ?? {};
+        const term = r.searchTermView?.searchTerm;
+        if (!term) continue;
+        stUpsert.push({
+          campaign_id: campaignUuid,
+          search_term: term,
+          date: r.segments.date,
+          impressions: Number(m.impressions ?? 0),
+          clicks: Number(m.clicks ?? 0),
+          cost: m.costMicros ? Number(m.costMicros) / 1_000_000 : 0,
+          conversions: Number(m.conversions ?? 0),
+        });
+      }
+      searchTermRowsCount = stUpsert.length;
+      const chunkSize = 500;
+      for (let i = 0; i < stUpsert.length; i += chunkSize) {
+        const chunk = stUpsert.slice(i, i + chunkSize);
+        const { error } = await supabase
+          .from("campaign_search_terms")
+          .upsert(chunk, { onConflict: "campaign_id,search_term,date" });
+        if (error) throw new Error(`Upsert search terms failed: ${error.message}`);
+      }
+    } catch (err) {
+      console.warn("search term sync skipped:", err instanceof Error ? err.message : err);
+    }
+
     await supabase
       .from("sync_logs")
       .update({
@@ -218,6 +322,8 @@ async function syncAccount(
       account: account.name,
       campaigns: campaignRows.length,
       metric_rows: metricsToUpsert.length,
+      keyword_rows: keywordRowsCount,
+      search_term_rows: searchTermRowsCount,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
