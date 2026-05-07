@@ -31,6 +31,14 @@ export type Campaign = {
   impressions: number;
   reach: number;
   date?: string; // YYYY-MM-DD start
+  // Google Ads metadata
+  status?: string | null;
+  channelType?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  /** Optional aggregated extras for table view */
+  clicks?: number;
+  conversions?: number;
   /** Optional daily breakdown — when present, dashboard re-aggregates by date filter. */
   dailyMetrics?: DailyMetric[];
 };

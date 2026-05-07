@@ -28,6 +28,10 @@ type PortfolioRow = {
       name: string;
       status: string | null;
       budget_amount: number | null;
+      channel_type: string | null;
+      advertising_channel_type: string | null;
+      start_date: string | null;
+      end_date: string | null;
       campaign_metrics: Array<{
         date: string;
         impressions: number;
