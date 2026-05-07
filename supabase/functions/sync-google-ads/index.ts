@@ -101,13 +101,15 @@ async function syncAccount(
     const loginCid = (account.login_customer_id ?? "").replace(/-/g, "");
     const customerId = account.customer_id.replace(/-/g, "");
 
-    // 1) Campaigns metadata
+    // 1) Campaigns metadata (incl. start/end dates and channel type)
     const campaignQuery = `
       SELECT
         campaign.id,
         campaign.name,
         campaign.status,
         campaign.advertising_channel_type,
+        campaign.start_date,
+        campaign.end_date,
         campaign_budget.amount_micros
       FROM campaign
       WHERE campaign.status != 'REMOVED'
@@ -134,6 +136,9 @@ async function syncAccount(
             name: c.name,
             status: c.status,
             channel_type: c.advertisingChannelType,
+            advertising_channel_type: c.advertisingChannelType,
+            start_date: c.startDate ?? null,
+            end_date: c.endDate && c.endDate !== "2037-12-30" ? c.endDate : null,
             budget_amount: budget,
           },
           { onConflict: "ad_account_id,external_id" },
