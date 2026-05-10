@@ -146,7 +146,24 @@ export function ClientesTab() {
                       {c.servicos.map((s) => <ServiceBadge key={s} service={s} />)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{c.responsavel_email}</TableCell>
+                  <TableCell className="text-sm">
+                    {c.responsaveis.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="secondary" className="cursor-help">
+                            {c.responsaveis.length} responsável{c.responsaveis.length > 1 ? "is" : ""}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <ul className="text-xs space-y-0.5">
+                            {c.responsaveis.map((r) => <li key={r.user_id}>{r.display_name}</li>)}
+                          </ul>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"
