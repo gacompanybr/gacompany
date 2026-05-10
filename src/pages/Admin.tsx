@@ -4,13 +4,24 @@ import { AdminSidebar, type AdminTab } from "@/components/admin/AdminSidebar";
 import { ClientesTab } from "@/components/admin/ClientesTab";
 import { EquipeTab } from "@/components/admin/EquipeTab";
 import { FinanceiroTab } from "@/components/admin/FinanceiroTab";
+import { DashboardTab } from "@/components/admin/DashboardTab";
+import { CalendarioTab } from "@/components/admin/CalendarioTab";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut } from "lucide-react";
 
+const TITLES: Record<AdminTab, string> = {
+  dashboard: "Dashboard",
+  clientes: "Clientes",
+  equipe: "Equipe",
+  calendario: "Calendário",
+  financeiro: "Financeiro",
+  config: "Configurações",
+};
+
 export default function Admin() {
-  const [tab, setTab] = useState<AdminTab>("clientes");
+  const [tab, setTab] = useState<AdminTab>("dashboard");
   const { user, signOut } = useAuth();
 
   return (
@@ -22,12 +33,7 @@ export default function Admin() {
           <header className="h-14 flex items-center justify-between border-b border-border px-4 gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <SidebarTrigger />
-              <h1 className="text-lg font-semibold capitalize truncate">
-                {tab === "clientes" ? "Clientes"
-                  : tab === "equipe" ? "Equipe"
-                  : tab === "financeiro" ? "Financeiro"
-                  : "Configurações"}
-              </h1>
+              <h1 className="text-lg font-semibold truncate">{TITLES[tab]}</h1>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
@@ -40,8 +46,10 @@ export default function Admin() {
           </header>
 
           <main className="flex-1 p-4 lg:p-6 overflow-auto">
+            {tab === "dashboard" && <DashboardTab />}
             {tab === "clientes" && <ClientesTab />}
             {tab === "equipe" && <EquipeTab />}
+            {tab === "calendario" && <CalendarioTab />}
             {tab === "financeiro" && <FinanceiroTab />}
             {tab === "config" && (
               <Card className="p-8 text-center text-muted-foreground">
