@@ -1,155 +1,110 @@
-## Módulo Financeiro de Recebimentos
+# Reorganização de Painéis e Acessos
 
-Criar um sistema de gestão de recebimentos por serviço, com **rateio percentual entre múltiplos usuários**, integrado ao painel Admin (gestão) e ao Workspace de cada cliente (visão pessoal de cada usuário).
+## Objetivo
+Separar a landing page institucional dos painéis logados, criar rotas específicas (`/painel` para clientes, `/paineladmin` para administração), permitir múltiplos responsáveis por cliente e profissionalizar a experiência admin (calendário, sidebar reformulada, fluxo de convite por papel).
 
----
+## 1. Rotas e acesso
 
-## 1. Estrutura geral
+Estado atual:
+- `/` = landing
+- `/auth` = login/cadastro (qualquer um cai aqui e o sistema decide pra onde ir)
+- `/admin`, `/workspace/:portfolioId`, `/dashboard`
 
+Estado novo:
 ```text
-ADMIN (/admin)
-└── Sidebar
-    ├── Clientes
-    ├── Equipe
-    ├── Financeiro          ← NOVA aba
-    │   ├── Tab "Serviços"      (cria/edita/duplica/exclui serviços financeiros)
-    │   ├── Tab "Recebimentos"  (todas as parcelas, filtra por mês/cliente/status)
-    │   └── Tab "Categorias"    (gerencia categorias com cor)
-    └── Configurações
-
-WORKSPACE (/workspace/:portfolioId)
-└── Sidebar
-    └── Financeiro          ← NOVO módulo (aparece se cliente tem serviço "financeiro")
-        ├── KPIs do mês (a receber / recebido / atrasado)
-        ├── Lista de recebimentos do usuário logado nesse cliente
-        └── Marcar como recebido (valor cheio ou parcial)
+/                         -> Landing pública (sem mudança visual)
+/painel                   -> Login + Cadastro de CLIENTES (viewers)
+/painel/app               -> Área logada do cliente (workspace)
+/paineladmin              -> Login da EQUIPE (sem aba "Criar conta")
+/paineladmin/app          -> Painel administrativo
 ```
 
----
+Regras:
+- `/painel` mostra Login + "Criar minha conta" (signup aberto). Após login, se o usuário for admin, redireciona pra `/paineladmin/app`; se for viewer com portfolios, vai pra `/painel/app` (lista de empresas que ele acessa); se não tem portfolio, mostra tela "Aguardando vínculo do gestor".
+- `/paineladmin` mostra APENAS Login (sem aba criar conta). Se a pessoa logar e não for admin, mostra erro "Conta sem permissão administrativa" e desloga.
+- `/auth` antigo redireciona pra `/painel` (compatibilidade).
+- `/admin` redireciona pra `/paineladmin/app`. `/workspace/:id` continua existindo internamente, acessado a partir de `/painel/app`.
 
-## 2. Modelo de dados (novas tabelas)
+## 2. Múltiplos responsáveis por cliente
 
-**`financial_categories`** — categorias com cor (Mensalidade, Bônus, Setup, etc.)
-- nome, cor (hex)
+Hoje `portfolios.responsavel_id` aceita só um UUID. Vamos manter a coluna (compatibilidade) mas tratar o "responsável principal" como opcional e usar uma nova tabela N:N para os responsáveis adicionais — o que de fato dá poder de acesso continua sendo `user_portfolio_access`.
 
-**`financial_services`** — o serviço pai
-- portfolio_id (cliente), category_id, nome, descrição
-- valor_total (R$), tipo_cobranca (`mensal` | `unico` | `trimestral`), dia_vencimento (1–31)
-- data_inicio, status (`ativo` | `pausado` | `finalizado`), observações
-- created_by (admin que criou)
+Mudanças de banco:
+- Nova tabela `portfolio_responsaveis (portfolio_id, user_id, papel text default 'gestor', created_at)` com unique (portfolio_id, user_id) e RLS: admins gerenciam; usuário lê suas próprias linhas.
+- Trigger ao inserir em `portfolio_responsaveis`: garantir entrada equivalente em `user_portfolio_access` (acesso automático).
+- Trigger ao remover: remover acesso correspondente, **exceto** se houver outro vínculo manual.
 
-**`financial_service_participants`** — quem recebe e quanto (rateio)
-- service_id, user_id, percentual (0–100)
-- Constraint: soma dos percentuais por service_id deve dar 100
-- Unique (service_id, user_id)
+UI (NovoClienteDialog e EditarClienteDialog):
+- Substituir o seletor único de "Responsável" por um **multi-select de usuários** (busca por email/display_name em `profiles`).
+- Mostrar chips com cada responsável e botão X.
+- Tabela de Clientes: coluna "Responsáveis" passa a mostrar avatares/contagem com tooltip listando todos.
 
-**`financial_receivables`** — cada parcela individual de cada participante
-- service_id, participant_user_id, portfolio_id (denormalizado p/ filtro rápido)
-- valor_previsto (= valor_total × percentual / 100)
-- valor_recebido (nullable), data_prevista, data_recebimento (nullable)
-- status (`pendente` | `recebido` | `parcial` | `atrasado` | `cancelado`)
-- forma_pagamento (`pix` | `boleto` | `transferencia` | `dinheiro` | `cartao`), observações
+## 3. Convite de usuário por papel
 
-**RLS:**
-- Admins: acesso total a tudo
-- Usuários comuns:
-  - Categorias e Services: apenas SELECT (e só dos services em que participam)
-  - `financial_receivables`: SELECT/UPDATE somente onde `participant_user_id = auth.uid()` (para marcar como recebido)
+A edge function `invite-user` já recebe `role`. Ajustes:
+- No diálogo "Convidar usuário": deixar claro o destino do papel.
+  - `viewer` -> "Cliente — vai logar em /painel e ver as métricas dos clientes vinculados"
+  - `admin` -> "Equipe interna — vai logar em /paineladmin"
+- Quando convidar admin: campo "Clientes vinculados" fica oculto (admin já enxerga tudo).
+- Quando convidar viewer: vinculação de portfolios é obrigatória (mínimo 1) — toast de erro se vazio.
+- Edge function: validar que admins não recebem `user_portfolio_access` desnecessário; viewer sem portfolios retorna 400.
+- E-mail de convite: passar `redirectTo` distinto:
+  - admin -> `/paineladmin`
+  - viewer -> `/painel`
 
-**Service "financeiro"** no array `portfolios.servicos`: novo valor `"financeiro"` que ativa o módulo no Workspace (igual aos demais módulos como `meta_ads`, `crm`, etc.). Adicionar ao `EditarClienteDialog` e `NovoClienteDialog` como opção.
+## 4. Painel admin mais profissional
 
----
+Sidebar (`AdminSidebar.tsx`) ganha:
+- Grupo "Visão geral" -> **Dashboard** (novo, resumo: nº clientes ativos, MRR via `financial_services`, recebimentos do mês, próximos vencimentos, leads novos do CRM).
+- Grupo "Operação" -> Clientes, Equipe, **Calendário** (novo), Financeiro.
+- Grupo "Sistema" -> Configurações, Logs de sincronização (link pra `sync_logs` / `meta_logs_integracao`).
 
-## 3. Geração de recebimentos (regra de negócio)
+Calendário (nova aba):
+- Componente único usando `react-day-picker` (já instalado via shadcn `calendar`) em modo mês.
+- Eventos agregados de:
+  - `financial_receivables.data_prevista` (cor laranja — recebimentos)
+  - `social_posts.data_agendada` (cor azul — posts agendados)
+  - `crm_leads` com follow-up (se houver coluna; por ora só status "agendado")
+- Lateral direita: lista do dia selecionado + botão "Novo evento" (abre dialog que cria recebível avulso ou post).
 
-Ao **criar um serviço** OU **alterar valor/participantes** de um serviço ativo:
+Outros polimentos:
+- Header com breadcrumb + busca global (cmd+k) listando clientes/usuários.
+- Cards padronizados (mesmo radius, sombra suave já existe no design system).
+- Manter paleta preta + #FEA60F.
 
-1. Calcula próximas 12 ocorrências baseado em `tipo_cobranca` + `data_inicio` + `dia_vencimento` (helper `generateOccurrences`, igual ao EasyFlow)
-2. Para cada ocorrência **e** para cada participante: cria 1 linha em `financial_receivables` com `valor_previsto = valor_total × pct / 100`
-3. Em edição: regenera apenas as parcelas ainda **pendentes/atrasadas** (preserva as já recebidas)
+## 5. Painel do cliente (`/painel/app`)
 
-Job/edge function opcional fica fora do escopo agora — geração é síncrona ao salvar.
+- Se o usuário tem 1 portfolio: redireciona direto pro workspace dele.
+- Se tem N: tela de seleção (cards com logo + nome do cliente).
+- Workspace mantém os módulos existentes; só mudamos o caminho de entrada.
 
----
+## 6. Detalhes técnicos
 
-## 4. Telas — Admin → Financeiro
+Arquivos novos:
+- `src/pages/PainelAuth.tsx` (login + cadastro de cliente)
+- `src/pages/PainelAdminAuth.tsx` (apenas login, valida admin)
+- `src/pages/PainelHome.tsx` (seleção / redirect viewer)
+- `src/components/admin/DashboardTab.tsx`
+- `src/components/admin/CalendarioTab.tsx`
+- `src/components/admin/ResponsaveisMultiSelect.tsx`
 
-### Tab "Serviços" (grade de cards, igual EasyFlow)
-Cada card mostra: cliente (portfolio), nome do serviço, valor total, tipo de cobrança, categoria (badge colorido), nº de participantes, status. Ações: Editar, Duplicar, Excluir.
+Arquivos editados:
+- `src/App.tsx` — novas rotas, redirects das antigas.
+- `src/hooks/useAuth.tsx` — helpers `redirectAfterLogin(target: 'cliente'|'admin')`.
+- `src/components/RequireAdmin.tsx` e `RequirePortfolioAccess.tsx` — atualizar fallbacks pros novos paths.
+- `src/components/admin/AdminSidebar.tsx` — nova estrutura de grupos.
+- `src/components/admin/NovoClienteDialog.tsx` + `EditarClienteDialog.tsx` — multi responsáveis.
+- `src/components/admin/ConvidarUsuarioDialog.tsx` — ajustes de UX por papel.
+- `supabase/functions/invite-user/index.ts` — redirect por papel + validação.
+- Migração SQL: criar `portfolio_responsaveis` + RLS + trigger de sincronização com `user_portfolio_access`.
 
-**Dialog "Novo/Editar serviço"** com campos:
-- Cliente (Select de portfolios)
-- Categoria (Select), Nome, Descrição
-- Valor total (R$), Tipo cobrança, Data início, Dia vencimento, Status
-- **Seção "Participantes e Rateio"**: lista dinâmica
-  - Linha = Select de usuário (de `profiles`) + Input % + botão remover
-  - Botão "+ Adicionar participante"
-  - Indicador em tempo real: "Total: 100% ✓" ou "Falta 15%" (vermelho se ≠ 100)
-  - Salvar bloqueado se ≠ 100
-- Observações
+Sem mudanças visuais na landing page.
 
-### Tab "Recebimentos"
-Filtros: mês (input month, default mês atual), cliente, status, busca por nome.
-Lista (Card com Table): cliente | serviço | participante | valor previsto | data prevista | status badge | ações.
-Click na linha abre dialog para marcar como recebido (cheio/parcial), mudar status, registrar forma de pagamento.
-
-### Tab "Categorias"
-Lista simples + dialog para adicionar/remover (nome + color picker).
-
----
-
-## 5. Tela — Workspace → Módulo Financeiro
-
-Aparece na sidebar do Workspace quando o portfolio tem `"financeiro"` em `servicos`.
-Mostra **apenas os recebimentos do usuário logado nesse cliente**:
-
-- 3 KPI cards no topo: "A receber este mês", "Recebido este mês", "Atrasado"
-- Filtro de mês
-- Lista de recebimentos (mesma UX do EasyFlow `ReceivableItem`)
-- Click abre dialog: botão "Marcar como recebido (valor cheio)" + edição manual (valor parcial, data, forma de pagamento, observação)
-- Admin que estiver visualizando vê tudo daquele cliente; usuário comum vê só o dele (controlado por RLS)
-
----
-
-## 6. Arquivos a criar/editar
-
-**Migration SQL** (1 arquivo): cria as 4 tabelas, RLS, função `recalculate_receivables(service_id)` em PL/pgSQL para regerar parcelas pendentes.
-
-**Novos componentes:**
-- `src/components/admin/FinanceiroTab.tsx` — wrapper com sub-tabs (Serviços / Recebimentos / Categorias)
-- `src/components/admin/financeiro/ServicosTab.tsx`
-- `src/components/admin/financeiro/RecebimentosTab.tsx`
-- `src/components/admin/financeiro/CategoriasTab.tsx`
-- `src/components/admin/financeiro/ServicoFinanceiroDialog.tsx` (criar/editar com rateio)
-- `src/components/admin/financeiro/RecebimentoDialog.tsx` (marcar recebido)
-- `src/components/admin/financeiro/ParticipantesEditor.tsx` (sub-componente do rateio)
-- `src/modules/Financeiro/index.tsx` — módulo do Workspace
-- `src/modules/Financeiro/types.ts`
-- `src/lib/recurrence.ts` — helper `generateOccurrences` (portado do EasyFlow)
-- `src/lib/format.ts` — `BRL`, `formatDateBR`, labels (se ainda não existir)
-
-**Arquivos a editar:**
-- `src/components/admin/AdminSidebar.tsx` — adicionar item "Financeiro"
-- `src/pages/Admin.tsx` — roteamento da nova tab
-- `src/components/workspace/WorkspaceSidebar.tsx` — registrar módulo `financeiro`
-- `src/pages/Workspace.tsx` — case `"financeiro"` renderiza `<FinanceiroModule />`
-- `src/components/admin/NovoClienteDialog.tsx` e `EditarClienteDialog.tsx` — incluir `"financeiro"` na lista de serviços contratáveis
-- `src/components/admin/ServiceBadge.tsx` — label e cor para o novo serviço
-
----
-
-## 7. Detalhes técnicos importantes
-
-- **Identidade visual**: manter preto + #FEA60F. Cards seguem o padrão atual (shadcn `Card` + `Badge`).
-- **Validação do rateio**: feita no client (UX) **e** no banco via trigger AFTER INSERT/UPDATE/DELETE em `financial_service_participants` que checa SUM(percentual) = 100 e levanta exceção se não bater.
-- **Status "atrasado"**: calculado on-the-fly no SELECT (CASE WHEN data_prevista < hoje AND status='pendente'). Não precisa job de cron por enquanto.
-- **Soft constraints**: services `ativo` permitem edição livre; ao excluir um serviço, deletar em cascata todos os recebimentos via FK ON DELETE CASCADE.
-- **Permissão de marcar recebido**: usuário comum só edita campos `valor_recebido`, `data_recebimento`, `forma_pagamento`, `status`, `observacoes` da própria linha (RLS UPDATE com `participant_user_id = auth.uid()`).
-
----
-
-## 8. Fora do escopo (deixar para depois)
-- Notificações por e-mail de vencimento
-- Exportar CSV/PDF
-- Relatórios financeiros agregados (DRE, gráficos comparativos)
-- Repasse automático para gateway de pagamento
+## Checklist de validação
+- [ ] Acessar `/` mostra só a landing pública.
+- [ ] `/painel` permite cadastro; `/paineladmin` não.
+- [ ] Conta nova criada em `/painel` cai em `/painel/app` após confirmar email.
+- [ ] Convite como admin chega com link pro `/paineladmin`.
+- [ ] Cliente com 2 responsáveis aparece pra ambos no `/painel/app`.
+- [ ] Sidebar admin mostra Dashboard, Calendário, etc.
+- [ ] Calendário lista recebíveis e posts do mês corrente.
