@@ -10,6 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Plus, Search, Loader2, Pencil } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ServiceBadge } from "./ServiceBadge";
 import { NovoClienteDialog } from "./NovoClienteDialog";
 import { EditarClienteDialog } from "./EditarClienteDialog";
@@ -21,7 +22,7 @@ type ClienteRow = {
   status: string;
   servicos: string[];
   responsavel_id: string | null;
-  responsavel_email?: string | null;
+  responsaveis: { user_id: string; display_name: string }[];
 };
 
 export function ClientesTab() {
@@ -40,23 +41,44 @@ export function ClientesTab() {
         .order("name");
       if (error) throw error;
 
-      const userIds = Array.from(
-        new Set((data ?? []).map((c: any) => c.responsavel_id).filter(Boolean)),
-      );
+      const ids = (data ?? []).map((c: any) => c.id);
+      const respByPortfolio = new Map<string, string[]>();
+      if (ids.length) {
+        const { data: resps } = await supabase
+          .from("portfolio_responsaveis")
+          .select("portfolio_id, user_id")
+          .in("portfolio_id", ids);
+        for (const r of resps ?? []) {
+          const arr = respByPortfolio.get(r.portfolio_id) ?? [];
+          arr.push(r.user_id);
+          respByPortfolio.set(r.portfolio_id, arr);
+        }
+      }
+
+      const allUserIds = new Set<string>();
+      for (const arr of respByPortfolio.values()) arr.forEach((u) => allUserIds.add(u));
+      for (const c of data ?? []) if (c.responsavel_id) allUserIds.add(c.responsavel_id);
+
       const profilesMap = new Map<string, string>();
-      if (userIds.length) {
+      if (allUserIds.size) {
         const { data: profs } = await supabase
           .from("profiles")
           .select("user_id, display_name")
-          .in("user_id", userIds);
+          .in("user_id", [...allUserIds]);
         for (const p of profs ?? []) profilesMap.set(p.user_id, p.display_name ?? "");
       }
 
-      return (data ?? []).map((c: any) => ({
-        ...c,
-        servicos: Array.isArray(c.servicos) ? c.servicos : [],
-        responsavel_email: c.responsavel_id ? profilesMap.get(c.responsavel_id) ?? "—" : "—",
-      })) as ClienteRow[];
+      return (data ?? []).map((c: any) => {
+        const ids = respByPortfolio.get(c.id) ?? (c.responsavel_id ? [c.responsavel_id] : []);
+        return {
+          ...c,
+          servicos: Array.isArray(c.servicos) ? c.servicos : [],
+          responsaveis: ids.map((uid) => ({
+            user_id: uid,
+            display_name: profilesMap.get(uid) ?? uid.slice(0, 8),
+          })),
+        };
+      }) as ClienteRow[];
     },
   });
 
@@ -124,7 +146,24 @@ export function ClientesTab() {
                       {c.servicos.map((s) => <ServiceBadge key={s} service={s} />)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{c.responsavel_email}</TableCell>
+                  <TableCell className="text-sm">
+                    {c.responsaveis.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="secondary" className="cursor-help">
+                            {c.responsaveis.length} responsável{c.responsaveis.length > 1 ? "is" : ""}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <ul className="text-xs space-y-0.5">
+                            {c.responsaveis.map((r) => <li key={r.user_id}>{r.display_name}</li>)}
+                          </ul>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"

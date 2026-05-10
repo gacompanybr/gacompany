@@ -15,7 +15,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
     async function resolve() {
       if (!user) {
-        if (active) { setRedirect("/auth"); setResolving(false); }
+        if (active) { setRedirect("/paineladmin"); setResolving(false); }
         return;
       }
       if (isAdmin) {
@@ -24,7 +24,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
       }
       const ps = await getUserPortfolios();
       if (!active) return;
-      setRedirect(ps[0] ? `/workspace/${ps[0].id}` : "/auth");
+      setRedirect(ps[0] ? `/workspace/${ps[0].id}` : "/painel/app");
       setResolving(false);
     }
 

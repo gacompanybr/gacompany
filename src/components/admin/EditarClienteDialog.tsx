@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ALL_SERVICES, SERVICE_LABELS } from "./ServiceBadge";
+import { ResponsaveisMultiSelect } from "./ResponsaveisMultiSelect";
 import { Loader2, Trash2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -28,11 +29,7 @@ type ClienteRow = {
 };
 
 export function EditarClienteDialog({
-  open,
-  onOpenChange,
-  cliente,
-  onSaved,
-  onDeleted,
+  open, onOpenChange, cliente, onSaved, onDeleted,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -43,9 +40,8 @@ export function EditarClienteDialog({
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [status, setStatus] = useState("active");
-  const [responsavelId, setResponsavelId] = useState("");
+  const [responsaveis, setResponsaveis] = useState<string[]>([]);
   const [servicos, setServicos] = useState<string[]>([]);
-  const [users, setUsers] = useState<{ user_id: string; display_name: string | null }[]>([]);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -54,25 +50,61 @@ export function EditarClienteDialog({
     setName(cliente.name);
     setCnpj(cliente.cnpj ?? "");
     setStatus(cliente.status);
-    setResponsavelId(cliente.responsavel_id ?? "");
     setServicos(cliente.servicos ?? []);
-    supabase.from("profiles").select("user_id, display_name").then(({ data }) => {
-      setUsers(data ?? []);
-    });
+    supabase.from("portfolio_responsaveis")
+      .select("user_id")
+      .eq("portfolio_id", cliente.id)
+      .then(({ data }) => {
+        const ids = (data ?? []).map((r: any) => r.user_id);
+        // fallback: incluir responsavel_id legado
+        if (cliente.responsavel_id && !ids.includes(cliente.responsavel_id)) {
+          ids.push(cliente.responsavel_id);
+        }
+        setResponsaveis(ids);
+      });
   }, [open, cliente]);
 
   async function handleSave() {
     if (!cliente || !name.trim()) return toast.error("Nome obrigatório");
     setBusy(true);
+
     const { error } = await supabase.from("portfolios").update({
       name: name.trim(),
       cnpj: cnpj.trim() || null,
       status,
-      responsavel_id: responsavelId || null,
+      responsavel_id: responsaveis[0] ?? null,
       servicos,
     }).eq("id", cliente.id);
+
+    if (error) {
+      setBusy(false);
+      return toast.error(error.message);
+    }
+
+    // Sincroniza responsáveis (substitui set)
+    const { data: existing } = await supabase
+      .from("portfolio_responsaveis")
+      .select("user_id")
+      .eq("portfolio_id", cliente.id);
+    const existingIds = new Set((existing ?? []).map((r: any) => r.user_id));
+    const newIds = new Set(responsaveis);
+
+    const toRemove = [...existingIds].filter((id) => !newIds.has(id));
+    const toAdd = [...newIds].filter((id) => !existingIds.has(id));
+
+    if (toRemove.length > 0) {
+      await supabase.from("portfolio_responsaveis")
+        .delete()
+        .eq("portfolio_id", cliente.id)
+        .in("user_id", toRemove);
+    }
+    if (toAdd.length > 0) {
+      await supabase.from("portfolio_responsaveis").insert(
+        toAdd.map((uid) => ({ portfolio_id: cliente.id, user_id: uid })),
+      );
+    }
+
     setBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Cliente atualizado!");
     onOpenChange(false);
     onSaved();
@@ -98,9 +130,7 @@ export function EditarClienteDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
@@ -118,31 +148,17 @@ export function EditarClienteDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Responsável</Label>
-              <Select
-                value={responsavelId || "none"}
-                onValueChange={(v) => setResponsavelId(v === "none" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— Nenhum —</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.user_id} value={u.user_id}>
-                      {u.display_name ?? u.user_id.slice(0, 8)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Responsáveis</Label>
+              <ResponsaveisMultiSelect value={responsaveis} onChange={setResponsaveis} />
+              <p className="text-xs text-muted-foreground">
+                Cada responsável recebe acesso automático a este cliente.
+              </p>
             </div>
 
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Ativo</SelectItem>
                   <SelectItem value="inactive">Inativo</SelectItem>
@@ -176,12 +192,10 @@ export function EditarClienteDialog({
               disabled={busy}
               className="gap-2"
             >
-              <Trash2 size={14} /> Excluir cliente
+              <Trash2 size={14} /> Excluir
             </Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <Button onClick={handleSave} disabled={busy}>
                 {busy ? <Loader2 className="animate-spin" size={14} /> : "Salvar"}
               </Button>
@@ -195,14 +209,13 @@ export function EditarClienteDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{cliente?.name}" e todos os dados vinculados (campanhas, métricas, leads) serão removidos
-              permanentemente. Essa ação não pode ser desfeita.
+              "{cliente?.name}" e todos os dados vinculados serão removidos permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={busy}>
-              {busy ? <Loader2 className="animate-spin" size={14} /> : "Excluir permanentemente"}
+              {busy ? <Loader2 className="animate-spin" size={14} /> : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -30,6 +30,6 @@ export function RequirePortfolioAccess({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  if (!allowed) return <Navigate to="/auth" replace />;
+  if (!allowed) return <Navigate to="/painel" replace />;
   return <>{children}</>;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ALL_SERVICES, SERVICE_LABELS } from "./ServiceBadge";
+import { ResponsaveisMultiSelect } from "./ResponsaveisMultiSelect";
 import { Loader2 } from "lucide-react";
 
 export function NovoClienteDialog({
@@ -24,21 +25,13 @@ export function NovoClienteDialog({
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [status, setStatus] = useState("active");
-  const [responsavelId, setResponsavelId] = useState<string>("");
+  const [responsaveis, setResponsaveis] = useState<string[]>([]);
   const [servicos, setServicos] = useState<string[]>([]);
-  const [users, setUsers] = useState<{ user_id: string; display_name: string | null }[]>([]);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    supabase.from("profiles").select("user_id, display_name").then(({ data }) => {
-      setUsers(data ?? []);
-    });
-  }, [open]);
 
   function reset() {
     setName(""); setCnpj(""); setStatus("active");
-    setResponsavelId(""); setServicos([]);
+    setResponsaveis([]); setServicos([]);
   }
 
   async function handleSave() {
@@ -46,16 +39,28 @@ export function NovoClienteDialog({
     setBusy(true);
     const slug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const { error } = await supabase.from("portfolios").insert({
+
+    const { data: created, error } = await supabase.from("portfolios").insert({
       name: name.trim(),
       slug: `${slug}-${Date.now().toString(36)}`,
       cnpj: cnpj.trim() || null,
       status,
-      responsavel_id: responsavelId || null,
+      responsavel_id: responsaveis[0] ?? null, // legado: primeiro como principal
       servicos,
-    });
+    }).select("id").single();
+
+    if (error || !created) {
+      setBusy(false);
+      return toast.error(error?.message ?? "Erro ao criar");
+    }
+
+    if (responsaveis.length > 0) {
+      await supabase.from("portfolio_responsaveis").insert(
+        responsaveis.map((uid) => ({ portfolio_id: created.id, user_id: uid })),
+      );
+    }
+
     setBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Cliente criado!");
     reset();
     onOpenChange(false);
@@ -64,7 +69,7 @@ export function NovoClienteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle>Novo Cliente</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
@@ -76,17 +81,8 @@ export function NovoClienteDialog({
             <Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
           </div>
           <div>
-            <Label>Responsável</Label>
-            <Select value={responsavelId} onValueChange={setResponsavelId}>
-              <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-              <SelectContent>
-                {users.map((u) => (
-                  <SelectItem key={u.user_id} value={u.user_id}>
-                    {u.display_name ?? u.user_id.slice(0, 8)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Responsáveis</Label>
+            <ResponsaveisMultiSelect value={responsaveis} onChange={setResponsaveis} />
           </div>
           <div>
             <Label>Status</Label>

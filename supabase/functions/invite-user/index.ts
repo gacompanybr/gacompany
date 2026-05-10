@@ -41,11 +41,11 @@ Deno.serve(async (req) => {
 
     if (!email) return json({ error: "Email obrigatório" }, 400);
 
-    // Convidar
-    const redirectTo = `${new URL(req.url).origin.replace(
-      "supabase.co",
-      "lovable.app",
-    )}/auth`;
+    // Convidar — redirect específico por papel
+    const baseOrigin = new URL(req.url).origin.replace("supabase.co", "lovable.app");
+    const redirectTo = role === "admin"
+      ? `${baseOrigin}/paineladmin`
+      : `${baseOrigin}/painel`;
     const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo,
     });
