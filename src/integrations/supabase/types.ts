@@ -781,6 +781,30 @@ export type Database = {
           },
         ]
       }
+      portfolio_responsaveis: {
+        Row: {
+          created_at: string
+          id: string
+          papel: string
+          portfolio_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          papel?: string
+          portfolio_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          papel?: string
+          portfolio_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       portfolios: {
         Row: {
           cnpj: string | null
