@@ -1,4 +1,4 @@
-import { Building2, Users, Settings, LogOut, Wallet, LayoutDashboard, Calendar } from "lucide-react";
+import { Building2, Users, Settings, LogOut, Wallet, LayoutDashboard, Calendar, CheckSquare } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader,
@@ -11,6 +11,7 @@ export type AdminTab =
   | "dashboard"
   | "clientes"
   | "equipe"
+  | "tarefas"
   | "calendario"
   | "financeiro"
   | "config";
@@ -25,6 +26,7 @@ const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any 
     items: [
       { key: "clientes", label: "Clientes", icon: Building2 },
       { key: "equipe", label: "Equipe", icon: Users },
+      { key: "tarefas", label: "Tarefas", icon: CheckSquare },
       { key: "calendario", label: "Calendário", icon: Calendar },
       { key: "financeiro", label: "Financeiro", icon: Wallet },
     ],
