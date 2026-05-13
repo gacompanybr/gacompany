@@ -974,6 +974,80 @@ export type Database = {
           },
         ]
       }
+      task_assignees: {
+        Row: {
+          created_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_assignees_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string
+          descricao: string | null
+          id: string
+          portfolio_id: string | null
+          prazo: string | null
+          prioridade: Database["public"]["Enums"]["task_priority"]
+          status: Database["public"]["Enums"]["task_status"]
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by: string
+          descricao?: string | null
+          id?: string
+          portfolio_id?: string | null
+          prazo?: string | null
+          prioridade?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string
+          descricao?: string | null
+          id?: string
+          portfolio_id?: string | null
+          prazo?: string | null
+          prioridade?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_portfolio_access: {
         Row: {
           created_at: string
@@ -1160,6 +1234,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_task_assignee: {
+        Args: { _task_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "viewer"
@@ -1177,6 +1255,8 @@ export type Database = {
         | "atrasado"
         | "cancelado"
       financial_service_status: "ativo" | "pausado" | "finalizado"
+      task_priority: "baixa" | "media" | "alta" | "urgente"
+      task_status: "a_fazer" | "em_andamento" | "feita"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1321,6 +1401,8 @@ export const Constants = {
         "cancelado",
       ],
       financial_service_status: ["ativo", "pausado", "finalizado"],
+      task_priority: ["baixa", "media", "alta", "urgente"],
+      task_status: ["a_fazer", "em_andamento", "feita"],
     },
   },
 } as const

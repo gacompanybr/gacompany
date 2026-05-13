@@ -6,6 +6,7 @@ import { EquipeTab } from "@/components/admin/EquipeTab";
 import { FinanceiroTab } from "@/components/admin/FinanceiroTab";
 import { DashboardTab } from "@/components/admin/DashboardTab";
 import { CalendarioTab } from "@/components/admin/CalendarioTab";
+import { TarefasTab } from "@/components/admin/TarefasTab";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +16,7 @@ const TITLES: Record<AdminTab, string> = {
   dashboard: "Dashboard",
   clientes: "Clientes",
   equipe: "Equipe",
+  tarefas: "Tarefas",
   calendario: "Calendário",
   financeiro: "Financeiro",
   config: "Configurações",
@@ -49,6 +51,7 @@ export default function Admin() {
             {tab === "dashboard" && <DashboardTab />}
             {tab === "clientes" && <ClientesTab />}
             {tab === "equipe" && <EquipeTab />}
+            {tab === "tarefas" && <TarefasTab />}
             {tab === "calendario" && <CalendarioTab />}
             {tab === "financeiro" && <FinanceiroTab />}
             {tab === "config" && (
