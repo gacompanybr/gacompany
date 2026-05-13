@@ -8,6 +8,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   social_media: "Social Media",
   criativos: "Criativos",
   financeiro: "Financeiro",
+  site: "Site",
 };
 
 // Cores fixas (não há tokens semânticos por serviço)
@@ -19,6 +20,7 @@ const COLORS: Record<string, string> = {
   social_media: "bg-orange-500/15 text-orange-400 border-orange-500/30",
   criativos: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
   financeiro: "bg-primary/15 text-primary border-primary/30",
+  site: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
 };
 
 export function ServiceBadge({ service }: { service: string }) {
