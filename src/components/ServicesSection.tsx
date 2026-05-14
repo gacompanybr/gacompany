@@ -1,12 +1,52 @@
-import { BarChart3, Megaphone, PenTool, Globe, LineChart, Zap } from "lucide-react";
+import { PenTool, Megaphone, Search, Radio, Bot, BarChart3, Globe, LineChart, Tag, BadgeCheck } from "lucide-react";
 
 const services = [
-  { icon: Megaphone, title: "Tráfego Pago", desc: "Campanhas otimizadas no Google, Meta e TikTok Ads para atrair clientes qualificados." },
-  { icon: PenTool, title: "Criação de Conteúdo", desc: "Estratégias de conteúdo que engajam, educam e convertem sua audiência." },
-  { icon: Globe, title: "Social Media", desc: "Gestão completa das redes sociais com foco em crescimento orgânico e pago." },
-  { icon: BarChart3, title: "Gestão de CRM", desc: "Automação e gestão do funil de vendas para maximizar cada oportunidade." },
-  { icon: LineChart, title: "SEO & Analytics", desc: "Posicionamento orgânico e dashboards com métricas que importam." },
-  { icon: Zap, title: "Automação", desc: "Fluxos automatizados de nutrição, remarketing e follow-up." },
+  {
+    icon: PenTool,
+    title: "Conteúdo",
+    desc: "Qualidade para alavancar sua presença digital e engajar seu público-alvo por meio de conteúdos estratégicos, criativos e alinhados ao posicionamento da marca.",
+  },
+  {
+    icon: Megaphone,
+    title: "Google Ads e Meta Ads",
+    desc: "Maximize sua presença online com campanhas focadas em tráfego qualificado, geração de leads, vendas e crescimento real no Google Ads e Meta Ads.",
+    badge: "Parceiros Google Ads e Meta Ads",
+  },
+  {
+    icon: Search,
+    title: "Análise de SEO",
+    desc: "Navegamos pelos caminhos da otimização para mecanismos de busca, melhorando a visibilidade orgânica, estrutura do site e potencial de descoberta da marca.",
+  },
+  {
+    icon: Radio,
+    title: "Mídia Programática",
+    desc: "Segmentação precisa e assertiva para alcançar o consumidor certo no momento certo, com inteligência de mídia e dados.",
+  },
+  {
+    icon: Bot,
+    title: "Automações e Agentes de IA",
+    desc: "Agentes de IA focados em vendas e atendimento humanizado para aumentar a conversão, melhorar o relacionamento e apoiar o pós-venda e SAC.",
+  },
+  {
+    icon: BarChart3,
+    title: "CRM",
+    desc: "Automação e gestão do funil de vendas para maximizar cada oportunidade, organizar leads, acompanhar etapas comerciais e aumentar a conversão.",
+  },
+  {
+    icon: Globe,
+    title: "Sites, Landing Pages e E-commerce",
+    desc: "Criação de sites institucionais, landing pages e e-commerces com foco em conversão, performance e resultados — geração de leads ou vendas online.",
+  },
+  {
+    icon: LineChart,
+    title: "Criação de Dashboards",
+    desc: "Dashboards personalizados que trazem visibilidade das campanhas e indicadores em um só lugar, facilitando a tomada de decisão.",
+  },
+  {
+    icon: Tag,
+    title: "Configuração de GTM",
+    desc: "Configuração do Google Tag Manager para organização de tags, eventos, conversões e rastreamento de performance das campanhas.",
+  },
 ];
 
 const ServicesSection = () => {
@@ -24,13 +64,18 @@ const ServicesSection = () => {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map(({ icon: Icon, title, desc }) => (
+          {services.map(({ icon: Icon, title, desc, badge }) => (
             <div key={title} className="group bg-card border border-border rounded-2xl p-8 hover:border-primary/40 transition-all duration-300 hover:shadow-[var(--shadow-gold)]">
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/20 transition-colors">
                 <Icon className="text-primary" size={24} />
               </div>
               <h3 className="font-heading text-xl font-bold mb-3 text-foreground">{title}</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">{desc}</p>
+              {badge && (
+                <div className="mt-4 inline-flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary text-xs font-semibold px-3 py-1.5 rounded-full">
+                  <BadgeCheck size={14} /> {badge}
+                </div>
+              )}
             </div>
           ))}
         </div>
