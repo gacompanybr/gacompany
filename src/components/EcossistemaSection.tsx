@@ -50,16 +50,21 @@ const EcossistemaSection = () => {
                   animationDelay: `${i * 0.4}s`,
                 }}
               >
-                <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 overflow-hidden text-[10px] font-bold text-black">
+                <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
                   <img
                     src={`https://cdn.simpleicons.org/${p.slug}`}
                     alt={p.name}
                     className="w-3.5 h-3.5 object-contain"
                     loading="lazy"
                     onError={(e) => {
-                      const parent = e.currentTarget.parentElement as HTMLElement;
-                      e.currentTarget.style.display = "none";
-                      parent.textContent = p.name.charAt(0);
+                      const img = e.currentTarget;
+                      const fallback = `https://www.google.com/s2/favicons?domain=${p.domain}&sz=64`;
+                      if (img.src !== fallback) {
+                        img.src = fallback;
+                        img.className = "w-4 h-4 object-contain";
+                      } else {
+                        img.style.display = "none";
+                      }
                     }}
                   />
                 </span>
