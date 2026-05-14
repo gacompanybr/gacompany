@@ -1,8 +1,8 @@
-import { Sprout, Zap, Target, CheckCircle2 } from "lucide-react";
+import { TrendingUp, Zap, Target, CheckCircle2 } from "lucide-react";
 
 const steps = [
   {
-    icon: Sprout,
+    icon: TrendingUp,
     tag: "GROW",
     title: "Aumentar visibilidade real, não vaidade.",
     desc: "A etapa Grow tem como foco ampliar a presença digital da marca de forma estratégica, atraindo pessoas que realmente se identificam com o produto ou serviço. O objetivo não é apenas gerar números, mas construir uma audiência qualificada com potencial real de compra.",
