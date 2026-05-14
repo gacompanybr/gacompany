@@ -2,15 +2,15 @@ import { ArrowRight } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 const platforms = [
-  { name: "Google Ads", top: "8%", left: "8%" },
-  { name: "Meta Ads", top: "5%", left: "55%" },
-  { name: "VTEX", top: "28%", left: "78%" },
-  { name: "Nuvemshop", top: "52%", left: "82%" },
-  { name: "Bling", top: "75%", left: "65%" },
-  { name: "Lovable", top: "82%", left: "20%" },
-  { name: "Mercado Livre", top: "55%", left: "-2%" },
-  { name: "Amazon", top: "28%", left: "-4%" },
-  { name: "Shopee", top: "92%", left: "42%" },
+  { name: "Google Ads", slug: "googleads", top: "8%", left: "8%" },
+  { name: "Meta Ads", slug: "meta", top: "5%", left: "55%" },
+  { name: "VTEX", slug: "vtex", top: "28%", left: "78%" },
+  { name: "Nuvemshop", slug: "nuvemshop", top: "52%", left: "82%" },
+  { name: "Bling", slug: "bling", top: "75%", left: "65%" },
+  { name: "Lovable", slug: "lovable", top: "82%", left: "20%" },
+  { name: "Mercado Livre", slug: "mercadolibre", top: "55%", left: "-2%" },
+  { name: "Amazon", slug: "amazon", top: "28%", left: "-4%" },
+  { name: "Shopee", slug: "shopee", top: "92%", left: "42%" },
 ];
 
 const stats = [
