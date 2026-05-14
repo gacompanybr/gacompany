@@ -2,15 +2,15 @@ import { ArrowRight } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 const platforms = [
-  { name: "Google Ads", slug: "googleads", top: "8%", left: "8%" },
-  { name: "Meta Ads", slug: "meta", top: "5%", left: "55%" },
-  { name: "VTEX", slug: "vtex", top: "28%", left: "78%" },
-  { name: "Nuvemshop", slug: "nuvemshop", top: "52%", left: "82%" },
-  { name: "Bling", slug: "bling", top: "75%", left: "65%" },
-  { name: "Lovable", slug: "lovable", top: "82%", left: "20%" },
-  { name: "Mercado Livre", slug: "mercadolibre", top: "55%", left: "-2%" },
-  { name: "Amazon", slug: "amazon", top: "28%", left: "-4%" },
-  { name: "Shopee", slug: "shopee", top: "92%", left: "42%" },
+  { name: "Google Ads", slug: "googleads", domain: "ads.google.com", top: "8%", left: "8%" },
+  { name: "Meta Ads", slug: "meta", domain: "meta.com", top: "5%", left: "55%" },
+  { name: "VTEX", slug: "vtex", domain: "vtex.com", top: "28%", left: "78%" },
+  { name: "Nuvemshop", slug: "nuvemshop", domain: "nuvemshop.com.br", top: "52%", left: "82%" },
+  { name: "Bling", slug: "bling", domain: "bling.com.br", top: "75%", left: "65%" },
+  { name: "Lovable", slug: "lovable", domain: "lovable.dev", top: "82%", left: "20%" },
+  { name: "Mercado Livre", slug: "mercadolibre", domain: "mercadolivre.com.br", top: "55%", left: "-2%" },
+  { name: "Amazon", slug: "amazon", domain: "amazon.com.br", top: "28%", left: "-4%" },
+  { name: "Shopee", slug: "shopee", domain: "shopee.com.br", top: "92%", left: "42%" },
 ];
 
 const stats = [
@@ -57,7 +57,14 @@ const EcossistemaSection = () => {
                     className="w-3.5 h-3.5 object-contain"
                     loading="lazy"
                     onError={(e) => {
-                      (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+                      const img = e.currentTarget;
+                      const fallback = `https://www.google.com/s2/favicons?domain=${p.domain}&sz=64`;
+                      if (img.src !== fallback) {
+                        img.src = fallback;
+                        img.className = "w-4 h-4 object-contain";
+                      } else {
+                        img.style.display = "none";
+                      }
                     }}
                   />
                 </span>
