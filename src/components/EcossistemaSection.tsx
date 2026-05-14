@@ -43,13 +43,24 @@ const EcossistemaSection = () => {
             {platforms.map((p, i) => (
               <div
                 key={p.name}
-                className="absolute bg-background border border-border rounded-full px-4 py-2 shadow-lg hover:border-primary/50 hover:shadow-[var(--shadow-gold)] transition-all animate-float"
+                className="absolute bg-background border border-border rounded-full pl-2 pr-4 py-2 shadow-lg hover:border-primary/50 hover:shadow-[var(--shadow-gold)] transition-all animate-float flex items-center gap-2"
                 style={{
                   top: p.top,
                   left: p.left,
                   animationDelay: `${i * 0.4}s`,
                 }}
               >
+                <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <img
+                    src={`https://cdn.simpleicons.org/${p.slug}`}
+                    alt={p.name}
+                    className="w-3.5 h-3.5 object-contain"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+                    }}
+                  />
+                </span>
                 <span className="text-xs md:text-sm font-semibold text-foreground whitespace-nowrap">{p.name}</span>
               </div>
             ))}
