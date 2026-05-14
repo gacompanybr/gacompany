@@ -14,9 +14,10 @@ const Navbar = () => {
 
   const links = [
     { label: "Serviços", href: "#servicos" },
-    { label: "Resultados", href: "#resultados" },
-    { label: "Depoimentos", href: "#depoimentos" },
-    { label: "Como funciona", href: "#como-funciona" },
+    { label: "Metodologia", href: "#metodologia" },
+    { label: "Ecossistema", href: "#ecossistema" },
+    { label: "Clientes", href: "#clientes" },
+    { label: "Sobre", href: "#sobre" },
   ];
 
   return (
