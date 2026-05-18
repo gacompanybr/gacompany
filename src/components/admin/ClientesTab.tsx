@@ -9,11 +9,12 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Loader2, Pencil } from "lucide-react";
+import { Plus, Search, Loader2, Pencil, KeyRound } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ServiceBadge } from "./ServiceBadge";
 import { NovoClienteDialog } from "./NovoClienteDialog";
 import { EditarClienteDialog } from "./EditarClienteDialog";
+import { CredenciaisClienteDialog } from "./CredenciaisClienteDialog";
 
 type ClienteRow = {
   id: string;
@@ -31,6 +32,7 @@ export function ClientesTab() {
   const [busca, setBusca] = useState("");
   const [openNovo, setOpenNovo] = useState(false);
   const [editando, setEditando] = useState<ClienteRow | null>(null);
+  const [credenciais, setCredenciais] = useState<ClienteRow | null>(null);
 
   const { data: clientes = [], isLoading } = useQuery({
     queryKey: ["admin-clientes"],
@@ -185,6 +187,14 @@ export function ClientesTab() {
                     >
                       <Pencil size={14} />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setCredenciais(c)}
+                      title="Credenciais do cliente"
+                    >
+                      <KeyRound size={14} />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -205,6 +215,12 @@ export function ClientesTab() {
         cliente={editando}
         onSaved={refresh}
         onDeleted={refresh}
+      />
+
+      <CredenciaisClienteDialog
+        open={!!credenciais}
+        onOpenChange={(o) => !o && setCredenciais(null)}
+        cliente={credenciais}
       />
     </div>
   );
