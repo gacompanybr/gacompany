@@ -58,28 +58,22 @@ Deno.serve(async (req) => {
     if (!hasAccess) return json({ error: "Sem acesso" }, 403);
 
     const instanceName = agent.instancia_id ?? `lopes_${agentId.slice(0, 8)}`;
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/evolution-webhook`;
 
     if (action === "connect") {
-      // Cria instância (idempotente: se já existe, ignora)
+      // Cria instância (idempotente)
       const create = await evo("/instance/create", {
         method: "POST",
         body: JSON.stringify({
           instanceName,
           integration: "WHATSAPP-BAILEYS",
           qrcode: true,
-          webhook: {
-            url: webhookUrl,
-            byEvents: false,
-            base64: false,
-            events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
-          },
         }),
       });
-      // Se já existe, pega o QR atual
+      console.log("evo create status:", create.status, "body:", JSON.stringify(create.body).slice(0, 600));
       if (!create.ok && create.status !== 403 && create.status !== 409) {
-        // 403/409 = "já existe" em algumas versões; outros erros falham
-        if (create.status >= 500) return json({ error: "Falha ao criar instância", detail: create.body }, 500);
+        if (create.status >= 500) {
+          return json({ error: "Falha ao criar instância", status: create.status, detail: create.body }, 500);
+        }
       }
 
       // Buscar QR (pode vir já no create ou no connect)
