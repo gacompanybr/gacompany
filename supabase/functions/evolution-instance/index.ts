@@ -82,16 +82,49 @@ Deno.serve(async (req) => {
         if (create.status >= 500) return json({ error: "Falha ao criar instância", detail: create.body }, 500);
       }
 
-      // Buscar QR
-      const qr = await evo(`/instance/connect/${instanceName}`);
-      const qrCode = qr.body?.base64 ?? qr.body?.qrcode?.base64 ?? qr.body?.code ?? null;
+      // Buscar QR (pode vir já no create ou no connect)
+      let qrCode: string | null =
+        create.body?.qrcode?.base64 ?? create.body?.qrcode?.code ?? create.body?.base64 ?? null;
+      let raw: any = create.body;
+
+      if (!qrCode) {
+        // Pequeno delay e tenta o connect
+        await new Promise((r) => setTimeout(r, 800));
+        const qr = await evo(`/instance/connect/${instanceName}`);
+        raw = qr.body;
+        qrCode =
+          qr.body?.base64 ??
+          qr.body?.qrcode?.base64 ??
+          qr.body?.qrcode?.code ??
+          qr.body?.code ??
+          qr.body?.pairingCode ??
+          null;
+
+        // Tenta novamente após 1.5s se ainda não veio
+        if (!qrCode) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const qr2 = await evo(`/instance/connect/${instanceName}`);
+          raw = qr2.body;
+          qrCode =
+            qr2.body?.base64 ??
+            qr2.body?.qrcode?.base64 ??
+            qr2.body?.qrcode?.code ??
+            qr2.body?.code ??
+            null;
+        }
+      }
+
+      console.log("evolution connect raw:", JSON.stringify(raw).slice(0, 500));
 
       await admin.from("whatsapp_agents").update({
         status: "connecting",
         instancia_id: instanceName,
       }).eq("id", agentId);
 
-      return json({ instanceName, qr: qrCode, raw: qr.body });
+      if (!qrCode) {
+        return json({ error: "QR não retornado pela Evolution", raw }, 502);
+      }
+      return json({ instanceName, qr: qrCode, raw });
     }
 
     if (action === "status") {
