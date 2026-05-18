@@ -29,6 +29,21 @@ async function evo(path: string, init: RequestInit = {}) {
   return { ok: r.ok, status: r.status, body };
 }
 
+function extractQr(body: any): string | null {
+  if (!body || typeof body !== "object") return typeof body === "string" && body.length > 80 ? body : null;
+  const direct = body.base64 ?? body.code ?? body.pairingCode ?? body.qrcode?.base64 ?? body.qrcode?.code;
+  if (typeof direct === "string" && direct.length > 20) return direct;
+  for (const value of Object.values(body)) {
+    const found = extractQr(value);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -57,18 +72,32 @@ Deno.serve(async (req) => {
     });
     if (!hasAccess) return json({ error: "Sem acesso" }, 403);
 
-    const instanceName = agent.instancia_id ?? `lopes_${agentId.slice(0, 8)}`;
+    let instanceName = agent.instancia_id ?? `lopes_${agentId.slice(0, 8)}`;
 
     if (action === "connect") {
-      // Cria instância (idempotente)
-      const create = await evo("/instance/create", {
+      const createInstance = async (name: string) => evo("/instance/create", {
         method: "POST",
         body: JSON.stringify({
-          instanceName,
+          instanceName: name,
           integration: "WHATSAPP-BAILEYS",
           qrcode: true,
         }),
       });
+
+      const getQr = async (name: string) => {
+        let lastRaw: any = null;
+        for (const delay of [700, 1500, 2500]) {
+          await wait(delay);
+          const qr = await evo(`/instance/connect/${name}`);
+          lastRaw = qr.body;
+          const code = extractQr(qr.body);
+          if (code) return { code, raw: qr.body };
+        }
+        return { code: null as string | null, raw: lastRaw };
+      };
+
+      // Cria instância (idempotente)
+      let create = await createInstance(instanceName);
       console.log("evo create status:", create.status, "body:", JSON.stringify(create.body).slice(0, 600));
       if (!create.ok && create.status !== 403 && create.status !== 409) {
         if (create.status >= 500) {
@@ -77,34 +106,30 @@ Deno.serve(async (req) => {
       }
 
       // Buscar QR (pode vir já no create ou no connect)
-      let qrCode: string | null =
-        create.body?.qrcode?.base64 ?? create.body?.qrcode?.code ?? create.body?.base64 ?? null;
+      let qrCode: string | null = extractQr(create.body);
       let raw: any = create.body;
 
       if (!qrCode) {
-        // Pequeno delay e tenta o connect
-        await new Promise((r) => setTimeout(r, 800));
-        const qr = await evo(`/instance/connect/${instanceName}`);
-        raw = qr.body;
-        qrCode =
-          qr.body?.base64 ??
-          qr.body?.qrcode?.base64 ??
-          qr.body?.qrcode?.code ??
-          qr.body?.code ??
-          qr.body?.pairingCode ??
-          null;
+        const firstQr = await getQr(instanceName);
+        qrCode = firstQr.code;
+        raw = firstQr.raw;
 
-        // Tenta novamente após 1.5s se ainda não veio
-        if (!qrCode) {
-          await new Promise((r) => setTimeout(r, 1500));
-          const qr2 = await evo(`/instance/connect/${instanceName}`);
-          raw = qr2.body;
-          qrCode =
-            qr2.body?.base64 ??
-            qr2.body?.qrcode?.base64 ??
-            qr2.body?.qrcode?.code ??
-            qr2.body?.code ??
-            null;
+        // Quando a Evolution fica presa em { count: 0 }, a instância existe mas não emite QR.
+        // Apaga a sessão zumbi e recria com nome novo para liberar um QR válido.
+        if (!qrCode && raw?.count === 0) {
+          await evo(`/instance/logout/${instanceName}`, { method: "DELETE" });
+          await evo(`/instance/delete/${instanceName}`, { method: "DELETE" });
+          await wait(900);
+          instanceName = `lopes_${agentId.slice(0, 8)}_${Date.now().toString(36).slice(-5)}`;
+          create = await createInstance(instanceName);
+          console.log("evo recreate status:", create.status, "body:", JSON.stringify(create.body).slice(0, 600));
+          qrCode = extractQr(create.body);
+          raw = create.body;
+          if (!qrCode) {
+            const retryQr = await getQr(instanceName);
+            qrCode = retryQr.code;
+            raw = retryQr.raw;
+          }
         }
       }
 
@@ -116,7 +141,7 @@ Deno.serve(async (req) => {
       }).eq("id", agentId);
 
       if (!qrCode) {
-        return json({ error: "QR não retornado pela Evolution", raw }, 502);
+        return json({ error: "QR não retornado pela Evolution. A instância foi recriada, mas a API continuou retornando count:0.", raw });
       }
       return json({ instanceName, qr: qrCode, raw });
     }
