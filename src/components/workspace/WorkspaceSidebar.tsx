@@ -1,15 +1,20 @@
-import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone, Wallet } from "lucide-react";
+import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone, Wallet, Send, Search, Zap } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
 } from "@/components/ui/sidebar";
 
-export type WorkspaceModule = "metricas" | "campanhas" | "whatsapp" | "crm" | "social" | "criativos" | "financeiro";
+export type WorkspaceModule =
+  | "metricas" | "campanhas" | "whatsapp" | "crm" | "social"
+  | "criativos" | "financeiro" | "disparo" | "scrapper" | "robo";
 
 const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | string[] }[] = [
   { key: "metricas", label: "Métricas", icon: BarChart3, service: ["meta_ads", "google_ads"] },
   { key: "campanhas", label: "Campanhas", icon: Megaphone, service: ["meta_ads", "google_ads"] },
-  { key: "whatsapp", label: "Agente WhatsApp", icon: Bot, service: "whatsapp_agent" },
+  { key: "whatsapp", label: "Agente IA", icon: Bot, service: "whatsapp_agent" },
+  { key: "disparo", label: "Disparo", icon: Send, service: "disparo" },
+  { key: "robo", label: "Robô", icon: Zap, service: "robo" },
+  { key: "scrapper", label: "Scrapper", icon: Search, service: "scrapper" },
   { key: "crm", label: "CRM", icon: Users, service: "crm" },
   { key: "social", label: "Social Media", icon: Smartphone, service: "social_media" },
   { key: "criativos", label: "Criativos", icon: Palette, service: "criativos" },

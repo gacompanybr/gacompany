@@ -33,8 +33,8 @@ const Navbar = () => {
               {link.label}
             </a>
           ))}
-          <a href="/dashboard" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-            Painel
+          <a href="/painel" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            Área do Cliente
           </a>
           <a href="#formulario" className="bg-primary text-primary-foreground px-6 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
             Fale Conosco
@@ -53,6 +53,9 @@ const Navbar = () => {
               {link.label}
             </a>
           ))}
+          <a href="/painel" onClick={() => setMenuOpen(false)} className="block py-3 text-muted-foreground hover:text-primary transition-colors">
+            Área do Cliente
+          </a>
           <a href="#formulario" onClick={() => setMenuOpen(false)} className="block mt-4 bg-primary text-primary-foreground px-6 py-3 rounded-lg text-sm font-semibold text-center">
             Fale Conosco
           </a>
