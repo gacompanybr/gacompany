@@ -14,9 +14,24 @@ export function ResponsaveisMultiSelect({
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    supabase.from("profiles").select("user_id, display_name").order("display_name").then(({ data }) => {
+    (async () => {
+      // Apenas usuários com papel "admin" podem ser responsáveis
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      const adminIds = [...new Set((roles ?? []).map((r: any) => r.user_id))];
+      if (adminIds.length === 0) {
+        setUsers([]);
+        return;
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", adminIds)
+        .order("display_name");
       setUsers(data ?? []);
-    });
+    })();
   }, []);
 
   const userMap = useMemo(() => new Map(users.map((u) => [u.user_id, u])), [users]);
