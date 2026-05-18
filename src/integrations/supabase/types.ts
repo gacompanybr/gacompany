@@ -345,6 +345,98 @@ export type Database = {
           },
         ]
       }
+      disparo_campanhas: {
+        Row: {
+          created_at: string
+          delay_max_seg: number
+          delay_min_seg: number
+          enviados: number
+          id: string
+          instancia_id: string | null
+          mensagens: Json
+          nome: string
+          planilha_url: string | null
+          portfolio_id: string
+          status: string
+          total_contatos: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delay_max_seg?: number
+          delay_min_seg?: number
+          enviados?: number
+          id?: string
+          instancia_id?: string | null
+          mensagens?: Json
+          nome: string
+          planilha_url?: string | null
+          portfolio_id: string
+          status?: string
+          total_contatos?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delay_max_seg?: number
+          delay_min_seg?: number
+          enviados?: number
+          id?: string
+          instancia_id?: string | null
+          mensagens?: Json
+          nome?: string
+          planilha_url?: string | null
+          portfolio_id?: string
+          status?: string
+          total_contatos?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      disparo_contatos: {
+        Row: {
+          campanha_id: string
+          created_at: string
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          nome: string | null
+          status: string
+          telefone: string
+          variaveis: Json
+        }
+        Insert: {
+          campanha_id: string
+          created_at?: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome?: string | null
+          status?: string
+          telefone: string
+          variaveis?: Json
+        }
+        Update: {
+          campanha_id?: string
+          created_at?: string
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome?: string | null
+          status?: string
+          telefone?: string
+          variaveis?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disparo_contatos_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "disparo_campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_categories: {
         Row: {
           cor: string
@@ -868,6 +960,117 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      robo_campanhas: {
+        Row: {
+          conteudo_url: string | null
+          created_at: string
+          destinos: Json
+          dias_semana: Json
+          horario_fim: string
+          horario_inicio: string
+          id: string
+          instancia_id: string | null
+          intervalo_max_min: number
+          intervalo_min_min: number
+          nome: string
+          portfolio_id: string
+          prompt: string | null
+          status: string
+          tipo: string
+          ultima_execucao: string | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo_url?: string | null
+          created_at?: string
+          destinos?: Json
+          dias_semana?: Json
+          horario_fim?: string
+          horario_inicio?: string
+          id?: string
+          instancia_id?: string | null
+          intervalo_max_min?: number
+          intervalo_min_min?: number
+          nome: string
+          portfolio_id: string
+          prompt?: string | null
+          status?: string
+          tipo?: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo_url?: string | null
+          created_at?: string
+          destinos?: Json
+          dias_semana?: Json
+          horario_fim?: string
+          horario_inicio?: string
+          id?: string
+          instancia_id?: string | null
+          intervalo_max_min?: number
+          intervalo_min_min?: number
+          nome?: string
+          portfolio_id?: string
+          prompt?: string | null
+          status?: string
+          tipo?: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      scrapper_jobs: {
+        Row: {
+          agendamento_cron: string | null
+          categoria: string
+          config: Json
+          created_at: string
+          id: string
+          nome: string
+          output_url: string | null
+          plataforma: string
+          portfolio_id: string
+          status: string
+          ultima_execucao: string | null
+          ultima_qtd: number
+          ultimo_erro: string | null
+          updated_at: string
+        }
+        Insert: {
+          agendamento_cron?: string | null
+          categoria?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          nome: string
+          output_url?: string | null
+          plataforma: string
+          portfolio_id: string
+          status?: string
+          ultima_execucao?: string | null
+          ultima_qtd?: number
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agendamento_cron?: string | null
+          categoria?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          nome?: string
+          output_url?: string | null
+          plataforma?: string
+          portfolio_id?: string
+          status?: string
+          ultima_execucao?: string | null
+          ultima_qtd?: number
+          ultimo_erro?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
