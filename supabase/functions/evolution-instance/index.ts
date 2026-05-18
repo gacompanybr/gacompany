@@ -121,6 +121,17 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "groups") {
+      // Lista grupos da instância
+      const g = await evo(`/group/fetchAllGroups/${instanceName}?getParticipants=false`);
+      const arr = Array.isArray(g.body) ? g.body : (g.body?.groups ?? []);
+      const groups = arr.map((x: any) => ({
+        id: x.id ?? x.remoteJid ?? x.jid,
+        nome: x.subject ?? x.name ?? x.id,
+      })).filter((x: any) => x.id);
+      return json({ groups });
+    }
+
     return json({ error: "action inválido" }, 400);
   } catch (e) {
     console.error("evolution-instance error", e);
