@@ -975,12 +975,16 @@ export type Database = {
           instancia_id: string | null
           intervalo_max_min: number
           intervalo_min_min: number
+          mensagens: Json
           nome: string
           portfolio_id: string
           prompt: string | null
+          proxima_execucao: string | null
           status: string
           tipo: string
+          total_enviados: number
           ultima_execucao: string | null
+          ultimo_erro: string | null
           updated_at: string
         }
         Insert: {
@@ -994,12 +998,16 @@ export type Database = {
           instancia_id?: string | null
           intervalo_max_min?: number
           intervalo_min_min?: number
+          mensagens?: Json
           nome: string
           portfolio_id: string
           prompt?: string | null
+          proxima_execucao?: string | null
           status?: string
           tipo?: string
+          total_enviados?: number
           ultima_execucao?: string | null
+          ultimo_erro?: string | null
           updated_at?: string
         }
         Update: {
@@ -1013,12 +1021,16 @@ export type Database = {
           instancia_id?: string | null
           intervalo_max_min?: number
           intervalo_min_min?: number
+          mensagens?: Json
           nome?: string
           portfolio_id?: string
           prompt?: string | null
+          proxima_execucao?: string | null
           status?: string
           tipo?: string
+          total_enviados?: number
           ultima_execucao?: string | null
+          ultimo_erro?: string | null
           updated_at?: string
         }
         Relationships: []
