@@ -1390,6 +1390,36 @@ export type Database = {
           },
         ]
       }
+      whatsapp_connections: {
+        Row: {
+          created_at: string
+          id: string
+          instance_name: string
+          phone: string | null
+          portfolio_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_name: string
+          phone?: string | null
+          portfolio_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_name?: string
+          phone?: string | null
+          portfolio_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       meta_integracoes_public: {
