@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.sync-meta-ads]
 verify_jwt = false
+
+[functions.scrapper-api]
+verify_jwt = false
