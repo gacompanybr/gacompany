@@ -156,22 +156,34 @@ function NovoJobDialog({
   const [plataforma, setPlataforma] = useState(categoria === "ecommerce" ? "shopee" : "custom");
   const [termos, setTermos] = useState("");
   const [cron, setCron] = useState("0 */6 * * *");
+  const [shopeeAppId, setShopeeAppId] = useState("");
+  const [shopeeSecret, setShopeeSecret] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome");
+    if (plataforma === "shopee" && (!shopeeAppId.trim() || !shopeeSecret.trim())) {
+      return toast.error("Informe App ID e Secret da Shopee");
+    }
     setBusy(true);
+    const config: Record<string, any> = {
+      termos: termos.split(",").map((s) => s.trim()).filter(Boolean),
+    };
+    if (plataforma === "shopee") {
+      config.shopee_app_id = shopeeAppId.trim();
+      config.shopee_secret = shopeeSecret.trim();
+    }
     const { error } = await supabase.from("scrapper_jobs").insert({
       portfolio_id: portfolioId,
       nome: nome.trim(),
       categoria,
       plataforma,
-      config: { termos: termos.split(",").map((s) => s.trim()).filter(Boolean) },
+      config,
       agendamento_cron: cron.trim() || null,
     });
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success("Job criado! As APIs necessárias serão solicitadas em breve.");
+    toast.success("Job criado! O n8n irá processar na próxima execução.");
     onOpenChange(false);
     onCreated();
   }
@@ -202,6 +214,26 @@ function NovoJobDialog({
               <Label>Identificador</Label>
               <Input value={plataforma} onChange={(e) => setPlataforma(e.target.value)} placeholder="custom" />
             </div>
+          )}
+          {plataforma === "shopee" && (
+            <>
+              <div>
+                <Label>Shopee Affiliate App ID</Label>
+                <Input value={shopeeAppId} onChange={(e) => setShopeeAppId(e.target.value)} placeholder="1234567890" />
+              </div>
+              <div>
+                <Label>Shopee Affiliate Secret</Label>
+                <Input
+                  type="password"
+                  value={shopeeSecret}
+                  onChange={(e) => setShopeeSecret(e.target.value)}
+                  placeholder="••••••••"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Usado pelo n8n para autenticar na API da Shopee Affiliate.
+                </p>
+              </div>
+            </>
           )}
           <div>
             <Label>Termos / categorias (separados por vírgula)</Label>
