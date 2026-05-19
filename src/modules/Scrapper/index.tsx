@@ -166,7 +166,7 @@ function NovoJobDialog({
       return toast.error("Informe App ID e Secret da Shopee");
     }
     setBusy(true);
-    const config: Record<string, unknown> = {
+    const config: Record<string, any> = {
       termos: termos.split(",").map((s) => s.trim()).filter(Boolean),
     };
     if (plataforma === "shopee") {
