@@ -30,8 +30,8 @@ async function evo(path: string, init: RequestInit = {}) {
 }
 
 function extractQr(body: any): string | null {
-  if (!body || typeof body !== "object") return null;
-  const direct = body.base64 ?? body.code ?? body.qrcode?.base64 ?? body.qrcode?.code;
+  if (!body || typeof body !== "object") return typeof body === "string" && body.length > 80 ? body : null;
+  const direct = body.base64 ?? body.code ?? body.pairingCode ?? body.qrcode?.base64 ?? body.qrcode?.code;
   if (typeof direct === "string" && direct.length > 20) return direct;
   for (const v of Object.values(body)) {
     const found = extractQr(v);

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, QrCode, Smartphone, CheckCircle2, RefreshCw, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import QRCode from "qrcode";
 import type { WhatsappAgent } from "./types";
 
 type Conn = {
@@ -15,6 +16,18 @@ type Conn = {
   status: "disconnected" | "connecting" | "connected" | string;
   phone: string | null;
 };
+
+async function qrToImage(code: string) {
+  if (code.startsWith("data:image/")) return code;
+  if (code.startsWith("iVBORw0KGgo") || code.startsWith("/9j/") || code.startsWith("UklGR")) {
+    return `data:image/png;base64,${code}`;
+  }
+  return QRCode.toDataURL(code, {
+    width: 240,
+    margin: 1,
+    color: { dark: "#000000", light: "#ffffff" },
+  });
+}
 
 export function ConectarTab({
   agent, onRefresh,
@@ -70,7 +83,7 @@ export function ConectarTab({
     }
     const code = (data as any)?.qr;
     if (!code) return toast.error("QR não retornado");
-    setQr(code.startsWith("data:") ? code : `data:image/png;base64,${code}`);
+    setQr(await qrToImage(code));
     await refetch();
   }
 
