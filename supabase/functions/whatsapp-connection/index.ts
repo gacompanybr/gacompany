@@ -83,11 +83,12 @@ Deno.serve(async (req) => {
 
       const getQr = async (name: string) => {
         let lastRaw: any = null;
-        for (const delay of [700, 1500, 2500]) {
+        for (const delay of [800, 1500, 2000, 2500, 3000, 3500]) {
           await wait(delay);
           const qr = await evo(`/instance/connect/${name}`);
           lastRaw = qr.body;
           const code = extractQr(qr.body);
+          console.log(`getQr ${name} after ${delay}ms -> hasCode=${!!code} body=${JSON.stringify(qr.body).slice(0,200)}`);
           if (code) return { code, raw: qr.body };
         }
         return { code: null as string | null, raw: lastRaw };
