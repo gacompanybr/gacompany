@@ -287,6 +287,11 @@ function buildScrapperWorkflow(job: any) {
     .trim();
   const shopeeAppId = normalizeShopeeCredential(cfg.shopee_app_id);
   const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
+  const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
+  const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
+  const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
+  const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 5)));
+  const mlMinDiscount = Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 20)));
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
@@ -297,6 +302,11 @@ const TERMOS = ${JSON.stringify(termos)};
 const CATEGORIAS = ${JSON.stringify(categorias)};
 const SHOPEE_APP_ID = ${JSON.stringify(shopeeAppId)};
 const SHOPEE_SECRET = ${JSON.stringify(shopeeSecret)};
+const ML_COOKIE = ${JSON.stringify(mlCookie)};
+const ML_CSRF = ${JSON.stringify(mlCsrf)};
+const ML_TAG = ${JSON.stringify(mlTag)};
+const ML_PAGES = ${mlPages};
+const ML_MIN_DISCOUNT = ${mlMinDiscount};
 const TABLE_NAME = ${JSON.stringify(dataTableName)};
 const JOB_ID = ${JSON.stringify(job.id)};
 const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
@@ -422,6 +432,124 @@ try {
           total++;
         } catch (e) {
           debug.push({ insertError: e.message || String(e), item: it.productName });
+        }
+      }
+    }
+  } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
+    if (!ML_COOKIE || !ML_CSRF || !ML_TAG) throw new Error("Faltam credenciais ML (cookie, csrf, affiliate tag).");
+    const keywords = (TERMOS.length ? TERMOS : CATEGORIAS).filter(Boolean);
+    if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
+
+    const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+
+    function stripTags(s){ return String(s||"").replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim(); }
+    function decodeEntities(s){ return String(s||"").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">"); }
+
+    function parseMLProducts(html){
+      const out = [];
+      const splitRe = /<div[^>]+class="[^"]*poly-card[^"]*"/g;
+      const indices = [];
+      let m;
+      while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
+      for (let i = 0; i < indices.length; i++){
+        const start = indices[i];
+        const end = i + 1 < indices.length ? indices[i+1] : Math.min(html.length, start + 8000);
+        const card = html.slice(start, end);
+
+        const linkM = card.match(/<a[^>]+class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
+        if (!linkM) continue;
+        const link = decodeEntities(linkM[1]);
+        const title = stripTags(linkM[2]);
+        if (!title || !link) continue;
+
+        let image = "";
+        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component__picture[^"]*"[^>]*>/);
+        if (imgTagM){
+          const tag = imgTagM[0];
+          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/);
+          if (srcM) image = decodeEntities(srcM[1]);
+        }
+
+        const fractions = [...card.matchAll(/class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d.]+)</g)].map(x => x[1]);
+        const cents = [...card.matchAll(/class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\\d+)</g)].map(x => x[1]);
+        let priceOld = 0, price = 0;
+        if (fractions.length >= 1) priceOld = Number(fractions[0].replace(/\\./g, ""));
+        if (fractions.length >= 2) price = Number(fractions[1].replace(/\\./g, ""));
+        if (cents.length >= 1 && fractions.length >= 1) priceOld += Number(cents[0])/100;
+        if (cents.length >= 2 && fractions.length >= 2) price += Number(cents[1])/100;
+        if (!price && priceOld){ price = priceOld; priceOld = 0; }
+
+        const discM = card.match(/(\\d{1,2})\\s*%\\s*OFF/i);
+        const discount = discM ? Number(discM[1]) : (priceOld && price ? Math.round((1 - price/priceOld)*100) : 0);
+
+        out.push({ title, link, image, price, discount });
+      }
+      return out;
+    }
+
+    async function affiliateLink(rawLink){
+      try {
+        const r = await http({
+          method: "POST",
+          url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
+          headers: {
+            "accept": "application/json, text/plain, */*",
+            "content-type": "application/json",
+            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "origin": "https://www.mercadolivre.com.br",
+            "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilde",
+            "x-csrf-token": ML_CSRF,
+            "cookie": ML_COOKIE,
+            "user-agent": UA,
+          },
+          body: { urls: [rawLink], tag: ML_TAG },
+          json: true,
+        });
+        const u = r && r.urls && r.urls[0];
+        return (u && (u.short_url || u.shortUrl || u.url)) || rawLink;
+      } catch (e) {
+        debug.push({ affiliateErr: e.message || String(e), link: rawLink });
+        return rawLink;
+      }
+    }
+
+    for (const kw of keywords) {
+      const slug = String(kw).toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+      if (!slug) continue;
+      const baseUrl = "https://lista.mercadolivre.com.br/" + slug + "_OrderId_PRICE*DESC_DiscountRange_" + ML_MIN_DISCOUNT + "-100";
+      for (let page = 1; page <= ML_PAGES; page++) {
+        let url = baseUrl;
+        if (page > 1) {
+          const offset = (page - 1) * 48 + 1;
+          url = baseUrl.replace(/_([A-Z])/, "_Desde_" + offset + "_$1");
+        }
+        let html;
+        try {
+          html = await http({ method: "GET", url, headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml" } });
+        } catch (e) {
+          debug.push({ url, fetchErr: e.message || String(e) });
+          continue;
+        }
+        const htmlStr = typeof html === "string" ? html : String(html);
+        const products = parseMLProducts(htmlStr);
+        debug.push({ keyword: kw, page, url, found: products.length });
+
+        for (const p of products) {
+          const offer = await affiliateLink(p.link);
+          try {
+            await insertRow(tableId, {
+              productname: p.title,
+              price: Number(p.price || 0),
+              pricediscountrate: Number(p.discount || 0),
+              shopname: "Mercado Livre",
+              offerlink: offer,
+              imageUrl: p.image,
+              sending: false,
+            });
+            total++;
+          } catch (e) {
+            debug.push({ insertError: e.message || String(e), item: p.title });
+          }
         }
       }
     }

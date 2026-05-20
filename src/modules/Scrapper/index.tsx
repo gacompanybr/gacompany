@@ -213,6 +213,11 @@ function JobDialog({
   const [dataTableName, setDataTableName] = useState("");
   const [shopeeAppId, setShopeeAppId] = useState("");
   const [shopeeSecret, setShopeeSecret] = useState("");
+  const [mlCookie, setMlCookie] = useState("");
+  const [mlCsrf, setMlCsrf] = useState("");
+  const [mlTag, setMlTag] = useState("");
+  const [mlPages, setMlPages] = useState(5);
+  const [mlMinDiscount, setMlMinDiscount] = useState(20);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -225,6 +230,11 @@ function JobDialog({
     setDataTableName(editing?.data_table_name ?? "");
     setShopeeAppId(editing?.config?.shopee_app_id ?? "");
     setShopeeSecret(editing?.config?.shopee_secret ?? "");
+    setMlCookie(editing?.config?.ml_cookie ?? "");
+    setMlCsrf(editing?.config?.ml_csrf_token ?? "");
+    setMlTag(editing?.config?.ml_affiliate_tag ?? "");
+    setMlPages(editing?.config?.ml_pages ?? 5);
+    setMlMinDiscount(editing?.config?.ml_min_discount ?? 20);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
@@ -239,6 +249,9 @@ function JobDialog({
     if (plataforma === "shopee" && (!shopeeAppId.trim() || !shopeeSecret.trim())) {
       return toast.error("Informe App ID e Secret da Shopee");
     }
+    if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
+      return toast.error("Informe Cookie, CSRF token e Affiliate tag do Mercado Livre");
+    }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
     const catsArr = categorias.split(",").map((s) => s.trim()).filter(Boolean);
@@ -251,6 +264,13 @@ function JobDialog({
     if (plataforma === "shopee") {
       config.shopee_app_id = shopeeAppId.trim();
       config.shopee_secret = shopeeSecret.trim();
+    }
+    if (plataforma === "mercado_livre") {
+      config.ml_cookie = mlCookie.trim();
+      config.ml_csrf_token = mlCsrf.trim();
+      config.ml_affiliate_tag = mlTag.trim();
+      config.ml_pages = mlPages;
+      config.ml_min_discount = mlMinDiscount;
     }
 
     const payload: any = {
@@ -332,6 +352,43 @@ function JobDialog({
                   onChange={(e) => setShopeeSecret(e.target.value)}
                   placeholder="••••••••"
                 />
+              </div>
+            </>
+          )}
+          {plataforma === "mercado_livre" && (
+            <>
+              <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+                <strong>Como pegar:</strong> abra <code>mercadolivre.com.br</code> logada → F12 → Network → recarregue
+                a página → clique em qualquer request <code>www.mercadolivre.com.br</code> → na aba <em>Headers</em> copie
+                o <code>cookie</code> completo e o <code>x-csrf-token</code>. A tag de afiliado pega em
+                "Afiliados → Link Builder".
+              </div>
+              <div>
+                <Label>Cookie do Mercado Livre</Label>
+                <textarea
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={mlCookie}
+                  onChange={(e) => setMlCookie(e.target.value)}
+                  placeholder="_d2id=...; orguserid=...; ssid=...; nsa_rotok=...; ..."
+                />
+              </div>
+              <div>
+                <Label>x-csrf-token</Label>
+                <Input value={mlCsrf} onChange={(e) => setMlCsrf(e.target.value)} placeholder="lDfFCVvy-2ti1Fw_4ek0lbhnbdZQMb7wNY94" />
+              </div>
+              <div>
+                <Label>Affiliate tag</Label>
+                <Input value={mlTag} onChange={(e) => setMlTag(e.target.value)} placeholder="hp20251103211257" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Páginas por termo</Label>
+                  <Input type="number" min={1} max={20} value={mlPages} onChange={(e) => setMlPages(Number(e.target.value) || 5)} />
+                </div>
+                <div>
+                  <Label>Desconto mínimo (%)</Label>
+                  <Input type="number" min={0} max={99} value={mlMinDiscount} onChange={(e) => setMlMinDiscount(Number(e.target.value) || 0)} />
+                </div>
               </div>
             </>
           )}
