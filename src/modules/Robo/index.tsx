@@ -502,11 +502,62 @@ function RoboDialog({
             </div>
           )}
 
-          <div>
-            <Label>Intervalo entre disparos (minutos)</Label>
-            <Input type="number" min={1} value={intervalo} onChange={(e) => setIntervalo(Number(e.target.value))} />
-            <p className="text-xs text-muted-foreground mt-1">
-              O n8n vai rodar o workflow a cada N minutos enquanto o robô estiver ativo.
+          <div className="space-y-2">
+            <Label>Cronograma por dia da semana</Label>
+            <p className="text-xs text-muted-foreground">
+              Ative os dias e configure horário de início, fim e intervalo entre disparos (em minutos) pra cada um.
+            </p>
+            <div className="border border-border rounded-md divide-y divide-border">
+              {DIAS.map((d) => {
+                const cfg = horarios[d.v] ?? DEFAULT_HORARIOS[d.v];
+                const set = (patch: Partial<DiaConfig>) =>
+                  setHorarios((cur) => ({ ...cur, [d.v]: { ...cur[d.v], ...patch } }));
+                return (
+                  <div key={d.v} className="flex items-center gap-2 p-2 flex-wrap">
+                    <label className="flex items-center gap-2 w-20 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!cfg.enabled}
+                        onChange={(e) => set({ enabled: e.target.checked })}
+                      />
+                      <span className="text-sm font-medium">{d.l}</span>
+                    </label>
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-muted-foreground">de</span>
+                      <Input
+                        type="time"
+                        value={cfg.inicio}
+                        disabled={!cfg.enabled}
+                        onChange={(e) => set({ inicio: e.target.value })}
+                        className="h-8 w-28"
+                      />
+                      <span className="text-muted-foreground">até</span>
+                      <Input
+                        type="time"
+                        value={cfg.fim}
+                        disabled={!cfg.enabled}
+                        onChange={(e) => set({ fim: e.target.value })}
+                        className="h-8 w-28"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs ml-auto">
+                      <span className="text-muted-foreground">intervalo</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={cfg.intervalo}
+                        disabled={!cfg.enabled}
+                        onChange={(e) => set({ intervalo: Number(e.target.value) || 1 })}
+                        className="h-8 w-20"
+                      />
+                      <span className="text-muted-foreground">min</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O n8n verifica a cada minuto se está dentro de algum dia/horário ativo e respeita o intervalo daquele dia. Se não houver produto novo no data table, ele só aguarda o próximo scraper rodar — sem registrar erro.
             </p>
           </div>
         </div>
