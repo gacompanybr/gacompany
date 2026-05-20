@@ -36,9 +36,23 @@ type Robo = {
   dias_semana: any;
   mensagens: any;
   destinos: any;
+  horarios_por_dia: any;
   total_enviados?: number;
   ultimo_erro?: string | null;
   proxima_execucao?: string | null;
+};
+
+type DiaConfig = { enabled: boolean; inicio: string; fim: string; intervalo: number };
+type HorariosPorDia = Record<string, DiaConfig>;
+
+const DEFAULT_HORARIOS: HorariosPorDia = {
+  seg: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  ter: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  qua: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  qui: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  sex: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  sab: { enabled: false, inicio: "10:00", fim: "18:00", intervalo: 60 },
+  dom: { enabled: false, inicio: "10:00", fim: "18:00", intervalo: 60 },
 };
 
 type Agent = { id: string; nome: string; instancia_id: string | null; status: string };
