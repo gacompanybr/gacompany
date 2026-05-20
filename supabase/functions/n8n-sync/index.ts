@@ -525,65 +525,53 @@ try {
       }
     }
 
+    // ===== usa API pública do ML (não tem bot challenge) =====
     for (const kw of keywords) {
-      const slug = String(kw).toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-      if (!slug) continue;
-      const baseUrl = "https://lista.mercadolivre.com.br/" + slug + "_OrderId_PRICE*DESC_DiscountRange_" + ML_MIN_DISCOUNT + "-100";
+      const q = String(kw).trim();
+      if (!q) continue;
       for (let page = 1; page <= ML_PAGES; page++) {
-        let url = baseUrl;
-        if (page > 1) {
-          const offset = (page - 1) * 48 + 1;
-          url = baseUrl.replace(/_([A-Z])/, "_Desde_" + offset + "_$1");
-        }
-        let html;
+        const offset = (page - 1) * 50;
+        const apiUrl = "https://api.mercadolibre.com/sites/MLB/search?q=" + encodeURIComponent(q) + "&sort=price_desc&limit=50&offset=" + offset;
+        let resp;
         try {
-          html = await http({
+          resp = await http({
             method: "GET",
-            url,
-            headers: {
-              "user-agent": UA,
-              "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-              "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-              "cache-control": "no-cache",
-              "pragma": "no-cache",
-              "upgrade-insecure-requests": "1",
-              "sec-fetch-dest": "document",
-              "sec-fetch-mode": "navigate",
-              "sec-fetch-site": "none",
-              "sec-fetch-user": "?1",
-              "cookie": ML_COOKIE,
-            },
+            url: apiUrl,
+            headers: { "user-agent": UA, "accept": "application/json" },
+            json: true,
           });
         } catch (e) {
-          debug.push({ url, fetchErr: e.message || String(e) });
+          debug.push({ keyword: kw, page, url: apiUrl, fetchErr: e.message || String(e) });
           continue;
         }
-        const htmlStr = typeof html === "string" ? html : String(html);
-        if (/suspicious-traffic|account-verification|Verifica.{0,3}o de seguran/i.test(htmlStr)) {
-          debug.push({ keyword: kw, page, url, blocked: "ML bot challenge — cookie inválido/expirado ou IP bloqueado" });
-          continue;
-        }
-        const products = parseMLProducts(htmlStr);
-        debug.push({ keyword: kw, page, url, found: products.length, htmlSize: htmlStr.length });
-
-
-        for (const p of products) {
-          const offer = await affiliateLink(p.link);
+        const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
+        let kept = 0;
+        for (const it of results) {
+          const price = Number(it.price || 0);
+          const original = Number(it.original_price || 0);
+          const discount = original > 0 && price > 0 ? Math.round((1 - price / original) * 100) : 0;
+          if (discount < ML_MIN_DISCOUNT) continue;
+          const title = String(it.title || "");
+          const link = String(it.permalink || "");
+          const image = String(it.thumbnail || "").replace(/^http:/, "https:");
+          if (!title || !link) continue;
+          const offer = await affiliateLink(link);
           try {
             await insertRow(tableId, {
-              productname: p.title,
-              price: Number(p.price || 0),
-              pricediscountrate: Number(p.discount || 0),
+              productname: title,
+              price,
+              pricediscountrate: discount,
               shopname: "Mercado Livre",
               offerlink: offer,
-              imageUrl: p.image,
+              imageUrl: image,
               sending: false,
             });
-            total++;
+            total++; kept++;
           } catch (e) {
-            debug.push({ insertError: e.message || String(e), item: p.title });
+            debug.push({ insertError: e.message || String(e), item: title });
           }
         }
+        debug.push({ keyword: kw, page, url: apiUrl, got: results.length, kept });
       }
     }
   } else {
