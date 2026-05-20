@@ -249,6 +249,9 @@ function JobDialog({
     if (plataforma === "shopee" && (!shopeeAppId.trim() || !shopeeSecret.trim())) {
       return toast.error("Informe App ID e Secret da Shopee");
     }
+    if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
+      return toast.error("Informe Cookie, CSRF token e Affiliate tag do Mercado Livre");
+    }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
     const catsArr = categorias.split(",").map((s) => s.trim()).filter(Boolean);
@@ -261,6 +264,13 @@ function JobDialog({
     if (plataforma === "shopee") {
       config.shopee_app_id = shopeeAppId.trim();
       config.shopee_secret = shopeeSecret.trim();
+    }
+    if (plataforma === "mercado_livre") {
+      config.ml_cookie = mlCookie.trim();
+      config.ml_csrf_token = mlCsrf.trim();
+      config.ml_affiliate_tag = mlTag.trim();
+      config.ml_pages = mlPages;
+      config.ml_min_discount = mlMinDiscount;
     }
 
     const payload: any = {
