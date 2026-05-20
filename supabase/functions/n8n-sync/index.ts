@@ -460,6 +460,60 @@ Deno.serve(async (req) => {
         .from("scrapper_jobs").select("*").eq("id", jobId).single();
       if (error) throw error;
 
+      // 1. Garante que a data table existe no n8n (cria se não existir)
+      const tableName: string = job.data_table_name || `${(job.plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
+      const columns = [
+        { name: "productname", type: "string" },
+        { name: "price", type: "number" },
+        { name: "pricediscountrate", type: "number" },
+        { name: "shopname", type: "string" },
+        { name: "offerlink", type: "string" },
+        { name: "imageUrl", type: "string" },
+        { name: "sending", type: "boolean" },
+      ];
+
+      let datatableId: string | null = null;
+      // procura existente
+      const searchPaths = ["/data-tables", "/data-tables?includeProject=true"];
+      let projectId: string | null = null;
+      try {
+        const projs = await n8nFetch("/projects");
+        const list = projs?.data ?? projs ?? [];
+        for (const p of (Array.isArray(list) ? list : [])) {
+          if (p?.id) { searchPaths.push(`/projects/${p.id}/data-tables`); projectId = projectId ?? p.id; }
+        }
+      } catch (_) {}
+      for (const path of searchPaths) {
+        try {
+          const d = await n8nFetch(path);
+          const arr = d?.data ?? d ?? [];
+          const found = (Array.isArray(arr) ? arr : []).find((t: any) => String(t?.name ?? "").trim() === tableName);
+          if (found?.id) { datatableId = found.id; break; }
+        } catch (_) {}
+      }
+
+      // cria se não achou
+      if (!datatableId) {
+        const createCandidates: Array<{ path: string; body: any }> = [];
+        if (projectId) {
+          createCandidates.push({ path: `/projects/${projectId}/data-tables`, body: { name: tableName, columns } });
+        }
+        createCandidates.push({ path: "/data-tables", body: { name: tableName, columns } });
+        if (projectId) {
+          createCandidates.push({ path: "/data-tables", body: { name: tableName, columns, projectId } });
+        }
+        let lastErr: any = null;
+        for (const c of createCandidates) {
+          try {
+            const created = await n8nFetch(c.path, { method: "POST", body: JSON.stringify(c.body) });
+            datatableId = created?.id ?? created?.data?.id ?? null;
+            if (datatableId) break;
+          } catch (e) { lastErr = e; }
+        }
+        if (!datatableId) throw new Error(`Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}`);
+      }
+
+      // 2. Monta e faz upsert do workflow
       const wf = buildScrapperWorkflow(job);
       let result: any;
       if (job.n8n_workflow_id) {
@@ -476,9 +530,9 @@ Deno.serve(async (req) => {
       }
       const workflowId = result?.id ?? result?.data?.id;
       await admin.from("scrapper_jobs")
-        .update({ n8n_workflow_id: workflowId, ultimo_erro: null })
+        .update({ n8n_workflow_id: workflowId, n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
-      return j({ ok: true, workflowId });
+      return j({ ok: true, workflowId, datatableId, tableName });
     }
 
     if (action === "activate" || action === "deactivate") {
