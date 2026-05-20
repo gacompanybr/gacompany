@@ -200,13 +200,50 @@ Deno.serve(async (req) => {
       const marketplace: string = body?.marketplace;
       const prefix = MARKETPLACE_PREFIX[marketplace];
       if (!prefix) return j({ error: "marketplace inválido" }, 400);
-      const data = await n8nFetch("/data-tables");
-      const all = data?.data ?? data ?? [];
-      const filtered = (Array.isArray(all) ? all : []).filter((t: any) =>
+
+      // Tenta múltiplos endpoints — n8n mudou caminhos de data-tables entre versões
+      const candidates = [
+        "/data-tables",
+        "/data-tables?includeProject=true",
+      ];
+      // Também tenta por projeto se conseguir listar projetos
+      try {
+        const projs = await n8nFetch("/projects");
+        const projList = projs?.data ?? projs ?? [];
+        for (const p of (Array.isArray(projList) ? projList : [])) {
+          if (p?.id) candidates.push(`/projects/${p.id}/data-tables`);
+        }
+      } catch (e) {
+        console.warn("listar /projects falhou:", (e as Error).message);
+      }
+
+      const debug: any[] = [];
+      const merged: any[] = [];
+      const seen = new Set<string>();
+      for (const path of candidates) {
+        try {
+          const data = await n8nFetch(path);
+          const all = data?.data ?? data ?? [];
+          const arr = Array.isArray(all) ? all : [];
+          debug.push({ path, count: arr.length, sample: arr.slice(0, 3).map((t: any) => t?.name) });
+          for (const t of arr) {
+            if (t?.id && !seen.has(t.id)) {
+              seen.add(t.id);
+              merged.push(t);
+            }
+          }
+        } catch (e) {
+          debug.push({ path, error: (e as Error).message });
+        }
+      }
+
+      const filtered = merged.filter((t: any) =>
         String(t.name ?? "").toUpperCase().startsWith(prefix)
       );
       return j({
         datatables: filtered.map((t: any) => ({ id: t.id, name: t.name })),
+        _debug: debug,
+        _total: merged.length,
       });
     }
 
