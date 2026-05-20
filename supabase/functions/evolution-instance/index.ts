@@ -72,7 +72,13 @@ Deno.serve(async (req) => {
     });
     if (!hasAccess) return json({ error: "Sem acesso" }, 403);
 
-    let instanceName = agent.instancia_id ?? `lopes_${agentId.slice(0, 8)}`;
+    // Resolve instância ativa: prioriza whatsapp_connections (fluxo novo por portfólio)
+    const { data: connRow } = await admin
+      .from("whatsapp_connections")
+      .select("instance_name,status")
+      .eq("portfolio_id", agent.portfolio_id)
+      .maybeSingle();
+    let instanceName = connRow?.instance_name ?? agent.instancia_id ?? `lopes_${agentId.slice(0, 8)}`;
 
     if (action === "connect") {
       const createInstance = async (name: string) => evo("/instance/create", {
