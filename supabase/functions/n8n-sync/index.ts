@@ -537,14 +537,35 @@ try {
         }
         let html;
         try {
-          html = await http({ method: "GET", url, headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml" } });
+          html = await http({
+            method: "GET",
+            url,
+            headers: {
+              "user-agent": UA,
+              "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+              "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+              "cache-control": "no-cache",
+              "pragma": "no-cache",
+              "upgrade-insecure-requests": "1",
+              "sec-fetch-dest": "document",
+              "sec-fetch-mode": "navigate",
+              "sec-fetch-site": "none",
+              "sec-fetch-user": "?1",
+              "cookie": ML_COOKIE,
+            },
+          });
         } catch (e) {
           debug.push({ url, fetchErr: e.message || String(e) });
           continue;
         }
         const htmlStr = typeof html === "string" ? html : String(html);
+        if (/suspicious-traffic|account-verification|Verifica.{0,3}o de seguran/i.test(htmlStr)) {
+          debug.push({ keyword: kw, page, url, blocked: "ML bot challenge — cookie inválido/expirado ou IP bloqueado" });
+          continue;
+        }
         const products = parseMLProducts(htmlStr);
-        debug.push({ keyword: kw, page, url, found: products.length });
+        debug.push({ keyword: kw, page, url, found: products.length, htmlSize: htmlStr.length });
+
 
         for (const p of products) {
           const offer = await affiliateLink(p.link);
