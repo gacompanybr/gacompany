@@ -67,6 +67,20 @@ Deno.serve(async (req) => {
       return json({ campanhas: data ?? [] });
     }
 
+    // ---------- GET: estado de UM robô (pro workflow n8n decidir disparar) ----------
+    if (req.method === "GET" && action === "get_robo") {
+      const id = url.searchParams.get("id");
+      if (!id) return json({ error: "id obrigatório" }, 400);
+      const { data, error } = await admin
+        .from("robo_campanhas")
+        .select("id, status, ultima_execucao, horarios_por_dia")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) return json({ error: error.message }, 500);
+      if (!data) return json({ error: "não encontrado" }, 404);
+      return json(data);
+    }
+
     // ---------- POST: updates ----------
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
