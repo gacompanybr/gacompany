@@ -114,10 +114,9 @@ Deno.serve(async (req) => {
 
       // update_campanha
       if (bodyAction === "update_campanha") {
-        const { id, total_enviados, ultimo_erro } = body;
+        const { id, total_enviados, ultimo_erro, intervalo_dia } = body;
         if (!id) return json({ error: "id obrigatório" }, 400);
 
-        // Busca a campanha pra calcular próxima execução
         const { data: camp, error: e1 } = await admin
           .from("robo_campanhas")
           .select("intervalo_min_min, intervalo_max_min, total_enviados")
@@ -125,18 +124,22 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (e1 || !camp) return json({ error: e1?.message ?? "campanha não encontrada" }, 404);
 
+        // Quando vier intervalo_dia (do workflow novo com horarios_por_dia), usa ele direto.
+        // Senão, cai no min/max legado.
         const min = camp.intervalo_min_min ?? 30;
         const max = camp.intervalo_max_min ?? 90;
+        const delta = intervalo_dia
+          ? Number(intervalo_dia)
+          : Math.floor(Math.random() * (max - min + 1)) + min;
 
         if (ultimo_erro) {
-          const next = new Date(Date.now() + min * 60_000).toISOString();
+          const next = new Date(Date.now() + delta * 60_000).toISOString();
           const { error } = await admin
             .from("robo_campanhas")
             .update({ ultimo_erro, proxima_execucao: next })
             .eq("id", id);
           if (error) return json({ error: error.message }, 500);
         } else {
-          const delta = Math.floor(Math.random() * (max - min + 1)) + min;
           const next = new Date(Date.now() + delta * 60_000).toISOString();
           const { error } = await admin
             .from("robo_campanhas")
