@@ -213,6 +213,11 @@ function JobDialog({
   const [dataTableName, setDataTableName] = useState("");
   const [shopeeAppId, setShopeeAppId] = useState("");
   const [shopeeSecret, setShopeeSecret] = useState("");
+  const [mlCookie, setMlCookie] = useState("");
+  const [mlCsrf, setMlCsrf] = useState("");
+  const [mlTag, setMlTag] = useState("");
+  const [mlPages, setMlPages] = useState(5);
+  const [mlMinDiscount, setMlMinDiscount] = useState(20);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -225,6 +230,11 @@ function JobDialog({
     setDataTableName(editing?.data_table_name ?? "");
     setShopeeAppId(editing?.config?.shopee_app_id ?? "");
     setShopeeSecret(editing?.config?.shopee_secret ?? "");
+    setMlCookie(editing?.config?.ml_cookie ?? "");
+    setMlCsrf(editing?.config?.ml_csrf_token ?? "");
+    setMlTag(editing?.config?.ml_affiliate_tag ?? "");
+    setMlPages(editing?.config?.ml_pages ?? 5);
+    setMlMinDiscount(editing?.config?.ml_min_discount ?? 20);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
