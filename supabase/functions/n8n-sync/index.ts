@@ -210,8 +210,12 @@ function buildScrapperWorkflow(job: any) {
   const cfg = job.config ?? {};
   const termos: string[] = Array.isArray(cfg.termos) ? cfg.termos : [];
   const categorias: string[] = Array.isArray(cfg.categorias) ? cfg.categorias : [];
-  const shopeeAppId = cfg.shopee_app_id ?? "";
-  const shopeeSecret = cfg.shopee_secret ?? "";
+  const normalizeShopeeCredential = (value: unknown) => String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+  const shopeeAppId = normalizeShopeeCredential(cfg.shopee_app_id);
+  const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
@@ -314,7 +318,9 @@ async function shopeeSearch(keyword) {
   let parsed;
   try { parsed = typeof resp === "string" ? JSON.parse(resp) : resp; } catch (_) { parsed = { rawText: String(resp).slice(0, 800) }; }
   const nodes = (parsed && parsed.data && parsed.data.productOfferV2 && parsed.data.productOfferV2.nodes) || [];
-  return { nodes, apiErrors: parsed && parsed.errors, httpErr, status: httpErr ? httpErr.status : 200, raw: nodes.length ? null : parsed, authDebug: { credentialLength: String(SHOPEE_APP_ID || "").length, timestamp: ts, signaturePrefix: sig.slice(0, 8), payloadPrefix: payload.slice(0, 90) } };
+  const appFingerprint = sha256("app:" + SHOPEE_APP_ID).slice(0, 12);
+  const secretFingerprint = sha256("secret:" + SHOPEE_SECRET).slice(0, 12);
+  return { nodes, apiErrors: parsed && parsed.errors, httpErr, status: httpErr ? httpErr.status : 200, raw: nodes.length ? null : parsed, authDebug: { credentialLength: String(SHOPEE_APP_ID || "").length, secretLength: String(SHOPEE_SECRET || "").length, appFingerprint, secretFingerprint, timestamp: ts, signaturePrefix: sig.slice(0, 8), payloadPrefix: payload.slice(0, 90) } };
 }
 
 let total = 0;
