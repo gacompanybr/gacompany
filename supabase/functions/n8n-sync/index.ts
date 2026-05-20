@@ -525,7 +525,69 @@ try {
       }
     }
 
-    // ===== usa API pública do ML (não tem bot challenge) =====
+    function categoryHint(q){
+      const s = String(q || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const has = (words) => words.some(w => s.includes(w));
+      if (has(["moda","roupa","calcado","tenis","bolsa","vestido","camisa","calca","short","jaqueta"])) return "MLB1430";
+      if (has(["perfume","beleza","cosmetico","maquiagem","skin","cabelo","barba"])) return "MLB1246";
+      if (has(["celular","smartphone","iphone","samsung","xiaomi","telefone"])) return "MLB1051";
+      if (has(["casa","moveis","decoracao","cozinha","cama","mesa","banho"])) return "MLB1574";
+      if (has(["esporte","fitness","academia","creatina","suplemento","bicicleta"])) return "MLB1276";
+      if (has(["relogio","joia","semijoia","anel","brinco","colar"])) return "MLB3937";
+      if (has(["oferta","promocao","promo"])) return "";
+      return "";
+    }
+
+    function categoryFromInput(q){
+      const raw = String(q || "").trim();
+      const id = raw.match(/MLB[0-9]+/i);
+      if (id) return id[0].toUpperCase();
+      return categoryHint(raw);
+    }
+
+    async function discoverCategory(q){
+      const hinted = categoryFromInput(q);
+      const clean = String(q || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (hinted || ["oferta","promocao","promo"].some(w => clean.includes(w))) return hinted;
+      try {
+        const url = "https://api.mercadolibre.com/sites/MLB/domain_discovery/search?q=" + encodeURIComponent(String(q || "")) + "&limit=5";
+        const r = await http({ method: "GET", url, headers: { "user-agent": UA, "accept": "application/json" }, json: true });
+        const arr = Array.isArray(r) ? r : [];
+        const found = arr.find(x => x && x.category_id && !/gaveteir|sandu/i.test(String(x.domain_name || "") + " " + String(x.category_name || ""))) || arr[0];
+        return found && found.category_id ? String(found.category_id) : "";
+      } catch (_) { return ""; }
+    }
+
+    async function fetchOffersPage(keyword, page, categoryId){
+      const params = [];
+      if (page > 1) params.push("page=" + encodeURIComponent(String(page)));
+      if (categoryId) params.push("category=" + encodeURIComponent(categoryId));
+      const url = "https://www.mercadolivre.com.br/ofertas" + (params.length ? "?" + params.join("&") : "");
+      try {
+        const html = await http({
+          method: "GET",
+          url,
+          headers: {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "cache-control": "no-cache",
+            "cookie": ML_COOKIE,
+            "referer": "https://www.mercadolivre.com.br/",
+            "upgrade-insecure-requests": "1",
+            "user-agent": UA,
+          },
+        });
+        const text = String(html || "");
+        if (/account-verification|x-is-search-bot|captcha|tr.fego/i.test(text.slice(0, 80000))) {
+          return { products: [], url, blocked: true, htmlSize: text.length };
+        }
+        return { products: parseMLProducts(text), url, blocked: false, htmlSize: text.length };
+      } catch (e) {
+        return { products: [], url, fetchErr: e.message || String(e) };
+      }
+    }
+
+    // ===== usa API quando disponível; se der 403, cai para /ofertas (HTML que não bloqueia igual search) =====
     for (const kw of keywords) {
       const q = String(kw).trim();
       if (!q) continue;
@@ -541,7 +603,27 @@ try {
             json: true,
           });
         } catch (e) {
-          debug.push({ keyword: kw, page, url: apiUrl, fetchErr: e.message || String(e) });
+          const categoryId = await discoverCategory(q);
+          const fallback = await fetchOffersPage(q, page, categoryId);
+          if (fallback.fetchErr) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", fetchErr: fallback.fetchErr }); continue; }
+          if (fallback.blocked) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", blocked: "ML bloqueou também a página de ofertas", htmlSize: fallback.htmlSize }); continue; }
+          let kept = 0;
+          for (const it of fallback.products) {
+            if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
+            const title = String(it.title || "");
+            const link = String(it.link || "");
+            const image = String(it.image || "").replace(/^http:/, "https:");
+            const price = Number(it.price || 0);
+            if (!title || !link) continue;
+            const offer = await affiliateLink(link);
+            try {
+              await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false });
+              total++; kept++;
+            } catch (err) {
+              debug.push({ insertError: err.message || String(err), item: title });
+            }
+          }
+          debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", got: fallback.products.length, kept, htmlSize: fallback.htmlSize, apiFetchErr: e.message || String(e) });
           continue;
         }
         const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
