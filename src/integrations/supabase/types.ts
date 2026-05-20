@@ -965,6 +965,7 @@ export type Database = {
       }
       robo_campanhas: {
         Row: {
+          campaign_type: string
           conteudo_url: string | null
           created_at: string
           destinos: Json
@@ -975,11 +976,18 @@ export type Database = {
           instancia_id: string | null
           intervalo_max_min: number
           intervalo_min_min: number
+          marketplace: string | null
           mensagens: Json
+          message_template: string | null
+          n8n_datatable_id: string | null
+          n8n_datatable_name: string | null
+          n8n_workflow_id: string | null
           nome: string
+          planilha_url: string | null
           portfolio_id: string
           prompt: string | null
           proxima_execucao: string | null
+          scrapper_job_id: string | null
           status: string
           tipo: string
           total_enviados: number
@@ -988,6 +996,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          campaign_type?: string
           conteudo_url?: string | null
           created_at?: string
           destinos?: Json
@@ -998,11 +1007,18 @@ export type Database = {
           instancia_id?: string | null
           intervalo_max_min?: number
           intervalo_min_min?: number
+          marketplace?: string | null
           mensagens?: Json
+          message_template?: string | null
+          n8n_datatable_id?: string | null
+          n8n_datatable_name?: string | null
+          n8n_workflow_id?: string | null
           nome: string
+          planilha_url?: string | null
           portfolio_id: string
           prompt?: string | null
           proxima_execucao?: string | null
+          scrapper_job_id?: string | null
           status?: string
           tipo?: string
           total_enviados?: number
@@ -1011,6 +1027,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          campaign_type?: string
           conteudo_url?: string | null
           created_at?: string
           destinos?: Json
@@ -1021,11 +1038,18 @@ export type Database = {
           instancia_id?: string | null
           intervalo_max_min?: number
           intervalo_min_min?: number
+          marketplace?: string | null
           mensagens?: Json
+          message_template?: string | null
+          n8n_datatable_id?: string | null
+          n8n_datatable_name?: string | null
+          n8n_workflow_id?: string | null
           nome?: string
+          planilha_url?: string | null
           portfolio_id?: string
           prompt?: string | null
           proxima_execucao?: string | null
+          scrapper_job_id?: string | null
           status?: string
           tipo?: string
           total_enviados?: number
