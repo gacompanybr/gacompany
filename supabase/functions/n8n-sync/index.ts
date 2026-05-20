@@ -453,6 +453,34 @@ Deno.serve(async (req) => {
       return j({ ok: true, workflowId });
     }
 
+    if (action === "upsert_scrapper_workflow") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+
+      const wf = buildScrapperWorkflow(job);
+      let result: any;
+      if (job.n8n_workflow_id) {
+        try {
+          result = await n8nFetch(`/workflows/${job.n8n_workflow_id}`, {
+            method: "PUT", body: JSON.stringify(wf),
+          });
+        } catch (e) {
+          console.warn("PUT scrapper falhou, criando novo:", e);
+          result = await n8nFetch("/workflows", { method: "POST", body: JSON.stringify(wf) });
+        }
+      } else {
+        result = await n8nFetch("/workflows", { method: "POST", body: JSON.stringify(wf) });
+      }
+      const workflowId = result?.id ?? result?.data?.id;
+      await admin.from("scrapper_jobs")
+        .update({ n8n_workflow_id: workflowId, ultimo_erro: null })
+        .eq("id", jobId);
+      return j({ ok: true, workflowId });
+    }
+
     if (action === "activate" || action === "deactivate") {
       const workflowId: string = body?.workflowId;
       if (!workflowId) return j({ error: "workflowId requerido" }, 400);
