@@ -70,7 +70,16 @@ Deno.serve(async (req) => {
 
     if (action === "connect") {
       const shortId = String(portfolioId).replace(/-/g, "").slice(0, 8);
-      let instanceName = existing?.instance_name ?? `port_${shortId}`;
+
+      // Apaga instância anterior (se houver) para evitar sessão zumbi presa em count:0
+      if (existing?.instance_name) {
+        await evo(`/instance/logout/${existing.instance_name}`, { method: "DELETE" });
+        await evo(`/instance/delete/${existing.instance_name}`, { method: "DELETE" });
+        await wait(600);
+      }
+
+      // Nome novo a cada conexão garante QR limpo
+      const instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
 
       const createInstance = async (name: string) => evo("/instance/create", {
         method: "POST",
@@ -83,18 +92,18 @@ Deno.serve(async (req) => {
 
       const getQr = async (name: string) => {
         let lastRaw: any = null;
-        for (const delay of [800, 1500, 2000, 2500, 3000, 3500]) {
+        for (const delay of [800, 1500, 2000, 2500, 3000]) {
           await wait(delay);
           const qr = await evo(`/instance/connect/${name}`);
           lastRaw = qr.body;
           const code = extractQr(qr.body);
-          console.log(`getQr ${name} after ${delay}ms -> hasCode=${!!code} body=${JSON.stringify(qr.body).slice(0,200)}`);
+          console.log(`getQr ${name} after ${delay}ms -> hasCode=${!!code}`);
           if (code) return { code, raw: qr.body };
         }
         return { code: null as string | null, raw: lastRaw };
       };
 
-      let create = await createInstance(instanceName);
+      const create = await createInstance(instanceName);
       console.log("evo create status:", create.status);
       let qrCode = extractQr(create.body);
       let raw: any = create.body;
@@ -103,21 +112,6 @@ Deno.serve(async (req) => {
         const firstQr = await getQr(instanceName);
         qrCode = firstQr.code;
         raw = firstQr.raw;
-
-        if (!qrCode && raw?.count === 0) {
-          await evo(`/instance/logout/${instanceName}`, { method: "DELETE" });
-          await evo(`/instance/delete/${instanceName}`, { method: "DELETE" });
-          await wait(900);
-          instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
-          create = await createInstance(instanceName);
-          qrCode = extractQr(create.body);
-          raw = create.body;
-          if (!qrCode) {
-            const retry = await getQr(instanceName);
-            qrCode = retry.code;
-            raw = retry.raw;
-          }
-        }
       }
 
       // Upsert na tabela
