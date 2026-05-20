@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Search, Trash2, ExternalLink } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ExternalLink, Play, Pause, Settings } from "lucide-react";
 
 type Job = {
   id: string;
@@ -25,7 +25,11 @@ type Job = {
   output_url: string | null;
   ultima_qtd: number;
   ultima_execucao: string | null;
-  agendamento_cron: string | null;
+  intervalo_horas: number;
+  data_table_name: string | null;
+  n8n_workflow_id: string | null;
+  ultimo_erro: string | null;
+  config: any;
 };
 
 const PLATAFORMAS_ECOMMERCE = [
@@ -34,13 +38,22 @@ const PLATAFORMAS_ECOMMERCE = [
   { v: "amazon", l: "Amazon" },
 ];
 
+const INTERVALOS = [
+  { v: 1, l: "A cada 1 hora" },
+  { v: 2, l: "A cada 2 horas" },
+  { v: 3, l: "A cada 3 horas" },
+  { v: 6, l: "A cada 6 horas" },
+  { v: 12, l: "A cada 12 horas" },
+  { v: 24, l: "Uma vez por dia" },
+];
+
 export default function ScrapperModule({ portfolioId }: { portfolioId: string }) {
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto space-y-4">
       <div>
         <h1 className="text-xl font-semibold">Scrapper</h1>
         <p className="text-sm text-muted-foreground">
-          Colete dados automaticamente de fontes externas e salve numa planilha.
+          Colete dados automaticamente via n8n e popule data tables (ativa/pausa direto daqui).
         </p>
       </div>
 
@@ -63,6 +76,7 @@ export default function ScrapperModule({ portfolioId }: { portfolioId: string })
 function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: string }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Job | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["scrapper", portfolioId, categoria],
@@ -79,14 +93,32 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
   });
 
   async function toggle(j: Job) {
-    const novo = j.status === "ativo" ? "inativo" : "ativo";
-    const { error } = await supabase.from("scrapper_jobs").update({ status: novo }).eq("id", j.id);
+    const ativar = j.status !== "ativo";
+    if (ativar && !j.n8n_workflow_id) {
+      return toast.error("Salve o job antes de ativar (workflow n8n ainda não criado).");
+    }
+    const action = ativar ? "activate" : "deactivate";
+    const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
+      body: { action, workflowId: j.n8n_workflow_id },
+    });
+    if (fnErr) return toast.error(fnErr.message);
+    const { error } = await supabase
+      .from("scrapper_jobs")
+      .update({ status: ativar ? "ativo" : "inativo" })
+      .eq("id", j.id);
     if (error) return toast.error(error.message);
+    toast.success(ativar ? "Job ativado no n8n!" : "Job pausado");
     qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] });
   }
-  async function remove(id: string) {
-    if (!confirm("Excluir job?")) return;
-    const { error } = await supabase.from("scrapper_jobs").delete().eq("id", id);
+
+  async function remove(j: Job) {
+    if (!confirm("Excluir job e apagar workflow do n8n?")) return;
+    if (j.n8n_workflow_id) {
+      await supabase.functions.invoke("n8n-sync", {
+        body: { action: "delete", workflowId: j.n8n_workflow_id },
+      });
+    }
+    const { error } = await supabase.from("scrapper_jobs").delete().eq("id", j.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] });
   }
@@ -94,7 +126,9 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <Button onClick={() => setOpen(true)} className="gap-2"><Plus size={14} /> Novo job</Button>
+        <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2">
+          <Plus size={14} /> Novo job
+        </Button>
       </div>
       {isLoading ? (
         <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
@@ -109,14 +143,18 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
             <Card key={j.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{j.nome}</p>
                     <Badge variant="outline" className="text-[10px]">{j.plataforma}</Badge>
-                    <Badge variant="outline" className="text-[10px]">{j.status}</Badge>
+                    <Badge variant={j.status === "ativo" ? "default" : "outline"} className="text-[10px]">
+                      {j.status}
+                    </Badge>
+                    {j.n8n_workflow_id && <Badge variant="outline" className="text-[10px]">n8n ✓</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Última: {j.ultima_execucao ? new Date(j.ultima_execucao).toLocaleString("pt-BR") : "—"} ·{" "}
-                    {j.ultima_qtd} itens
+                    {j.data_table_name ? `📊 ${j.data_table_name} · ` : ""}
+                    a cada {j.intervalo_horas ?? 6}h · Última:{" "}
+                    {j.ultima_execucao ? new Date(j.ultima_execucao).toLocaleString("pt-BR") : "—"} · {j.ultima_qtd} itens
                   </p>
                   {j.output_url && (
                     <a href={j.output_url} target="_blank" rel="noreferrer"
@@ -124,12 +162,18 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
                       Ver planilha <ExternalLink size={10} />
                     </a>
                   )}
+                  {j.ultimo_erro && (
+                    <p className="text-xs text-destructive mt-1 truncate">⚠ {j.ultimo_erro}</p>
+                  )}
                 </div>
                 <div className="flex gap-1">
-                  <Button size="sm" variant="outline" onClick={() => toggle(j)}>
-                    {j.status === "ativo" ? "Pausar" : "Ativar"}
+                  <Button size="icon" variant="ghost" onClick={() => { setEditing(j); setOpen(true); }}>
+                    <Settings size={14} />
                   </Button>
-                  <Button size="icon" variant="ghost" onClick={() => remove(j.id)}>
+                  <Button size="icon" variant="ghost" onClick={() => toggle(j)}>
+                    {j.status === "ativo" ? <Pause size={14} /> : <Play size={14} />}
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => remove(j)}>
                     <Trash2 size={14} className="text-destructive" />
                   </Button>
                 </div>
@@ -138,64 +182,123 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
           ))}
         </div>
       )}
-      <NovoJobDialog
+      <JobDialog
         open={open} onOpenChange={setOpen} portfolioId={portfolioId} categoria={categoria}
-        onCreated={() => qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] })}
+        editing={editing}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] })}
       />
     </div>
   );
 }
 
-function NovoJobDialog({
-  open, onOpenChange, portfolioId, categoria, onCreated,
+const PREFIX: Record<string, string> = {
+  shopee: "SHOPEE",
+  mercado_livre: "ML",
+  amazon: "AMZ",
+};
+
+function JobDialog({
+  open, onOpenChange, portfolioId, categoria, editing, onSaved,
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
-  portfolioId: string; categoria: string; onCreated: () => void;
+  portfolioId: string; categoria: string;
+  editing: Job | null;
+  onSaved: () => void;
 }) {
   const [nome, setNome] = useState("");
   const [plataforma, setPlataforma] = useState(categoria === "ecommerce" ? "shopee" : "custom");
   const [termos, setTermos] = useState("");
-  const [cron, setCron] = useState("0 */6 * * *");
+  const [categorias, setCategorias] = useState("");
+  const [intervaloHoras, setIntervaloHoras] = useState(6);
+  const [dataTableName, setDataTableName] = useState("");
   const [shopeeAppId, setShopeeAppId] = useState("");
   const [shopeeSecret, setShopeeSecret] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setNome(editing?.nome ?? "");
+    setPlataforma(editing?.plataforma ?? (categoria === "ecommerce" ? "shopee" : "custom"));
+    setTermos((editing?.config?.termos ?? []).join(", "));
+    setCategorias((editing?.config?.categorias ?? []).join(", "));
+    setIntervaloHoras(editing?.intervalo_horas ?? 6);
+    setDataTableName(editing?.data_table_name ?? "");
+    setShopeeAppId(editing?.config?.shopee_app_id ?? "");
+    setShopeeSecret(editing?.config?.shopee_secret ?? "");
+  }, [open, editing, categoria]);
+
+  // sugere nome da data table
+  useEffect(() => {
+    if (editing || !nome) return;
+    const prefix = PREFIX[plataforma] || plataforma.toUpperCase();
+    setDataTableName(`${prefix}_${nome.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "")}`);
+  }, [nome, plataforma, editing]);
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome");
     if (plataforma === "shopee" && (!shopeeAppId.trim() || !shopeeSecret.trim())) {
       return toast.error("Informe App ID e Secret da Shopee");
     }
+    if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
+    const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
+    const catsArr = categorias.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!termosArr.length && !catsArr.length) {
+      return toast.error("Informe pelo menos um termo ou categoria");
+    }
+
     setBusy(true);
-    const config: Record<string, any> = {
-      termos: termos.split(",").map((s) => s.trim()).filter(Boolean),
-    };
+    const config: Record<string, any> = { termos: termosArr, categorias: catsArr };
     if (plataforma === "shopee") {
       config.shopee_app_id = shopeeAppId.trim();
       config.shopee_secret = shopeeSecret.trim();
     }
-    const { error } = await supabase.from("scrapper_jobs").insert({
+
+    const payload: any = {
       portfolio_id: portfolioId,
       nome: nome.trim(),
       categoria,
       plataforma,
       config,
-      agendamento_cron: cron.trim() || null,
+      intervalo_horas: intervaloHoras,
+      data_table_name: dataTableName.trim(),
+      // cron derivado pra retrocompat
+      agendamento_cron: `0 */${intervaloHoras} * * *`,
+    };
+
+    let jobId = editing?.id;
+    if (editing) {
+      const { error } = await supabase.from("scrapper_jobs").update(payload).eq("id", editing.id);
+      if (error) { setBusy(false); return toast.error(error.message); }
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("scrapper_jobs").insert(payload).select("id").single();
+      if (error) { setBusy(false); return toast.error(error.message); }
+      jobId = (inserted as any).id;
+    }
+
+    const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
+      body: { action: "upsert_scrapper_workflow", jobId },
     });
     setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Job criado! O n8n irá processar na próxima execução.");
+    if (fnErr) {
+      toast.error(`Job salvo, mas falhou ao sincronizar com n8n: ${fnErr.message}`);
+    } else {
+      toast.success(`Job sincronizado! Workflow n8n: ${fnData?.workflowId ?? "ok"}`);
+    }
     onOpenChange(false);
-    onCreated();
+    onSaved();
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Novo job de scrapper</DialogTitle></DialogHeader>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Editar job" : "Novo job de scrapper"}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div>
             <Label>Nome</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Top produtos do dia" />
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Top produtos Adriana" />
           </div>
           {categoria === "ecommerce" ? (
             <div>
@@ -229,26 +332,55 @@ function NovoJobDialog({
                   onChange={(e) => setShopeeSecret(e.target.value)}
                   placeholder="••••••••"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Usado pelo n8n para autenticar na API da Shopee Affiliate.
-                </p>
               </div>
             </>
           )}
           <div>
-            <Label>Termos / categorias (separados por vírgula)</Label>
-            <Input value={termos} onChange={(e) => setTermos(e.target.value)} placeholder="eletrônicos, moda, casa" />
+            <Label>Termos de busca (separados por vírgula)</Label>
+            <Input
+              value={termos}
+              onChange={(e) => setTermos(e.target.value)}
+              placeholder="calcinha, lingerie, sutiã"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              O scrapper só vai buscar produtos com estes termos.
+            </p>
           </div>
           <div>
-            <Label>Agendamento (cron)</Label>
-            <Input value={cron} onChange={(e) => setCron(e.target.value)} placeholder="0 */6 * * *" />
-            <p className="text-xs text-muted-foreground mt-1">Padrão: a cada 6 horas.</p>
+            <Label>Categorias (opcional, separadas por vírgula)</Label>
+            <Input
+              value={categorias}
+              onChange={(e) => setCategorias(e.target.value)}
+              placeholder="moda íntima, lingerie feminina"
+            />
+          </div>
+          <div>
+            <Label>Frequência</Label>
+            <Select value={String(intervaloHoras)} onValueChange={(v) => setIntervaloHoras(Number(v))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INTERVALOS.map((i) => (
+                  <SelectItem key={i.v} value={String(i.v)}>{i.l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Data table no n8n (destino dos produtos)</Label>
+            <Input
+              value={dataTableName}
+              onChange={(e) => setDataTableName(e.target.value)}
+              placeholder="SHOPEE_ADRIANA"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Crie a data table no n8n com esse nome (colunas: productname, price, pricediscountrate, shopname, offerlink, imageUrl, sending).
+            </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={save} disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" size={14} /> : "Criar"}
+            {busy ? <Loader2 className="animate-spin" size={14} /> : (editing ? "Salvar" : "Criar e sincronizar")}
           </Button>
         </DialogFooter>
       </DialogContent>
