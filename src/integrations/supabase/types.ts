@@ -1068,6 +1068,7 @@ export type Database = {
           data_table_name: string | null
           id: string
           intervalo_horas: number
+          n8n_datatable_id: string | null
           n8n_workflow_id: string | null
           nome: string
           output_url: string | null
@@ -1087,6 +1088,7 @@ export type Database = {
           data_table_name?: string | null
           id?: string
           intervalo_horas?: number
+          n8n_datatable_id?: string | null
           n8n_workflow_id?: string | null
           nome: string
           output_url?: string | null
@@ -1106,6 +1108,7 @@ export type Database = {
           data_table_name?: string | null
           id?: string
           intervalo_horas?: number
+          n8n_datatable_id?: string | null
           n8n_workflow_id?: string | null
           nome?: string
           output_url?: string | null
