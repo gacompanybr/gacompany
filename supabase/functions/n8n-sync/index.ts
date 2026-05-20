@@ -39,9 +39,9 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
 }
 
 const MARKETPLACE_PREFIX: Record<string, string> = {
-  shopee: "SHOPEE_",
-  mercadolivre: "ML_",
-  amazon: "AMZ_",
+  shopee: "SHOPEE",
+  mercadolivre: "ML",
+  amazon: "AMZ",
 };
 
 const DEFAULT_TEMPLATE = `🔥 *{productname}*
