@@ -601,7 +601,27 @@ try {
             json: true,
           });
         } catch (e) {
-          debug.push({ keyword: kw, page, url: apiUrl, fetchErr: e.message || String(e) });
+          const categoryId = await discoverCategory(q);
+          const fallback = await fetchOffersPage(q, page, categoryId);
+          if (fallback.fetchErr) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", fetchErr: fallback.fetchErr }); continue; }
+          if (fallback.blocked) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", blocked: "ML bloqueou também a página de ofertas", htmlSize: fallback.htmlSize }); continue; }
+          let kept = 0;
+          for (const it of fallback.products) {
+            if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
+            const title = String(it.title || "");
+            const link = String(it.link || "");
+            const image = String(it.image || "").replace(/^http:/, "https:");
+            const price = Number(it.price || 0);
+            if (!title || !link) continue;
+            const offer = await affiliateLink(link);
+            try {
+              await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false });
+              total++; kept++;
+            } catch (err) {
+              debug.push({ insertError: err.message || String(err), item: title });
+            }
+          }
+          debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", got: fallback.products.length, kept, htmlSize: fallback.htmlSize, apiFetchErr: e.message || String(e) });
           continue;
         }
         const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
