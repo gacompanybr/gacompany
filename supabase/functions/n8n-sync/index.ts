@@ -447,23 +447,34 @@ try {
 
     function parseMLProducts(html){
       const out = [];
-      const splitRe = /<div[^>]+class="[^"]*poly-card[^"]*"/g;
+      // tenta poly-card primeiro; senão cai pra ui-search-layout__item / ui-search-result
+      let splitRe = /<(?:div|li)[^>]+class="[^"]*poly-card[^"]*"/g;
       const indices = [];
       let m;
       while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
+      if (indices.length === 0) {
+        splitRe = /<li[^>]+class="[^"]*ui-search-layout__item[^"]*"/g;
+        while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
+      }
       for (let i = 0; i < indices.length; i++){
         const start = indices[i];
-        const end = i + 1 < indices.length ? indices[i+1] : Math.min(html.length, start + 8000);
+        const end = i + 1 < indices.length ? indices[i+1] : Math.min(html.length, start + 12000);
         const card = html.slice(start, end);
 
-        const linkM = card.match(/<a[^>]+class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
+        let linkM = card.match(/<a[^>]+class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
+        if (!linkM) linkM = card.match(/<a[^>]+class="[^"]*ui-search-link[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
+        if (!linkM) linkM = card.match(/<a[^>]+href="(https:\\/\\/(?:www\\.)?mercadolivre\\.com\\.br\\/[^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
         if (!linkM) continue;
         const link = decodeEntities(linkM[1]);
-        const title = stripTags(linkM[2]);
+        let title = stripTags(linkM[2]);
+        if (!title) {
+          const t2 = card.match(/<h[1-3][^>]*>([\\s\\S]*?)<\\/h[1-3]>/);
+          if (t2) title = stripTags(t2[1]);
+        }
         if (!title || !link) continue;
 
         let image = "";
-        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component__picture[^"]*"[^>]*>/);
+        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component__picture[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
         if (imgTagM){
           const tag = imgTagM[0];
           const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/);
@@ -486,6 +497,7 @@ try {
       }
       return out;
     }
+
 
     async function affiliateLink(rawLink){
       try {
@@ -525,14 +537,35 @@ try {
         }
         let html;
         try {
-          html = await http({ method: "GET", url, headers: { "user-agent": UA, "accept": "text/html,application/xhtml+xml" } });
+          html = await http({
+            method: "GET",
+            url,
+            headers: {
+              "user-agent": UA,
+              "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+              "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+              "cache-control": "no-cache",
+              "pragma": "no-cache",
+              "upgrade-insecure-requests": "1",
+              "sec-fetch-dest": "document",
+              "sec-fetch-mode": "navigate",
+              "sec-fetch-site": "none",
+              "sec-fetch-user": "?1",
+              "cookie": ML_COOKIE,
+            },
+          });
         } catch (e) {
           debug.push({ url, fetchErr: e.message || String(e) });
           continue;
         }
         const htmlStr = typeof html === "string" ? html : String(html);
+        if (/suspicious-traffic|account-verification|Verifica.{0,3}o de seguran/i.test(htmlStr)) {
+          debug.push({ keyword: kw, page, url, blocked: "ML bot challenge — cookie inválido/expirado ou IP bloqueado" });
+          continue;
+        }
         const products = parseMLProducts(htmlStr);
-        debug.push({ keyword: kw, page, url, found: products.length });
+        debug.push({ keyword: kw, page, url, found: products.length, htmlSize: htmlStr.length });
+
 
         for (const p of products) {
           const offer = await affiliateLink(p.link);
