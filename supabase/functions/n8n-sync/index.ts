@@ -301,21 +301,20 @@ async function shopeeSearch(keyword) {
   const ts = String(Math.floor(Date.now() / 1000));
   const sig = sha256(SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET);
   const auth = "SHA256 Credential=" + SHOPEE_APP_ID + ", Signature=" + sig + ", Timestamp=" + ts;
-  let raw; let httpErr = null;
+  let resp; let httpErr = null;
   try {
-    raw = await http({
+    resp = await http({
       method: "POST", url,
-      headers: { "Content-Type": "application/json", "Authorization": auth },
-      body: payload, json: false, returnFullResponse: true,
+      headers: { "Authorization": auth, "Content-Type": "application/json" },
+      body: payload,
     });
   } catch (e) {
     httpErr = { message: e.message || String(e), status: e.httpCode || e.statusCode, body: e.response && (e.response.body || e.response.data) };
   }
-  const bodyStr = raw && raw.body != null ? (typeof raw.body === "string" ? raw.body : JSON.stringify(raw.body)) : (typeof raw === "string" ? raw : JSON.stringify(raw));
   let parsed;
-  try { parsed = bodyStr ? JSON.parse(bodyStr) : null; } catch (_) { parsed = { rawText: String(bodyStr).slice(0, 800) }; }
+  try { parsed = typeof resp === "string" ? JSON.parse(resp) : resp; } catch (_) { parsed = { rawText: String(resp).slice(0, 800) }; }
   const nodes = (parsed && parsed.data && parsed.data.productOfferV2 && parsed.data.productOfferV2.nodes) || [];
-  return { nodes, apiErrors: parsed && parsed.errors, httpErr, status: raw && raw.statusCode, raw: nodes.length ? null : parsed };
+  return { nodes, apiErrors: parsed && parsed.errors, httpErr, status: httpErr ? httpErr.status : 200, raw: nodes.length ? null : parsed, authDebug: { credentialLength: String(SHOPEE_APP_ID || "").length, timestamp: ts, signaturePrefix: sig.slice(0, 8), payloadPrefix: payload.slice(0, 90) } };
 }
 
 let total = 0;
