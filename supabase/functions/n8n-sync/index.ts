@@ -295,12 +295,12 @@ async function insertRow(tableId, row) {
 
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
-  const query = \`query{productOfferV2(keyword:"\${keyword.replace(/"/g,'')}",sortType:2,limit:20){nodes{itemId productName priceMin priceMax priceDiscountRate imageUrl offerLink shopName commissionRate}}}\`;
+  const kw = String(keyword).replace(/"/g, "");
+  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: 1, sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName}}}";
   const payload = JSON.stringify({ query });
-  const ts = Math.floor(Date.now() / 1000);
-  const base = SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET;
-  const sig = crypto.createHash("sha256").update(base).digest("hex");
-  const auth = \`SHA256 Credential=\${SHOPEE_APP_ID}, Timestamp=\${ts}, Signature=\${sig}\`;
+  const ts = String(Math.floor(Date.now() / 1000));
+  const sig = sha256(SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET);
+  const auth = "SHA256 Credential=" + SHOPEE_APP_ID + ", Signature=" + sig + ", Timestamp=" + ts;
   let raw; let httpErr = null;
   try {
     raw = await http({
