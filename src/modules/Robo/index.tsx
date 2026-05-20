@@ -248,7 +248,11 @@ function RoboDialog({
     setNome(editing?.nome ?? "");
     setInstanciaId(editing?.instancia_id ?? "");
     setDestinos(Array.isArray(editing?.destinos) ? (editing!.destinos as string[]) : []);
-    setIntervalo(editing?.intervalo_min_min ?? 30);
+    setHorarios(
+      (editing?.horarios_por_dia && typeof editing.horarios_por_dia === "object")
+        ? { ...DEFAULT_HORARIOS, ...(editing.horarios_por_dia as HorariosPorDia) }
+        : DEFAULT_HORARIOS
+    );
     setTemplate(editing?.message_template ?? DEFAULT_TEMPLATE);
     setTableId(editing?.n8n_datatable_id ?? "");
     setTableName(editing?.n8n_datatable_name ?? "");
