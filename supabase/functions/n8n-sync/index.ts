@@ -266,19 +266,26 @@ async function shopeeSearch(keyword) {
   const base = SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET;
   const sig = crypto.createHash("sha256").update(base).digest("hex");
   const auth = \`SHA256 Credential=\${SHOPEE_APP_ID}, Timestamp=\${ts}, Signature=\${sig}\`;
-  const res = await http({
-    method: "POST",
-    url,
-    headers: { "Content-Type": "application/json", "Authorization": auth },
-    body: payload,
-    json: false,
-  });
-  const data = typeof res === "string" ? JSON.parse(res) : res;
-  return ((data && data.data && data.data.productOfferV2 && data.data.productOfferV2.nodes) || []);
+  let raw; let httpErr = null;
+  try {
+    raw = await http({
+      method: "POST", url,
+      headers: { "Content-Type": "application/json", "Authorization": auth },
+      body: payload, json: false, returnFullResponse: true,
+    });
+  } catch (e) {
+    httpErr = { message: e.message || String(e), status: e.httpCode || e.statusCode, body: e.response && (e.response.body || e.response.data) };
+  }
+  const bodyStr = raw && raw.body != null ? (typeof raw.body === "string" ? raw.body : JSON.stringify(raw.body)) : (typeof raw === "string" ? raw : JSON.stringify(raw));
+  let parsed;
+  try { parsed = bodyStr ? JSON.parse(bodyStr) : null; } catch (_) { parsed = { rawText: String(bodyStr).slice(0, 800) }; }
+  const nodes = (parsed && parsed.data && parsed.data.productOfferV2 && parsed.data.productOfferV2.nodes) || [];
+  return { nodes, apiErrors: parsed && parsed.errors, httpErr, status: raw && raw.statusCode, raw: nodes.length ? null : parsed };
 }
 
 let total = 0;
 let erro = null;
+const debug = [];
 try {
   const tableId = await findTableId(TABLE_NAME);
   if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n. Crie-a primeiro.");
@@ -288,8 +295,9 @@ try {
     const keywords = TERMOS.length ? TERMOS : CATEGORIAS;
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
     for (const kw of keywords) {
-      const items = await shopeeSearch(kw);
-      for (const it of items) {
+      const r = await shopeeSearch(kw);
+      debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null });
+      for (const it of (r.nodes || [])) {
         try {
           await insertRow(tableId, {
             productname: it.productName,
@@ -301,7 +309,9 @@ try {
             sending: false,
           });
           total++;
-        } catch (_) {}
+        } catch (e) {
+          debug.push({ insertError: e.message || String(e), item: it.productName });
+        }
       }
     }
   } else {
@@ -311,7 +321,6 @@ try {
   erro = e.message || String(e);
 }
 
-// reporta de volta pro Supabase
 try {
   await http({
     method: "POST",
@@ -322,7 +331,7 @@ try {
   });
 } catch (_) {}
 
-return [{ json: { total, erro, table: TABLE_NAME } }];
+return [{ json: { total, erro, table: TABLE_NAME, debug } }];
   `.trim();
 
   return {
