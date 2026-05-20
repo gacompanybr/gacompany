@@ -271,10 +271,21 @@ function RoboDialog({
 
           <div>
             <Label>Agente WhatsApp (instância conectada)</Label>
-            <Select value={agentId} onValueChange={(v) => {
+            <Select value={agentId} onValueChange={async (v) => {
               setAgentId(v);
               const a = agentesConectados.find((x) => x.id === v);
-              if (a?.instancia_id) setInstanciaId(a.instancia_id);
+              if (!a) return;
+              // Busca a instância ativa em whatsapp_connections (fonte de verdade do fluxo novo)
+              const { data: conn } = await supabase
+                .from("whatsapp_connections")
+                .select("instance_name,status")
+                .eq("portfolio_id", portfolioId)
+                .maybeSingle();
+              const live = conn?.instance_name ?? a.instancia_id ?? "";
+              setInstanciaId(live);
+              if (conn && conn.status !== "connected") {
+                toast.warning(`Instância está ${conn.status}. Conecte na aba WhatsApp antes de carregar grupos.`);
+              }
             }}>
               <SelectTrigger><SelectValue placeholder="Selecione um agente conectado" /></SelectTrigger>
               <SelectContent>
