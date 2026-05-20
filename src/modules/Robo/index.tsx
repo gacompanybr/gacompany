@@ -330,7 +330,8 @@ function RoboDialog({
     const minInt = intervalos.length ? Math.min(...intervalos) : 30;
     payload.intervalo_min_min = minInt;
     payload.intervalo_max_min = minInt;
-    {
+
+
 
     let roboId = editing?.id;
     if (editing) {
