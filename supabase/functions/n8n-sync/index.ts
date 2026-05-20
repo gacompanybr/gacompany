@@ -287,6 +287,11 @@ function buildScrapperWorkflow(job: any) {
     .trim();
   const shopeeAppId = normalizeShopeeCredential(cfg.shopee_app_id);
   const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
+  const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
+  const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
+  const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
+  const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 5)));
+  const mlMinDiscount = Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 20)));
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
@@ -297,6 +302,11 @@ const TERMOS = ${JSON.stringify(termos)};
 const CATEGORIAS = ${JSON.stringify(categorias)};
 const SHOPEE_APP_ID = ${JSON.stringify(shopeeAppId)};
 const SHOPEE_SECRET = ${JSON.stringify(shopeeSecret)};
+const ML_COOKIE = ${JSON.stringify(mlCookie)};
+const ML_CSRF = ${JSON.stringify(mlCsrf)};
+const ML_TAG = ${JSON.stringify(mlTag)};
+const ML_PAGES = ${mlPages};
+const ML_MIN_DISCOUNT = ${mlMinDiscount};
 const TABLE_NAME = ${JSON.stringify(dataTableName)};
 const JOB_ID = ${JSON.stringify(job.id)};
 const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
