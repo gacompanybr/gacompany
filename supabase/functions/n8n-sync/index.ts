@@ -525,7 +525,67 @@ try {
       }
     }
 
-    // ===== usa API pública do ML (não tem bot challenge) =====
+    function categoryHint(q){
+      const s = String(q || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (/\b(moda|roupa|roupas|calcado|calcados|tenis|bolsa|bolsas|vestido|camisa|calca|short|jaqueta)\b/.test(s)) return "MLB1430";
+      if (/\b(perfume|perfumes|beleza|cosmetico|cosmeticos|maquiagem|skin|cabelo|barba)\b/.test(s)) return "MLB1246";
+      if (/\b(celular|smartphone|iphone|samsung|xiaomi|telefone)\b/.test(s)) return "MLB1051";
+      if (/\b(casa|moveis|decoracao|cozinha|cama|mesa|banho)\b/.test(s)) return "MLB1574";
+      if (/\b(esporte|fitness|academia|creatina|suplemento|bicicleta)\b/.test(s)) return "MLB1276";
+      if (/\b(relogio|joia|joias|semijoia|anel|brinco|colar)\b/.test(s)) return "MLB3937";
+      if (/\b(oferta|ofertas|promocao|promocoes|promo)\b/.test(s)) return "";
+      return "";
+    }
+
+    function categoryFromInput(q){
+      const raw = String(q || "").trim();
+      const id = raw.match(/\bMLB\d+\b/i);
+      if (id) return id[0].toUpperCase();
+      return categoryHint(raw);
+    }
+
+    async function discoverCategory(q){
+      const hinted = categoryFromInput(q);
+      if (hinted || /\b(oferta|ofertas|promocao|promocoes|promo)\b/i.test(String(q || ""))) return hinted;
+      try {
+        const url = "https://api.mercadolibre.com/sites/MLB/domain_discovery/search?q=" + encodeURIComponent(String(q || "")) + "&limit=5";
+        const r = await http({ method: "GET", url, headers: { "user-agent": UA, "accept": "application/json" }, json: true });
+        const arr = Array.isArray(r) ? r : [];
+        const found = arr.find(x => x && x.category_id && !/gaveteir|sandu/i.test(String(x.domain_name || "") + " " + String(x.category_name || ""))) || arr[0];
+        return found && found.category_id ? String(found.category_id) : "";
+      } catch (_) { return ""; }
+    }
+
+    async function fetchOffersPage(keyword, page, categoryId){
+      const params = [];
+      if (page > 1) params.push("page=" + encodeURIComponent(String(page)));
+      if (categoryId) params.push("category=" + encodeURIComponent(categoryId));
+      const url = "https://www.mercadolivre.com.br/ofertas" + (params.length ? "?" + params.join("&") : "");
+      try {
+        const html = await http({
+          method: "GET",
+          url,
+          headers: {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "cache-control": "no-cache",
+            "cookie": ML_COOKIE,
+            "referer": "https://www.mercadolivre.com.br/",
+            "upgrade-insecure-requests": "1",
+            "user-agent": UA,
+          },
+        });
+        const text = String(html || "");
+        if (/account-verification|x-is-search-bot|captcha|tr.fego/i.test(text.slice(0, 80000))) {
+          return { products: [], url, blocked: true, htmlSize: text.length };
+        }
+        return { products: parseMLProducts(text), url, blocked: false, htmlSize: text.length };
+      } catch (e) {
+        return { products: [], url, fetchErr: e.message || String(e) };
+      }
+    }
+
+    // ===== usa API quando disponível; se der 403, cai para /ofertas (HTML que não bloqueia igual search) =====
     for (const kw of keywords) {
       const q = String(kw).trim();
       if (!q) continue;
