@@ -527,26 +527,28 @@ try {
 
     function categoryHint(q){
       const s = String(q || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (/\b(moda|roupa|roupas|calcado|calcados|tenis|bolsa|bolsas|vestido|camisa|calca|short|jaqueta)\b/.test(s)) return "MLB1430";
-      if (/\b(perfume|perfumes|beleza|cosmetico|cosmeticos|maquiagem|skin|cabelo|barba)\b/.test(s)) return "MLB1246";
-      if (/\b(celular|smartphone|iphone|samsung|xiaomi|telefone)\b/.test(s)) return "MLB1051";
-      if (/\b(casa|moveis|decoracao|cozinha|cama|mesa|banho)\b/.test(s)) return "MLB1574";
-      if (/\b(esporte|fitness|academia|creatina|suplemento|bicicleta)\b/.test(s)) return "MLB1276";
-      if (/\b(relogio|joia|joias|semijoia|anel|brinco|colar)\b/.test(s)) return "MLB3937";
-      if (/\b(oferta|ofertas|promocao|promocoes|promo)\b/.test(s)) return "";
+      const has = (words) => words.some(w => s.includes(w));
+      if (has(["moda","roupa","calcado","tenis","bolsa","vestido","camisa","calca","short","jaqueta"])) return "MLB1430";
+      if (has(["perfume","beleza","cosmetico","maquiagem","skin","cabelo","barba"])) return "MLB1246";
+      if (has(["celular","smartphone","iphone","samsung","xiaomi","telefone"])) return "MLB1051";
+      if (has(["casa","moveis","decoracao","cozinha","cama","mesa","banho"])) return "MLB1574";
+      if (has(["esporte","fitness","academia","creatina","suplemento","bicicleta"])) return "MLB1276";
+      if (has(["relogio","joia","semijoia","anel","brinco","colar"])) return "MLB3937";
+      if (has(["oferta","promocao","promo"])) return "";
       return "";
     }
 
     function categoryFromInput(q){
       const raw = String(q || "").trim();
-      const id = raw.match(/\bMLB\d+\b/i);
+      const id = raw.match(/MLB[0-9]+/i);
       if (id) return id[0].toUpperCase();
       return categoryHint(raw);
     }
 
     async function discoverCategory(q){
       const hinted = categoryFromInput(q);
-      if (hinted || /\b(oferta|ofertas|promocao|promocoes|promo)\b/i.test(String(q || ""))) return hinted;
+      const clean = String(q || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (hinted || ["oferta","promocao","promo"].some(w => clean.includes(w))) return hinted;
       try {
         const url = "https://api.mercadolibre.com/sites/MLB/domain_discovery/search?q=" + encodeURIComponent(String(q || "")) + "&limit=5";
         const r = await http({ method: "GET", url, headers: { "user-agent": UA, "accept": "application/json" }, json: true });
