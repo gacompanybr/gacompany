@@ -336,7 +336,7 @@ try {
         try {
           await insertRow(tableId, {
             productname: it.productName,
-            price: it.priceMin,
+            price: Number(it.price ?? it.priceMin ?? 0),
             pricediscountrate: it.priceDiscountRate,
             shopname: it.shopName,
             offerlink: it.offerLink,
