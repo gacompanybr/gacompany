@@ -226,7 +226,11 @@ function RoboDialog({
   const [destinos, setDestinos] = useState<string[]>(
     Array.isArray(editing?.destinos) ? (editing!.destinos as string[]) : []
   );
-  const [intervalo, setIntervalo] = useState(editing?.intervalo_min_min ?? 30);
+  const [horarios, setHorarios] = useState<HorariosPorDia>(
+    (editing?.horarios_por_dia && typeof editing.horarios_por_dia === "object")
+      ? { ...DEFAULT_HORARIOS, ...(editing.horarios_por_dia as HorariosPorDia) }
+      : DEFAULT_HORARIOS
+  );
   const [template, setTemplate] = useState(editing?.message_template ?? DEFAULT_TEMPLATE);
   const [tableId, setTableId] = useState<string>(editing?.n8n_datatable_id ?? "");
   const [tableName, setTableName] = useState<string>(editing?.n8n_datatable_name ?? "");
