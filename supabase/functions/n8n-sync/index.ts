@@ -204,6 +204,152 @@ return [{ json: { robo_id: ${JSON.stringify(robo.id)}, note: "disparo flow place
   };
 }
 
+function buildScrapperWorkflow(job: any) {
+  const intervalHours: number = Math.max(1, Number(job.intervalo_horas ?? 6));
+  const plataforma: string = job.plataforma;
+  const cfg = job.config ?? {};
+  const termos: string[] = Array.isArray(cfg.termos) ? cfg.termos : [];
+  const categorias: string[] = Array.isArray(cfg.categorias) ? cfg.categorias : [];
+  const shopeeAppId = cfg.shopee_app_id ?? "";
+  const shopeeSecret = cfg.shopee_secret ?? "";
+  const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
+
+  const jsCode = `
+const N8N_BASE = ${JSON.stringify(N8N_BASE)};
+const N8N_KEY = ${JSON.stringify(N8N_KEY)};
+const PLATAFORMA = ${JSON.stringify(plataforma)};
+const TERMOS = ${JSON.stringify(termos)};
+const CATEGORIAS = ${JSON.stringify(categorias)};
+const SHOPEE_APP_ID = ${JSON.stringify(shopeeAppId)};
+const SHOPEE_SECRET = ${JSON.stringify(shopeeSecret)};
+const TABLE_NAME = ${JSON.stringify(dataTableName)};
+const JOB_ID = ${JSON.stringify(job.id)};
+const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
+const SCRAPPER_SECRET = ${JSON.stringify(Deno.env.get("SCRAPPER_API_SECRET") ?? "")};
+
+const http = this.helpers.httpRequest;
+const crypto = require("crypto");
+
+async function findTableId(name) {
+  const tries = ["/data-tables", "/data-tables?includeProject=true"];
+  try {
+    const projs = await http({ method: "GET", url: \`\${N8N_BASE}/projects\`, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+    const list = (projs && (projs.data || projs)) || [];
+    for (const p of list) if (p && p.id) tries.push(\`/projects/\${p.id}/data-tables\`);
+  } catch (_) {}
+  for (const path of tries) {
+    try {
+      const d = await http({ method: "GET", url: \`\${N8N_BASE}\${path}\`, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+      const arr = (d && (d.data || d)) || [];
+      const found = (Array.isArray(arr) ? arr : []).find(t => String(t.name || "").trim() === name);
+      if (found) return found.id;
+    } catch (_) {}
+  }
+  return null;
+}
+
+async function insertRow(tableId, row) {
+  return await http({
+    method: "POST",
+    url: \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+    headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+    body: { data: [row] },
+    json: true,
+  });
+}
+
+async function shopeeSearch(keyword) {
+  const url = "https://open-api.affiliate.shopee.com.br/graphql";
+  const query = \`query{productOfferV2(keyword:"\${keyword.replace(/"/g,'')}",sortType:2,limit:20){nodes{itemId productName priceMin priceMax priceDiscountRate imageUrl offerLink shopName commissionRate}}}\`;
+  const payload = JSON.stringify({ query });
+  const ts = Math.floor(Date.now() / 1000);
+  const base = SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET;
+  const sig = crypto.createHash("sha256").update(base).digest("hex");
+  const auth = \`SHA256 Credential=\${SHOPEE_APP_ID}, Timestamp=\${ts}, Signature=\${sig}\`;
+  const res = await http({
+    method: "POST",
+    url,
+    headers: { "Content-Type": "application/json", "Authorization": auth },
+    body: payload,
+    json: false,
+  });
+  const data = typeof res === "string" ? JSON.parse(res) : res;
+  return ((data && data.data && data.data.productOfferV2 && data.data.productOfferV2.nodes) || []);
+}
+
+let total = 0;
+let erro = null;
+try {
+  const tableId = await findTableId(TABLE_NAME);
+  if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n. Crie-a primeiro.");
+
+  if (PLATAFORMA === "shopee") {
+    if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
+    const keywords = TERMOS.length ? TERMOS : CATEGORIAS;
+    if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
+    for (const kw of keywords) {
+      const items = await shopeeSearch(kw);
+      for (const it of items) {
+        try {
+          await insertRow(tableId, {
+            productname: it.productName,
+            price: it.priceMin,
+            pricediscountrate: it.priceDiscountRate,
+            shopname: it.shopName,
+            offerlink: it.offerLink,
+            imageUrl: it.imageUrl,
+            sending: false,
+          });
+          total++;
+        } catch (_) {}
+      }
+    }
+  } else {
+    throw new Error("Plataforma " + PLATAFORMA + " ainda não implementada no scrapper n8n.");
+  }
+} catch (e) {
+  erro = e.message || String(e);
+}
+
+// reporta de volta pro Supabase
+try {
+  await http({
+    method: "POST",
+    url: SCRAPPER_API,
+    headers: { "Authorization": "Bearer " + SCRAPPER_SECRET, "Content-Type": "application/json" },
+    body: { action: "update_job", id: JOB_ID, ultima_qtd: total, ultimo_erro: erro },
+    json: true,
+  });
+} catch (_) {}
+
+return [{ json: { total, erro, table: TABLE_NAME } }];
+  `.trim();
+
+  return {
+    name: `SCRAPPER_${job.id}`,
+    nodes: [
+      {
+        parameters: { rule: { interval: [{ field: "hours", hoursInterval: intervalHours }] } },
+        id: "trigger",
+        name: "Schedule",
+        type: "n8n-nodes-base.scheduleTrigger",
+        typeVersion: 1.1,
+        position: [250, 300],
+      },
+      {
+        parameters: { language: "javaScript", jsCode },
+        id: "code",
+        name: "Scrap",
+        type: "n8n-nodes-base.code",
+        typeVersion: 2,
+        position: [550, 300],
+      },
+    ],
+    connections: { Schedule: { main: [[{ node: "Scrap", type: "main", index: 0 }]] } },
+    settings: { executionOrder: "v1" },
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -304,6 +450,34 @@ Deno.serve(async (req) => {
         .update({ n8n_workflow_id: workflowId, ultimo_erro: null })
         .eq("id", roboId);
 
+      return j({ ok: true, workflowId });
+    }
+
+    if (action === "upsert_scrapper_workflow") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+
+      const wf = buildScrapperWorkflow(job);
+      let result: any;
+      if (job.n8n_workflow_id) {
+        try {
+          result = await n8nFetch(`/workflows/${job.n8n_workflow_id}`, {
+            method: "PUT", body: JSON.stringify(wf),
+          });
+        } catch (e) {
+          console.warn("PUT scrapper falhou, criando novo:", e);
+          result = await n8nFetch("/workflows", { method: "POST", body: JSON.stringify(wf) });
+        }
+      } else {
+        result = await n8nFetch("/workflows", { method: "POST", body: JSON.stringify(wf) });
+      }
+      const workflowId = result?.id ?? result?.data?.id;
+      await admin.from("scrapper_jobs")
+        .update({ n8n_workflow_id: workflowId, ultimo_erro: null })
+        .eq("id", jobId);
       return j({ ok: true, workflowId });
     }
 

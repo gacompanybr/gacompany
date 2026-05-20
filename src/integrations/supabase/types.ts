@@ -1065,7 +1065,10 @@ export type Database = {
           categoria: string
           config: Json
           created_at: string
+          data_table_name: string | null
           id: string
+          intervalo_horas: number
+          n8n_workflow_id: string | null
           nome: string
           output_url: string | null
           plataforma: string
@@ -1081,7 +1084,10 @@ export type Database = {
           categoria?: string
           config?: Json
           created_at?: string
+          data_table_name?: string | null
           id?: string
+          intervalo_horas?: number
+          n8n_workflow_id?: string | null
           nome: string
           output_url?: string | null
           plataforma: string
@@ -1097,7 +1103,10 @@ export type Database = {
           categoria?: string
           config?: Json
           created_at?: string
+          data_table_name?: string | null
           id?: string
+          intervalo_horas?: number
+          n8n_workflow_id?: string | null
           nome?: string
           output_url?: string | null
           plataforma?: string
