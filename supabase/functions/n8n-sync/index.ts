@@ -56,10 +56,11 @@ function buildEcommerceWorkflow(robo: any) {
   const destinos: string[] = Array.isArray(robo.destinos) ? robo.destinos : [];
   const template: string = robo.message_template || DEFAULT_TEMPLATE;
   const instance: string = robo.instancia_id || "";
-  const intervalMin: number = robo.intervalo_min_min ?? 30;
+  const horariosPorDia = robo.horarios_por_dia ?? {};
+  const scrapperSecret = Deno.env.get("SCRAPPER_API_SECRET") ?? "";
 
-  // Código JS que roda dentro do n8n Code node
-  // Faz: pega 1 row sending=false, escolhe grupo aleatório, manda via Evolution, marca sending=true
+  // O cron dispara a cada 1 minuto; o próprio JS decide se manda ou pula
+  // baseado em horarios_por_dia + ultima_execucao (lido via scrapper-api).
   const jsCode = `
 const N8N_BASE = ${JSON.stringify(N8N_BASE)};
 const N8N_KEY = ${JSON.stringify(N8N_KEY)};
@@ -69,10 +70,66 @@ const EVO_KEY = ${JSON.stringify(EVO_KEY)};
 const INSTANCE = ${JSON.stringify(instance)};
 const DESTINOS = ${JSON.stringify(destinos)};
 const TEMPLATE = ${JSON.stringify(template)};
+const ROBO_ID = ${JSON.stringify(robo.id)};
+const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
+const SCRAPPER_SECRET = ${JSON.stringify(scrapperSecret)};
+const HORARIOS_PADRAO = ${JSON.stringify(horariosPorDia)};
 
 const http = this.helpers.httpRequest;
+const DOW_MAP = ["dom","seg","ter","qua","qui","sex","sab"];
 
-// 1. busca 1 row não enviada (filtro estruturado)
+function toMin(t) {
+  const parts = String(t || "00:00").split(":");
+  return (parseInt(parts[0]||"0",10) * 60) + parseInt(parts[1]||"0",10);
+}
+
+// 0. Pega estado atual (ultima_execucao + horarios_por_dia) do robô
+let state = { ultima_execucao: null, horarios_por_dia: HORARIOS_PADRAO };
+try {
+  state = await http({
+    method: "GET",
+    url: SCRAPPER_API + "?action=get_robo&id=" + encodeURIComponent(ROBO_ID),
+    headers: { "Authorization": "Bearer " + SCRAPPER_SECRET },
+    json: true,
+  });
+} catch (_) {}
+const horarios = (state && state.horarios_por_dia) || HORARIOS_PADRAO;
+
+// 1. Hora atual em São Paulo
+const nowUtc = new Date();
+const parts = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Sao_Paulo", hour12: false,
+  weekday: "short", hour: "2-digit", minute: "2-digit",
+}).formatToParts(nowUtc);
+const wd = (parts.find(p => p.type === "weekday")?.value || "").toLowerCase().slice(0,3);
+const wdMap = { sun: "dom", mon: "seg", tue: "ter", wed: "qua", thu: "qui", fri: "sex", sat: "sab" };
+const diaKey = wdMap[wd] || "seg";
+const hh = parseInt(parts.find(p => p.type === "hour")?.value || "0", 10);
+const mm = parseInt(parts.find(p => p.type === "minute")?.value || "0", 10);
+const minutosAgora = hh * 60 + mm;
+
+// 2. Config do dia
+const cfg = horarios[diaKey];
+if (!cfg || !cfg.enabled) {
+  return [{ json: { skipped: "dia desativado", dia: diaKey } }];
+}
+const ini = toMin(cfg.inicio);
+const fim = toMin(cfg.fim);
+if (minutosAgora < ini || minutosAgora > fim) {
+  return [{ json: { skipped: "fora do horario", dia: diaKey, hora: hh+":"+String(mm).padStart(2,"0"), janela: cfg.inicio+"-"+cfg.fim } }];
+}
+
+// 3. Respeita intervalo do dia
+const intervaloMin = Math.max(1, Number(cfg.intervalo) || 30);
+if (state && state.ultima_execucao) {
+  const diffMs = nowUtc.getTime() - new Date(state.ultima_execucao).getTime();
+  if (diffMs < intervaloMin * 60000) {
+    const restante = Math.ceil((intervaloMin * 60000 - diffMs) / 60000);
+    return [{ json: { skipped: "intervalo nao atingido", faltam_min: restante } }];
+  }
+}
+
+// 4. Busca 1 produto disponivel (sending=false)
 const filterObj = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
 const rowsData = await http({
   method: "GET",
@@ -82,9 +139,12 @@ const rowsData = await http({
   json: true,
 });
 const row = rowsData && rowsData.data && rowsData.data[0];
-if (!row) return [{ json: { skipped: "no rows available" } }];
+if (!row) {
+  // Sem produto novo nao e erro - so nao dispara, aguardando proximo scraper
+  return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
+}
 
-// 2. monta caption
+// 5. Monta caption
 const caption = TEMPLATE
   .replace(/\\{productname\\}/g, String(row.productname == null ? "" : row.productname))
   .replace(/\\{price\\}/g, String(row.price == null ? "" : row.price))
@@ -93,44 +153,55 @@ const caption = TEMPLATE
   .replace(/\\{offerlink\\}/g, String(row.offerlink == null ? "" : row.offerlink))
   .replace(/\\{imageUrl\\}/g, String(row.imageUrl == null ? "" : row.imageUrl));
 
-// 3. escolhe grupo aleatório
+// 6. Escolhe grupo aleatorio
 const grupo = DESTINOS[Math.floor(Math.random() * DESTINOS.length)];
 
-// 4. envia via Evolution
-let sendData; let sendStatus = 0;
+// 7. Envia via Evolution
+let sendData; let sendStatus = 0; let sendErr = null;
 try {
   sendData = await http({
     method: "POST",
     url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
     headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
-    body: {
-      number: grupo,
-      mediatype: "image",
-      media: row.imageUrl,
-      caption: caption,
-      fileName: "promo.jpg",
-    },
+    body: { number: grupo, mediatype: "image", media: row.imageUrl, caption: caption, fileName: "promo.jpg" },
     json: true,
   });
   sendStatus = 200;
 } catch (e) {
-  sendData = { error: e.message };
+  sendErr = e.message || String(e);
   sendStatus = e.httpCode || 500;
 }
 
-// 5. marca como usada
-await http({
-  method: "PATCH",
-  url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
-  headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
-  body: {
-    filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
-    data: { sending: true },
-  },
-  json: true,
-});
+// 8. Marca como usada (so se enviou OK)
+if (sendStatus === 200) {
+  try {
+    await http({
+      method: "PATCH",
+      url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
+      headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+      body: {
+        filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
+        data: { sending: true },
+      },
+      json: true,
+    });
+  } catch (_) {}
+}
 
-return [{ json: { sent: row.productname, grupo, status: sendStatus, response: sendData } }];
+// 9. Atualiza estado do robo (ultima_execucao + total_enviados ou ultimo_erro)
+try {
+  await http({
+    method: "POST",
+    url: SCRAPPER_API,
+    headers: { "Authorization": "Bearer " + SCRAPPER_SECRET, "Content-Type": "application/json" },
+    body: sendStatus === 200
+      ? { action: "update_campanha", id: ROBO_ID, total_enviados: 1, intervalo_dia: intervaloMin }
+      : { action: "update_campanha", id: ROBO_ID, ultimo_erro: sendErr || "falha envio Evolution", intervalo_dia: intervaloMin },
+    json: true,
+  });
+} catch (_) {}
+
+return [{ json: { sent: row.productname, grupo, status: sendStatus, dia: diaKey, intervalo: intervaloMin, err: sendErr } }];
   `.trim();
 
   return {
@@ -139,7 +210,7 @@ return [{ json: { sent: row.productname, grupo, status: sendStatus, response: se
       {
         parameters: {
           rule: {
-            interval: [{ field: "minutes", minutesInterval: intervalMin }],
+            interval: [{ field: "cronExpression", expression: "* * * * *" }],
           },
         },
         id: "trigger",

@@ -36,9 +36,23 @@ type Robo = {
   dias_semana: any;
   mensagens: any;
   destinos: any;
+  horarios_por_dia: any;
   total_enviados?: number;
   ultimo_erro?: string | null;
   proxima_execucao?: string | null;
+};
+
+type DiaConfig = { enabled: boolean; inicio: string; fim: string; intervalo: number };
+type HorariosPorDia = Record<string, DiaConfig>;
+
+const DEFAULT_HORARIOS: HorariosPorDia = {
+  seg: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  ter: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  qua: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  qui: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  sex: { enabled: true, inicio: "09:00", fim: "20:00", intervalo: 30 },
+  sab: { enabled: false, inicio: "10:00", fim: "18:00", intervalo: 60 },
+  dom: { enabled: false, inicio: "10:00", fim: "18:00", intervalo: 60 },
 };
 
 type Agent = { id: string; nome: string; instancia_id: string | null; status: string };
@@ -212,7 +226,11 @@ function RoboDialog({
   const [destinos, setDestinos] = useState<string[]>(
     Array.isArray(editing?.destinos) ? (editing!.destinos as string[]) : []
   );
-  const [intervalo, setIntervalo] = useState(editing?.intervalo_min_min ?? 30);
+  const [horarios, setHorarios] = useState<HorariosPorDia>(
+    (editing?.horarios_por_dia && typeof editing.horarios_por_dia === "object")
+      ? { ...DEFAULT_HORARIOS, ...(editing.horarios_por_dia as HorariosPorDia) }
+      : DEFAULT_HORARIOS
+  );
   const [template, setTemplate] = useState(editing?.message_template ?? DEFAULT_TEMPLATE);
   const [tableId, setTableId] = useState<string>(editing?.n8n_datatable_id ?? "");
   const [tableName, setTableName] = useState<string>(editing?.n8n_datatable_name ?? "");
@@ -230,7 +248,11 @@ function RoboDialog({
     setNome(editing?.nome ?? "");
     setInstanciaId(editing?.instancia_id ?? "");
     setDestinos(Array.isArray(editing?.destinos) ? (editing!.destinos as string[]) : []);
-    setIntervalo(editing?.intervalo_min_min ?? 30);
+    setHorarios(
+      (editing?.horarios_por_dia && typeof editing.horarios_por_dia === "object")
+        ? { ...DEFAULT_HORARIOS, ...(editing.horarios_por_dia as HorariosPorDia) }
+        : DEFAULT_HORARIOS
+    );
     setTemplate(editing?.message_template ?? DEFAULT_TEMPLATE);
     setTableId(editing?.n8n_datatable_id ?? "");
     setTableName(editing?.n8n_datatable_name ?? "");
@@ -300,10 +322,16 @@ function RoboDialog({
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
       instancia_id: instanciaId || null,
       destinos,
-      intervalo_min_min: intervalo,
-      intervalo_max_min: intervalo,
-      dias_semana: ["seg", "ter", "qua", "qui", "sex", "sab", "dom"],
+      horarios_por_dia: horarios,
+      dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
+    // mantém campos legados sincronizados com o menor intervalo configurado
+    const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
+    const minInt = intervalos.length ? Math.min(...intervalos) : 30;
+    payload.intervalo_min_min = minInt;
+    payload.intervalo_max_min = minInt;
+
+
 
     let roboId = editing?.id;
     if (editing) {
@@ -474,11 +502,62 @@ function RoboDialog({
             </div>
           )}
 
-          <div>
-            <Label>Intervalo entre disparos (minutos)</Label>
-            <Input type="number" min={1} value={intervalo} onChange={(e) => setIntervalo(Number(e.target.value))} />
-            <p className="text-xs text-muted-foreground mt-1">
-              O n8n vai rodar o workflow a cada N minutos enquanto o robô estiver ativo.
+          <div className="space-y-2">
+            <Label>Cronograma por dia da semana</Label>
+            <p className="text-xs text-muted-foreground">
+              Ative os dias e configure horário de início, fim e intervalo entre disparos (em minutos) pra cada um.
+            </p>
+            <div className="border border-border rounded-md divide-y divide-border">
+              {DIAS.map((d) => {
+                const cfg = horarios[d.v] ?? DEFAULT_HORARIOS[d.v];
+                const set = (patch: Partial<DiaConfig>) =>
+                  setHorarios((cur) => ({ ...cur, [d.v]: { ...cur[d.v], ...patch } }));
+                return (
+                  <div key={d.v} className="flex items-center gap-2 p-2 flex-wrap">
+                    <label className="flex items-center gap-2 w-20 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!cfg.enabled}
+                        onChange={(e) => set({ enabled: e.target.checked })}
+                      />
+                      <span className="text-sm font-medium">{d.l}</span>
+                    </label>
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-muted-foreground">de</span>
+                      <Input
+                        type="time"
+                        value={cfg.inicio}
+                        disabled={!cfg.enabled}
+                        onChange={(e) => set({ inicio: e.target.value })}
+                        className="h-8 w-28"
+                      />
+                      <span className="text-muted-foreground">até</span>
+                      <Input
+                        type="time"
+                        value={cfg.fim}
+                        disabled={!cfg.enabled}
+                        onChange={(e) => set({ fim: e.target.value })}
+                        className="h-8 w-28"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs ml-auto">
+                      <span className="text-muted-foreground">intervalo</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={cfg.intervalo}
+                        disabled={!cfg.enabled}
+                        onChange={(e) => set({ intervalo: Number(e.target.value) || 1 })}
+                        className="h-8 w-20"
+                      />
+                      <span className="text-muted-foreground">min</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O n8n verifica a cada minuto se está dentro de algum dia/horário ativo e respeita o intervalo daquele dia. Se não houver produto novo no data table, ele só aguarda o próximo scraper rodar — sem registrar erro.
             </p>
           </div>
         </div>
