@@ -355,6 +355,43 @@ function JobDialog({
               </div>
             </>
           )}
+          {plataforma === "mercado_livre" && (
+            <>
+              <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+                <strong>Como pegar:</strong> abra <code>mercadolivre.com.br</code> logada → F12 → Network → recarregue
+                a página → clique em qualquer request <code>www.mercadolivre.com.br</code> → na aba <em>Headers</em> copie
+                o <code>cookie</code> completo e o <code>x-csrf-token</code>. A tag de afiliado pega em
+                "Afiliados → Link Builder".
+              </div>
+              <div>
+                <Label>Cookie do Mercado Livre</Label>
+                <textarea
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={mlCookie}
+                  onChange={(e) => setMlCookie(e.target.value)}
+                  placeholder="_d2id=...; orguserid=...; ssid=...; nsa_rotok=...; ..."
+                />
+              </div>
+              <div>
+                <Label>x-csrf-token</Label>
+                <Input value={mlCsrf} onChange={(e) => setMlCsrf(e.target.value)} placeholder="lDfFCVvy-2ti1Fw_4ek0lbhnbdZQMb7wNY94" />
+              </div>
+              <div>
+                <Label>Affiliate tag</Label>
+                <Input value={mlTag} onChange={(e) => setMlTag(e.target.value)} placeholder="hp20251103211257" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Páginas por termo</Label>
+                  <Input type="number" min={1} max={20} value={mlPages} onChange={(e) => setMlPages(Number(e.target.value) || 5)} />
+                </div>
+                <div>
+                  <Label>Desconto mínimo (%)</Label>
+                  <Input type="number" min={0} max={99} value={mlMinDiscount} onChange={(e) => setMlMinDiscount(Number(e.target.value) || 0)} />
+                </div>
+              </div>
+            </>
+          )}
           <div>
             <Label>Termos de busca (separados por vírgula)</Label>
             <Input
