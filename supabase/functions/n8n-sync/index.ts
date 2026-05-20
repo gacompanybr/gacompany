@@ -77,7 +77,7 @@ const filterObj = { type: "and", filters: [{ columnName: "sending", condition: "
 const rowsData = await http({
   method: "GET",
   url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-  qs: { filter: JSON.stringify(filterObj), take: 1 },
+  qs: { filter: JSON.stringify(filterObj), limit: 1 },
   headers: { "X-N8N-API-KEY": N8N_KEY },
   json: true,
 });
