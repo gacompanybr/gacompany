@@ -330,7 +330,7 @@ try {
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
     for (const kw of keywords) {
       const r = await shopeeSearch(kw);
-      debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null });
+      debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
       for (const it of (r.nodes || [])) {
         try {
           await insertRow(tableId, {
