@@ -237,9 +237,10 @@ Deno.serve(async (req) => {
         }
       }
 
-      const filtered = merged.filter((t: any) =>
-        String(t.name ?? "").toUpperCase().startsWith(prefix)
-      );
+      const filtered = merged.filter((t: any) => {
+        const n = String(t.name ?? "").toUpperCase().trimStart();
+        return n === prefix || n.startsWith(prefix + "_") || n.startsWith(prefix + " ") || n.startsWith(prefix + "-");
+      });
       return j({
         datatables: filtered.map((t: any) => ({ id: t.id, name: t.name })),
         _debug: debug,
