@@ -70,50 +70,67 @@ const INSTANCE = ${JSON.stringify(instance)};
 const DESTINOS = ${JSON.stringify(destinos)};
 const TEMPLATE = ${JSON.stringify(template)};
 
-// 1. busca 1 row não enviada
-const filter = encodeURIComponent(JSON.stringify({ sending: false }));
-const rowsRes = await fetch(\`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows?filter=\${filter}&limit=1\`, {
-  headers: { "X-N8N-API-KEY": N8N_KEY }
+const http = this.helpers.httpRequest;
+
+// 1. busca 1 row não enviada (filtro estruturado)
+const filterObj = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
+const rowsData = await http({
+  method: "GET",
+  url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
+  qs: { filter: JSON.stringify(filterObj), take: 1 },
+  headers: { "X-N8N-API-KEY": N8N_KEY },
+  json: true,
 });
-const rowsData = await rowsRes.json();
-const row = rowsData?.data?.[0];
+const row = rowsData && rowsData.data && rowsData.data[0];
 if (!row) return [{ json: { skipped: "no rows available" } }];
 
 // 2. monta caption
 const caption = TEMPLATE
-  .replace(/\\{productname\\}/g, String(row.productname ?? ""))
-  .replace(/\\{price\\}/g, String(row.price ?? ""))
-  .replace(/\\{pricediscountrate\\}/g, String(row.pricediscountrate ?? ""))
-  .replace(/\\{shopname\\}/g, String(row.shopname ?? ""))
-  .replace(/\\{offerlink\\}/g, String(row.offerlink ?? ""))
-  .replace(/\\{imageUrl\\}/g, String(row.imageUrl ?? ""));
+  .replace(/\\{productname\\}/g, String(row.productname == null ? "" : row.productname))
+  .replace(/\\{price\\}/g, String(row.price == null ? "" : row.price))
+  .replace(/\\{pricediscountrate\\}/g, String(row.pricediscountrate == null ? "" : row.pricediscountrate))
+  .replace(/\\{shopname\\}/g, String(row.shopname == null ? "" : row.shopname))
+  .replace(/\\{offerlink\\}/g, String(row.offerlink == null ? "" : row.offerlink))
+  .replace(/\\{imageUrl\\}/g, String(row.imageUrl == null ? "" : row.imageUrl));
 
 // 3. escolhe grupo aleatório
 const grupo = DESTINOS[Math.floor(Math.random() * DESTINOS.length)];
 
 // 4. envia via Evolution
-const sendRes = await fetch(\`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`, {
-  method: "POST",
-  headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
-  body: JSON.stringify({
-    number: grupo,
-    mediatype: "image",
-    media: row.imageUrl,
-    caption: caption,
-    fileName: "promo.jpg"
-  })
-});
-const sendData = await sendRes.json().catch(() => ({}));
+let sendData; let sendStatus = 0;
+try {
+  sendData = await http({
+    method: "POST",
+    url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
+    headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
+    body: {
+      number: grupo,
+      mediatype: "image",
+      media: row.imageUrl,
+      caption: caption,
+      fileName: "promo.jpg",
+    },
+    json: true,
+  });
+  sendStatus = 200;
+} catch (e) {
+  sendData = { error: e.message };
+  sendStatus = e.httpCode || 500;
+}
 
 // 5. marca como usada
-const updFilter = encodeURIComponent(JSON.stringify({ id: row.id }));
-await fetch(\`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update?filter=\${updFilter}\`, {
+await http({
   method: "PATCH",
+  url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
   headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
-  body: JSON.stringify({ sending: true })
+  body: {
+    filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
+    data: { sending: true },
+  },
+  json: true,
 });
 
-return [{ json: { sent: row.productname, grupo, status: sendRes.status, response: sendData } }];
+return [{ json: { sent: row.productname, grupo, status: sendStatus, response: sendData } }];
   `.trim();
 
   return {
