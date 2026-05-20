@@ -972,6 +972,7 @@ export type Database = {
           dias_semana: Json
           horario_fim: string
           horario_inicio: string
+          horarios_por_dia: Json
           id: string
           instancia_id: string | null
           intervalo_max_min: number
@@ -1003,6 +1004,7 @@ export type Database = {
           dias_semana?: Json
           horario_fim?: string
           horario_inicio?: string
+          horarios_por_dia?: Json
           id?: string
           instancia_id?: string | null
           intervalo_max_min?: number
@@ -1034,6 +1036,7 @@ export type Database = {
           dias_semana?: Json
           horario_fim?: string
           horario_inicio?: string
+          horarios_por_dia?: Json
           id?: string
           instancia_id?: string | null
           intervalo_max_min?: number
