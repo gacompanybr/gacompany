@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -11,17 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Zap, Trash2, Play, Pause, RefreshCw, Settings } from "lucide-react";
+import { Loader2, Plus, Zap, Trash2, Play, Pause, RefreshCw, Settings, ShoppingBag } from "lucide-react";
 
 type Robo = {
   id: string;
   nome: string;
-  tipo: string;
-  prompt: string | null;
-  conteudo_url: string | null;
+  campaign_type: string;
+  marketplace: string | null;
+  n8n_datatable_id: string | null;
+  n8n_datatable_name: string | null;
+  n8n_workflow_id: string | null;
+  message_template: string | null;
+  planilha_url: string | null;
   horario_inicio: string;
   horario_fim: string;
   intervalo_min_min: number;
@@ -38,11 +43,25 @@ type Robo = {
 
 type Agent = { id: string; nome: string; instancia_id: string | null; status: string };
 type Grupo = { id: string; nome: string };
+type DataTable = { id: string; name: string };
 
 const DIAS = [
   { v: "seg", l: "Seg" }, { v: "ter", l: "Ter" }, { v: "qua", l: "Qua" },
   { v: "qui", l: "Qui" }, { v: "sex", l: "Sex" }, { v: "sab", l: "Sáb" }, { v: "dom", l: "Dom" },
 ];
+
+const MARKETPLACES = [
+  { v: "shopee", l: "Shopee" },
+  { v: "mercadolivre", l: "Mercado Livre" },
+  { v: "amazon", l: "Amazon" },
+];
+
+const DEFAULT_TEMPLATE = `🔥 *{productname}*
+
+💰 R$ {price}  ({pricediscountrate}% OFF)
+🏪 {shopname}
+
+👉 {offerlink}`;
 
 export default function RoboModule({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
@@ -63,23 +82,36 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
   });
 
   async function toggle(r: Robo) {
-    const novo = r.status === "ativo" ? "pausado" : "ativo";
-    if (novo === "ativo") {
-      const mens = Array.isArray(r.mensagens) ? r.mensagens : [];
-      const dest = Array.isArray(r.destinos) ? r.destinos : [];
-      if (!r.instancia_id || mens.length === 0 || dest.length === 0) {
-        return toast.error("Configure instância, mensagens e destinos antes de ativar.");
+    const ativar = r.status !== "ativo";
+    if (ativar) {
+      if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
+      if (r.campaign_type === "ecommerce") {
+        const dest = Array.isArray(r.destinos) ? r.destinos : [];
+        if (!r.n8n_datatable_id || dest.length === 0 || !r.instancia_id) {
+          return toast.error("Configure data table, grupos e instância antes de ativar.");
+        }
       }
     }
+    const action = ativar ? "activate" : "deactivate";
+    const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
+      body: { action, workflowId: r.n8n_workflow_id },
+    });
+    if (fnErr) return toast.error(fnErr.message);
     const { error } = await supabase.from("robo_campanhas" as any)
-      .update({ status: novo, proxima_execucao: null } as any).eq("id", r.id);
+      .update({ status: ativar ? "ativo" : "pausado" } as any).eq("id", r.id);
     if (error) return toast.error(error.message);
-    toast.success(novo === "ativo" ? "Robô ativado!" : "Robô pausado");
+    toast.success(ativar ? "Robô ativado no n8n!" : "Robô pausado");
     qc.invalidateQueries({ queryKey: ["robo", portfolioId] });
   }
-  async function remove(id: string) {
-    if (!confirm("Excluir robô?")) return;
-    const { error } = await supabase.from("robo_campanhas" as any).delete().eq("id", id);
+
+  async function remove(r: Robo) {
+    if (!confirm("Excluir robô e apagar workflow do n8n?")) return;
+    if (r.n8n_workflow_id) {
+      await supabase.functions.invoke("n8n-sync", {
+        body: { action: "delete", workflowId: r.n8n_workflow_id },
+      });
+    }
+    const { error } = await supabase.from("robo_campanhas" as any).delete().eq("id", r.id);
     if (error) return toast.error(error.message);
     qc.invalidateQueries({ queryKey: ["robo", portfolioId] });
   }
@@ -90,7 +122,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
         <div>
           <h1 className="text-xl font-semibold">Robô de Mensagens</h1>
           <p className="text-sm text-muted-foreground">
-            Envia mensagens para grupos do WhatsApp em horários e intervalos aleatórios — anti-ban.
+            Automatize disparos via n8n: ecommerce em grupos ou contatos por CSV.
           </p>
         </div>
         <Button onClick={() => { setEditing(null); setOpen(true); }} className="gap-2">
@@ -108,9 +140,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
       ) : (
         <div className="grid gap-3">
           {(data ?? []).map((r) => {
-            const mens = Array.isArray(r.mensagens) ? r.mensagens : [];
             const dest = Array.isArray(r.destinos) ? r.destinos : [];
-            const dias = Array.isArray(r.dias_semana) ? r.dias_semana : [];
             return (
               <Card key={r.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -120,24 +150,22 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
                       <Badge variant={r.status === "ativo" ? "default" : "outline"} className="text-[10px]">
                         {r.status}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px]">
-                        {dest.length} grupo(s)
+                      <Badge variant="outline" className="text-[10px] gap-1">
+                        {r.campaign_type === "ecommerce" ? <><ShoppingBag size={10} /> {r.marketplace ?? "ecommerce"}</> : "disparo"}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px]">
-                        {mens.length} msg(s)
-                      </Badge>
+                      {r.campaign_type === "ecommerce" && (
+                        <Badge variant="outline" className="text-[10px]">{dest.length} grupo(s)</Badge>
+                      )}
+                      {r.n8n_workflow_id && (
+                        <Badge variant="outline" className="text-[10px]">n8n ✓</Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {String(r.horario_inicio).slice(0, 5)}–{String(r.horario_fim).slice(0, 5)} ·{" "}
-                      {r.intervalo_min_min}–{r.intervalo_max_min} min · {dias.join(", ")}
+                      {r.n8n_datatable_name ? `📊 ${r.n8n_datatable_name} · ` : ""}
+                      intervalo {r.intervalo_min_min} min
                     </p>
                     {r.total_enviados ? (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        ✓ {r.total_enviados} enviadas
-                        {r.proxima_execucao && r.status === "ativo" && (
-                          <> · próxima: {new Date(r.proxima_execucao).toLocaleString("pt-BR")}</>
-                        )}
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">✓ {r.total_enviados} enviadas</p>
                     ) : null}
                     {r.ultimo_erro && (
                       <p className="text-xs text-destructive mt-1 truncate">⚠ {r.ultimo_erro}</p>
@@ -150,7 +178,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
                     <Button size="icon" variant="ghost" onClick={() => toggle(r)}>
                       {r.status === "ativo" ? <Pause size={14} /> : <Play size={14} />}
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => remove(r.id)}>
+                    <Button size="icon" variant="ghost" onClick={() => remove(r)}>
                       <Trash2 size={14} className="text-destructive" />
                     </Button>
                   </div>
@@ -176,25 +204,41 @@ function RoboDialog({
   open: boolean; onOpenChange: (o: boolean) => void;
   portfolioId: string; editing: Robo | null; onSaved: () => void;
 }) {
+  const [campaignType, setCampaignType] = useState<string>(editing?.campaign_type ?? "ecommerce");
+  const [marketplace, setMarketplace] = useState<string>(editing?.marketplace ?? "shopee");
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [agentId, setAgentId] = useState<string>("");
   const [instanciaId, setInstanciaId] = useState<string>(editing?.instancia_id ?? "");
-  const [mensagensTxt, setMensagensTxt] = useState<string>(
-    Array.isArray(editing?.mensagens) ? (editing!.mensagens as string[]).join("\n---\n") : ""
-  );
   const [destinos, setDestinos] = useState<string[]>(
     Array.isArray(editing?.destinos) ? (editing!.destinos as string[]) : []
   );
-  const [hIni, setHIni] = useState(editing?.horario_inicio?.slice(0, 5) ?? "09:00");
-  const [hFim, setHFim] = useState(editing?.horario_fim?.slice(0, 5) ?? "20:00");
-  const [iMin, setIMin] = useState(editing?.intervalo_min_min ?? 30);
-  const [iMax, setIMax] = useState(editing?.intervalo_max_min ?? 90);
-  const [dias, setDias] = useState<string[]>(
-    Array.isArray(editing?.dias_semana) ? (editing!.dias_semana as string[]) : ["seg", "ter", "qua", "qui", "sex"]
-  );
-  const [busy, setBusy] = useState(false);
+  const [intervalo, setIntervalo] = useState(editing?.intervalo_min_min ?? 30);
+  const [template, setTemplate] = useState(editing?.message_template ?? DEFAULT_TEMPLATE);
+  const [tableId, setTableId] = useState<string>(editing?.n8n_datatable_id ?? "");
+  const [tableName, setTableName] = useState<string>(editing?.n8n_datatable_name ?? "");
+  const [datatables, setDatatables] = useState<DataTable[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loadingGrupos, setLoadingGrupos] = useState(false);
+  const [planilhaUrl, setPlanilhaUrl] = useState(editing?.planilha_url ?? "");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setCampaignType(editing?.campaign_type ?? "ecommerce");
+    setMarketplace(editing?.marketplace ?? "shopee");
+    setNome(editing?.nome ?? "");
+    setInstanciaId(editing?.instancia_id ?? "");
+    setDestinos(Array.isArray(editing?.destinos) ? (editing!.destinos as string[]) : []);
+    setIntervalo(editing?.intervalo_min_min ?? 30);
+    setTemplate(editing?.message_template ?? DEFAULT_TEMPLATE);
+    setTableId(editing?.n8n_datatable_id ?? "");
+    setTableName(editing?.n8n_datatable_name ?? "");
+    setPlanilhaUrl(editing?.planilha_url ?? "");
+    setAgentId("");
+    setDatatables([]);
+    setGrupos([]);
+  }, [open, editing]);
 
   const { data: agents } = useQuery({
     queryKey: ["wa-agents", portfolioId],
@@ -208,6 +252,18 @@ function RoboDialog({
     },
     enabled: open,
   });
+
+  async function carregarDatatables() {
+    setLoadingTables(true);
+    const { data, error } = await supabase.functions.invoke("n8n-sync", {
+      body: { action: "list_datatables", marketplace },
+    });
+    setLoadingTables(false);
+    if (error) return toast.error(error.message);
+    const tables = (data?.datatables ?? []) as DataTable[];
+    setDatatables(tables);
+    if (tables.length === 0) toast.warning(`Nenhuma data table ${marketplace.toUpperCase()} encontrada no n8n`);
+  }
 
   async function carregarGrupos() {
     if (!agentId) return toast.error("Selecione um agente WhatsApp conectado");
@@ -224,39 +280,55 @@ function RoboDialog({
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome");
-    const mensagens = mensagensTxt.split(/\n-{3,}\n/).map((s) => s.trim()).filter(Boolean);
-    if (mensagens.length === 0) return toast.error("Adicione pelo menos uma mensagem");
-    if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
-    if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
+    if (campaignType === "ecommerce") {
+      if (!tableId) return toast.error("Selecione a data table do n8n");
+      if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
+      if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
+    } else {
+      if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos");
+    }
 
     setBusy(true);
     const payload: any = {
       portfolio_id: portfolioId,
       nome: nome.trim(),
-      tipo: "mensagem",
-      instancia_id: instanciaId,
-      mensagens,
+      campaign_type: campaignType,
+      marketplace: campaignType === "ecommerce" ? marketplace : null,
+      n8n_datatable_id: campaignType === "ecommerce" ? tableId : null,
+      n8n_datatable_name: campaignType === "ecommerce" ? tableName : null,
+      message_template: campaignType === "ecommerce" ? template : null,
+      planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
+      instancia_id: instanciaId || null,
       destinos,
-      horario_inicio: hIni,
-      horario_fim: hFim,
-      intervalo_min_min: iMin,
-      intervalo_max_min: iMax,
-      dias_semana: dias,
-      proxima_execucao: null,
+      intervalo_min_min: intervalo,
+      intervalo_max_min: intervalo,
+      dias_semana: ["seg", "ter", "qua", "qui", "sex", "sab", "dom"],
     };
-    const q = editing
-      ? supabase.from("robo_campanhas" as any).update(payload).eq("id", editing.id)
-      : supabase.from("robo_campanhas" as any).insert(payload);
-    const { error } = await q;
+
+    let roboId = editing?.id;
+    if (editing) {
+      const { error } = await supabase.from("robo_campanhas" as any).update(payload).eq("id", editing.id);
+      if (error) { setBusy(false); return toast.error(error.message); }
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("robo_campanhas" as any).insert(payload).select("id").single();
+      if (error) { setBusy(false); return toast.error(error.message); }
+      roboId = (inserted as any).id;
+    }
+
+    // Cria/atualiza workflow no n8n
+    const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
+      body: { action: "upsert_workflow", roboId },
+    });
     setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(editing ? "Robô atualizado!" : "Robô criado!");
+    if (fnErr) {
+      toast.error(`Robô salvo, mas falhou ao sincronizar com n8n: ${fnErr.message}`);
+    } else {
+      toast.success(`Robô salvo! Workflow n8n: ${fnData?.workflowId ?? "ok"}`);
+    }
     onOpenChange(false);
     onSaved();
   }
-
-  // Inclui todos os agentes do portfólio; a instância ativa vem de whatsapp_connections
-  const agentesConectados = agents ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -266,140 +338,154 @@ function RoboDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label>Nome</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Grupo Promoções" />
+            <Label>Tipo de campanha</Label>
+            <RadioGroup value={campaignType} onValueChange={setCampaignType} className="flex gap-4 mt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="ecommerce" id="ec" />
+                <span className="text-sm">Ecommerce em grupos</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="disparo" id="ds" />
+                <span className="text-sm">Disparo de contatos</span>
+              </label>
+            </RadioGroup>
           </div>
 
           <div>
-            <Label>Agente WhatsApp (instância conectada)</Label>
-            <Select value={agentId} onValueChange={async (v) => {
-              setAgentId(v);
-              const a = agentesConectados.find((x) => x.id === v);
-              if (!a) return;
-              // Busca a instância ativa em whatsapp_connections (fonte de verdade do fluxo novo)
-              const { data: conn } = await supabase
-                .from("whatsapp_connections")
-                .select("instance_name,status")
-                .eq("portfolio_id", portfolioId)
-                .maybeSingle();
-              const live = conn?.instance_name ?? a.instancia_id ?? "";
-              setInstanciaId(live);
-              if (conn && conn.status !== "connected") {
-                toast.warning(`Instância está ${conn.status}. Conecte na aba WhatsApp antes de carregar grupos.`);
-              }
-            }}>
-              <SelectTrigger><SelectValue placeholder="Selecione um agente conectado" /></SelectTrigger>
-              <SelectContent>
-                {agentesConectados.length === 0 ? (
-                  <div className="p-2 text-xs text-muted-foreground">
-                    Nenhum agente conectado. Conecte um na aba WhatsApp primeiro.
-                  </div>
-                ) : agentesConectados.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.nome} {a.status === "active" ? "✓" : `(${a.status})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {instanciaId && (
-              <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>
-            )}
+            <Label>Nome do robô</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Promo Shopee Adriana" />
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <Label>Grupos de destino</Label>
-              <Button type="button" size="sm" variant="outline" onClick={carregarGrupos}
-                disabled={!agentId || loadingGrupos} className="gap-1">
-                {loadingGrupos ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Carregar grupos
-              </Button>
-            </div>
-            {grupos.length === 0 && destinos.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Clique em "Carregar grupos" para listar os grupos da instância.
-              </p>
-            ) : (
-              <div className="border border-border rounded p-2 max-h-48 overflow-y-auto space-y-1">
-                {grupos.length > 0 ? grupos.map((g) => (
-                  <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={destinos.includes(g.id)}
-                      onChange={() => setDestinos((cur) =>
-                        cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]
-                      )}
-                    />
-                    <span className="truncate">{g.nome}</span>
-                  </label>
-                )) : destinos.map((d) => (
-                  <div key={d} className="text-xs text-muted-foreground truncate">
-                    Selecionado: {d}
-                  </div>
-                ))}
+          {campaignType === "ecommerce" && (
+            <>
+              <div>
+                <Label>Marketplace</Label>
+                <div className="flex gap-2 mt-1">
+                  <Select value={marketplace} onValueChange={(v) => { setMarketplace(v); setTableId(""); setTableName(""); setDatatables([]); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MARKETPLACES.map((m) => (
+                        <SelectItem key={m.v} value={m.v}>{m.l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" onClick={carregarDatatables} disabled={loadingTables} className="gap-1">
+                    {loadingTables ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    Carregar data tables
+                  </Button>
+                </div>
               </div>
-            )}
-            {destinos.length > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">{destinos.length} grupo(s) selecionado(s)</p>
-            )}
-          </div>
+
+              {(datatables.length > 0 || tableId) && (
+                <div>
+                  <Label>Data table (fonte dos produtos)</Label>
+                  <Select value={tableId} onValueChange={(v) => {
+                    setTableId(v);
+                    const t = datatables.find((x) => x.id === v);
+                    if (t) setTableName(t.name);
+                  }}>
+                    <SelectTrigger><SelectValue placeholder={tableName || "Selecione a data table"} /></SelectTrigger>
+                    <SelectContent>
+                      {datatables.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                      {tableId && !datatables.find((d) => d.id === tableId) && (
+                        <SelectItem value={tableId}>{tableName || tableId}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div>
+                <Label>Agente WhatsApp</Label>
+                <Select value={agentId} onValueChange={async (v) => {
+                  setAgentId(v);
+                  const { data: conn } = await supabase
+                    .from("whatsapp_connections")
+                    .select("instance_name,status")
+                    .eq("portfolio_id", portfolioId)
+                    .maybeSingle();
+                  const a = (agents ?? []).find((x) => x.id === v);
+                  const live = conn?.instance_name ?? a?.instancia_id ?? "";
+                  setInstanciaId(live);
+                  if (conn && conn.status !== "connected") {
+                    toast.warning(`Instância está ${conn.status}. Conecte primeiro.`);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um agente" /></SelectTrigger>
+                  <SelectContent>
+                    {(agents ?? []).map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Grupos de destino</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={carregarGrupos}
+                    disabled={!agentId || loadingGrupos} className="gap-1">
+                    {loadingGrupos ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    Carregar grupos
+                  </Button>
+                </div>
+                {grupos.length === 0 && destinos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Clique em "Carregar grupos".</p>
+                ) : (
+                  <div className="border border-border rounded p-2 max-h-48 overflow-y-auto space-y-1">
+                    {grupos.length > 0 ? grupos.map((g) => (
+                      <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={destinos.includes(g.id)}
+                          onChange={() => setDestinos((cur) =>
+                            cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]
+                          )}
+                        />
+                        <span className="truncate">{g.nome}</span>
+                      </label>
+                    )) : destinos.map((d) => (
+                      <div key={d} className="text-xs text-muted-foreground truncate">Selecionado: {d}</div>
+                    ))}
+                  </div>
+                )}
+                {destinos.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">{destinos.length} grupo(s) selecionado(s)</p>
+                )}
+              </div>
+
+              <div>
+                <Label>Template da mensagem</Label>
+                <Textarea rows={6} value={template} onChange={(e) => setTemplate(e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Placeholders: <code>{"{productname}"}</code> <code>{"{price}"}</code> <code>{"{pricediscountrate}"}</code> <code>{"{shopname}"}</code> <code>{"{offerlink}"}</code> <code>{"{imageUrl}"}</code>
+                </p>
+              </div>
+            </>
+          )}
+
+          {campaignType === "disparo" && (
+            <div>
+              <Label>URL da planilha de contatos (CSV)</Label>
+              <Input value={planilhaUrl} onChange={(e) => setPlanilhaUrl(e.target.value)} placeholder="https://..." />
+            </div>
+          )}
 
           <div>
-            <Label>Mensagens (uma por bloco, separadas por uma linha com <code>---</code>)</Label>
-            <Textarea
-              rows={6}
-              value={mensagensTxt}
-              onChange={(e) => setMensagensTxt(e.target.value)}
-              placeholder={"Bom dia! Confira nossas promoções 🚀\n---\nAproveite o cupom GA10 hoje!\n---\nÚltimas unidades disponíveis 🔥"}
-            />
+            <Label>Intervalo entre disparos (minutos)</Label>
+            <Input type="number" min={1} value={intervalo} onChange={(e) => setIntervalo(Number(e.target.value))} />
             <p className="text-xs text-muted-foreground mt-1">
-              Uma mensagem aleatória será escolhida a cada disparo.
+              O n8n vai rodar o workflow a cada N minutos enquanto o robô estiver ativo.
             </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Horário início</Label>
-              <Input type="time" value={hIni} onChange={(e) => setHIni(e.target.value)} />
-            </div>
-            <div>
-              <Label>Horário fim</Label>
-              <Input type="time" value={hFim} onChange={(e) => setHFim(e.target.value)} />
-            </div>
-            <div>
-              <Label>Intervalo mín (min)</Label>
-              <Input type="number" min={1} value={iMin} onChange={(e) => setIMin(Number(e.target.value))} />
-            </div>
-            <div>
-              <Label>Intervalo máx (min)</Label>
-              <Input type="number" min={1} value={iMax} onChange={(e) => setIMax(Number(e.target.value))} />
-            </div>
-          </div>
-
-          <div>
-            <Label>Dias da semana</Label>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {DIAS.map((d) => (
-                <button
-                  key={d.v}
-                  type="button"
-                  onClick={() => setDias((cur) => cur.includes(d.v) ? cur.filter((x) => x !== d.v) : [...cur, d.v])}
-                  className={`px-3 py-1 rounded text-xs border transition-colors ${
-                    dias.includes(d.v)
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border text-muted-foreground"
-                  }`}
-                >
-                  {d.l}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={save} disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" size={14} /> : editing ? "Salvar" : "Criar"}
+            {busy ? <Loader2 className="animate-spin" size={14} /> : editing ? "Salvar e sincronizar" : "Criar e sincronizar"}
           </Button>
         </DialogFooter>
       </DialogContent>
