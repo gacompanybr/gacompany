@@ -255,7 +255,8 @@ function RoboDialog({
     onSaved();
   }
 
-  const agentesConectados = (agents ?? []).filter((a) => a.instancia_id);
+  // Inclui todos os agentes do portfólio; a instância ativa vem de whatsapp_connections
+  const agentesConectados = agents ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
