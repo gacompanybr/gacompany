@@ -322,10 +322,15 @@ function RoboDialog({
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
       instancia_id: instanciaId || null,
       destinos,
-      intervalo_min_min: intervalo,
-      intervalo_max_min: intervalo,
-      dias_semana: ["seg", "ter", "qua", "qui", "sex", "sab", "dom"],
+      horarios_por_dia: horarios,
+      dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
+    // mantém campos legados sincronizados com o menor intervalo configurado
+    const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
+    const minInt = intervalos.length ? Math.min(...intervalos) : 30;
+    payload.intervalo_min_min = minInt;
+    payload.intervalo_max_min = minInt;
+    {
 
     let roboId = editing?.id;
     if (editing) {
