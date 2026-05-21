@@ -747,7 +747,9 @@ try {
           let kept = 0;
           for (const it of fallback.products) {
             if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
-            if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
+            // /ofertas só lista produtos em promoção; se parser não pegou %, aceita mesmo assim
+            const disc = Number(it.discount || 0);
+            if (disc > 0 && disc < ML_MIN_DISCOUNT) continue;
             const title = String(it.title || "");
             const rawLink = String(it.link || "").split("#")[0].split("?")[0];
             const image = String(it.image || "").replace(/^http:/, "https:");
