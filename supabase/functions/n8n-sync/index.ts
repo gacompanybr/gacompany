@@ -539,7 +539,18 @@ try {
     if (toDelete.length || deleted) debug.push({ cleanup: { candidates: toDelete.length, deleted } });
   } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
 
-
+  // Dedup: monta set com produtos ja existentes no data table (nome normalizado)
+  const normName = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const existingNames = new Set();
+  try {
+    const all = await listRows(tableId);
+    for (const r of (Array.isArray(all) ? all : [])) {
+      const n = normName(r && r.productname);
+      if (n) existingNames.add(n);
+    }
+    debug.push({ dedup: { loaded: existingNames.size } });
+  } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
+  let dupSkipped = 0;
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
@@ -556,6 +567,8 @@ try {
           const commissionValue = Number(it.commission ?? (price * commissionRate / 100));
           const sales = Number(it.sales ?? 0);
           const rating = Number(it.ratingStar ?? 0);
+          const nameKey = normName(it.productName);
+          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
           if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", item: it.productName, commissionValue }); continue; }
           if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", item: it.productName, sales, rating }); continue; }
           await insertRow(tableId, {
@@ -571,6 +584,7 @@ try {
             sales,
             rating,
           });
+          if (nameKey) existingNames.add(nameKey);
           total++;
         } catch (e) {
           debug.push({ insertError: e.message || String(e), item: it.productName });
@@ -770,6 +784,8 @@ try {
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
             if (!title || !rawLink || price <= 0) { skip.missing++; continue; }
+            const nameKey = normName(title);
+            if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
             const commissionRate = ML_DEFAULT_COMMISSION_RATE;
             const commissionValue = price * commissionRate / 100;
             const sales = Number(it.sales || 0);
@@ -780,6 +796,7 @@ try {
             if (!offer) { skip.affiliate = (skip.affiliate || 0) + 1; continue; }
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
+              if (nameKey) existingNames.add(nameKey);
               total++; kept++;
             } catch (err) {
               skip.insert++;
@@ -801,6 +818,8 @@ try {
           const link = String(it.permalink || "").split("#")[0].split("?")[0];
           const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-[A-Z]\.jpg$/i, "-O.jpg");
           if (!title || !link) continue;
+          const nameKey = normName(title);
+          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
           const commissionRate = ML_DEFAULT_COMMISSION_RATE;
           const commissionValue = price * commissionRate / 100;
           const sales = Number(it.sold_quantity || 0);
@@ -830,6 +849,7 @@ try {
               sales,
               rating,
             });
+            if (nameKey) existingNames.add(nameKey);
             total++; kept++;
           } catch (e) {
             debug.push({ insertError: e.message || String(e), item: title });
@@ -861,7 +881,7 @@ try {
   });
 } catch (_) {}
 
-return [{ json: { total, erro, table: TABLE_NAME, debug } }];
+return [{ json: { total, erro, table: TABLE_NAME, dupSkipped, debug } }];
   `.trim();
 
   return {
