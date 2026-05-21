@@ -1070,6 +1070,44 @@ Deno.serve(async (req) => {
       return j({ ok: true });
     }
 
+
+    if (action === "list_datatable_rows") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+      let tableId = job.n8n_datatable_id as string | null;
+      const tableName: string = job.data_table_name || "";
+      if (!tableId && tableName) {
+        // procura pelo nome
+        const searchPaths = ["/data-tables", "/data-tables?includeProject=true"];
+        try {
+          const projs = await n8nFetch("/projects");
+          const list = projs?.data ?? projs ?? [];
+          for (const p of (Array.isArray(list) ? list : [])) {
+            if (p?.id) searchPaths.push(`/projects/${p.id}/data-tables`);
+          }
+        } catch (_) {}
+        for (const path of searchPaths) {
+          try {
+            const d = await n8nFetch(path);
+            const arr = d?.data ?? d ?? [];
+            const found = (Array.isArray(arr) ? arr : []).find((t: any) => String(t?.name ?? "").trim() === tableName);
+            if (found?.id) { tableId = found.id; break; }
+          } catch (_) {}
+        }
+      }
+      if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
+      try {
+        const data = await n8nFetch(`/data-tables/${tableId}/rows?take=1000`);
+        const rows = data?.data ?? data ?? [];
+        return j({ rows: Array.isArray(rows) ? rows : [], tableId, tableName });
+      } catch (e) {
+        return j({ error: (e as Error).message, tableId, tableName }, 500);
+      }
+    }
+
     return j({ error: "action desconhecida" }, 400);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
