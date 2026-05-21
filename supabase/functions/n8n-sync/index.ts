@@ -881,7 +881,7 @@ try {
   });
 } catch (_) {}
 
-return [{ json: { total, erro, table: TABLE_NAME, debug } }];
+return [{ json: { total, erro, table: TABLE_NAME, dupSkipped, debug } }];
   `.trim();
 
   return {
