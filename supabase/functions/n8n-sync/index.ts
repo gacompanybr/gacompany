@@ -509,7 +509,7 @@ try {
     function parseMLProducts(html){
       const out = [];
       // tenta poly-card primeiro; senão cai pra ui-search-layout__item / ui-search-result
-      let splitRe = /<(?:div|li)[^>]+class="[^"]*poly-card(?!__)[^"]*"/g;
+      let splitRe = /<(?:div|li)[^>]+class="(?:[^"]*\\s)?poly-card(?:\\s[^"]*)?"[^>]*>/g;
       const indices = [];
       let m;
       while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
@@ -535,11 +535,15 @@ try {
         if (!title || !link) continue;
 
         let image = "";
-        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component__picture[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
+        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component_*picture[^"]*"[^>]*>/) || card.match(/<img[^>]+(?:src|data-src|srcset|data-srcset|data-original|data-lazy-src)="[^"]*mlstatic\\.com[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
         if (imgTagM){
           const tag = imgTagM[0];
-          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/);
-          if (srcM) image = decodeEntities(srcM[1]);
+          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/) || tag.match(/\\bdata-srcset="([^"]+)"/) || tag.match(/\\bsrcset="([^"]+)"/) || tag.match(/\\bdata-original="([^"]+)"/) || tag.match(/\\bdata-lazy-src="([^"]+)"/);
+          if (srcM) image = decodeEntities(String(srcM[1]).split(/\\s+/)[0]);
+        }
+        if (!image) {
+          const anyImgM = card.match(/https?:\\/\\/[^\\s"'<>]+mlstatic\\.com[^\\s"'<>]+\\.(?:webp|jpg|jpeg|png)/i);
+          if (anyImgM) image = decodeEntities(anyImgM[0]);
         }
 
         const fractions = [...card.matchAll(/class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d.]+)</g)].map(x => x[1]);
