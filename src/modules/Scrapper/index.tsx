@@ -218,6 +218,11 @@ function JobDialog({
   const [mlTag, setMlTag] = useState("");
   const [mlPages, setMlPages] = useState(5);
   const [mlMinDiscount, setMlMinDiscount] = useState(20);
+  const [mlDefaultCommissionRate, setMlDefaultCommissionRate] = useState(6);
+  const [minCommissionValue, setMinCommissionValue] = useState(0);
+  const [filterMode, setFilterMode] = useState<"none" | "sales" | "rating">("none");
+  const [minSales, setMinSales] = useState(0);
+  const [minRating, setMinRating] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -235,6 +240,11 @@ function JobDialog({
     setMlTag(editing?.config?.ml_affiliate_tag ?? "");
     setMlPages(editing?.config?.ml_pages ?? 5);
     setMlMinDiscount(editing?.config?.ml_min_discount ?? 20);
+    setMlDefaultCommissionRate(editing?.config?.ml_default_commission_rate ?? 6);
+    setMinCommissionValue(editing?.config?.min_commission_value ?? 0);
+    setFilterMode(editing?.config?.filter_mode ?? "none");
+    setMinSales(editing?.config?.min_sales ?? 0);
+    setMinRating(editing?.config?.min_rating ?? 0);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
@@ -271,7 +281,13 @@ function JobDialog({
       config.ml_affiliate_tag = mlTag.trim();
       config.ml_pages = mlPages;
       config.ml_min_discount = mlMinDiscount;
+      config.ml_default_commission_rate = mlDefaultCommissionRate;
     }
+    // filtros de qualidade (comuns às plataformas e-commerce)
+    config.min_commission_value = minCommissionValue;
+    config.filter_mode = filterMode;
+    config.min_sales = minSales;
+    config.min_rating = minRating;
 
     const payload: any = {
       portfolio_id: portfolioId,
@@ -390,7 +406,60 @@ function JobDialog({
                   <Input type="number" min={0} max={99} value={mlMinDiscount} onChange={(e) => setMlMinDiscount(Number(e.target.value) || 0)} />
                 </div>
               </div>
+              <div>
+                <Label>Comissão estimada do ML (%)</Label>
+                <Input type="number" min={0} max={50} step={0.5} value={mlDefaultCommissionRate} onChange={(e) => setMlDefaultCommissionRate(Number(e.target.value) || 0)} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  ML não devolve a comissão por produto na API pública; usamos esta % padrão para estimar (ex: 6%).
+                </p>
+              </div>
             </>
+          )}
+
+          {(plataforma === "shopee" || plataforma === "mercado_livre") && (
+            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Filtros de qualidade</div>
+              <div>
+                <Label>Comissão mínima por produto (R$)</Label>
+                <Input type="number" min={0} step={0.5} value={minCommissionValue} onChange={(e) => setMinCommissionValue(Number(e.target.value) || 0)} placeholder="0 = sem mínimo" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Produto com comissão estimada abaixo deste valor é pulado.
+                </p>
+              </div>
+              <div>
+                <Label>Filtrar por</Label>
+                <Select value={filterMode} onValueChange={(v) => setFilterMode(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem filtro</SelectItem>
+                    <SelectItem value="sales">Vendas mínimas</SelectItem>
+                    <SelectItem value="rating">Avaliação mínima</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filterMode === "sales" && (
+                <div>
+                  <Label>Mínimo de vendas</Label>
+                  <Input type="number" min={0} value={minSales} onChange={(e) => setMinSales(Number(e.target.value) || 0)} placeholder="10" />
+                  {plataforma === "mercado_livre" && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ML: usa <code>sold_quantity</code> da API (no fallback HTML pode vir 0).
+                    </p>
+                  )}
+                </div>
+              )}
+              {filterMode === "rating" && (
+                <div>
+                  <Label>Avaliação mínima (0-5)</Label>
+                  <Input type="number" min={0} max={5} step={0.1} value={minRating} onChange={(e) => setMinRating(Number(e.target.value) || 0)} placeholder="4.0" />
+                  {plataforma === "mercado_livre" && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ML: faz 1 request extra por produto para buscar a média de reviews (mais lento).
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           <div>
             <Label>Termos de busca (separados por vírgula)</Label>
@@ -430,7 +499,7 @@ function JobDialog({
               placeholder="SHOPEE_ADRIANA"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Crie a data table no n8n com esse nome (colunas: productname, price, pricediscountrate, shopname, offerlink, imageUrl, sending).
+              A data table é criada automaticamente no n8n com as colunas: productname, price, pricediscountrate, shopname, offerlink, imageUrl, sending, commission_rate, commission_value, sales, rating. Se já existe, adicione as 4 novas manualmente no n8n.
             </p>
           </div>
         </div>

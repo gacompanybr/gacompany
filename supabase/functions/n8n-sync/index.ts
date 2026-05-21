@@ -353,6 +353,11 @@ function buildScrapperWorkflow(job: any) {
   const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
   const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 5)));
   const mlMinDiscount = Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 20)));
+  const minCommissionValue = Math.max(0, Number(cfg.min_commission_value ?? 0));
+  const filterMode: string = String(cfg.filter_mode ?? "none"); // "sales" | "rating" | "none"
+  const minSales = Math.max(0, Number(cfg.min_sales ?? 0));
+  const minRating = Math.max(0, Math.min(5, Number(cfg.min_rating ?? 0)));
+  const mlDefaultCommissionRate = Math.max(0, Math.min(50, Number(cfg.ml_default_commission_rate ?? 6)));
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
@@ -368,10 +373,21 @@ const ML_CSRF = ${JSON.stringify(mlCsrf)};
 const ML_TAG = ${JSON.stringify(mlTag)};
 const ML_PAGES = ${mlPages};
 const ML_MIN_DISCOUNT = ${mlMinDiscount};
+const MIN_COMMISSION_VALUE = ${minCommissionValue};
+const FILTER_MODE = ${JSON.stringify(filterMode)};
+const MIN_SALES = ${minSales};
+const MIN_RATING = ${minRating};
+const ML_DEFAULT_COMMISSION_RATE = ${mlDefaultCommissionRate};
 const TABLE_NAME = ${JSON.stringify(dataTableName)};
 const JOB_ID = ${JSON.stringify(job.id)};
 const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
 const SCRAPPER_SECRET = ${JSON.stringify(Deno.env.get("SCRAPPER_API_SECRET") ?? "")};
+
+function passesQualityFilter(sales, rating) {
+  if (FILTER_MODE === "sales") return Number(sales || 0) >= MIN_SALES;
+  if (FILTER_MODE === "rating") return Number(rating || 0) >= MIN_RATING;
+  return true;
+}
 
 const http = this.helpers.httpRequest;
 
@@ -442,7 +458,7 @@ async function insertRow(tableId, row) {
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
-  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: 1, sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName}}}";
+  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: 1, sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName sales ratingStar}}}";
   const payload = JSON.stringify({ query });
   const ts = String(Math.floor(Date.now() / 1000));
   const sig = sha256(SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET);
@@ -481,14 +497,25 @@ try {
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
       for (const it of (r.nodes || [])) {
         try {
+          const price = Number(it.price ?? it.priceMin ?? 0);
+          const commissionRate = Number(it.commissionRate ?? 0);
+          const commissionValue = Number(it.commission ?? (price * commissionRate / 100));
+          const sales = Number(it.sales ?? 0);
+          const rating = Number(it.ratingStar ?? 0);
+          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", item: it.productName, commissionValue }); continue; }
+          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", item: it.productName, sales, rating }); continue; }
           await insertRow(tableId, {
             productname: it.productName,
-            price: Number(it.price ?? it.priceMin ?? 0),
+            price,
             pricediscountrate: it.priceDiscountRate,
             shopname: it.shopName,
             offerlink: it.offerLink,
             imageUrl: it.imageUrl,
             sending: false,
+            commission_rate: commissionRate,
+            commission_value: commissionValue,
+            sales,
+            rating,
           });
           total++;
         } catch (e) {
@@ -680,9 +707,15 @@ try {
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
             if (!title || !rawLink) continue;
+            const commissionRate = ML_DEFAULT_COMMISSION_RATE;
+            const commissionValue = price * commissionRate / 100;
+            const sales = Number(it.sales || 0);
+            const rating = Number(it.rating || 0);
+            if (commissionValue < MIN_COMMISSION_VALUE) continue;
+            if (!passesQualityFilter(sales, rating)) continue;
             const offer = await affiliateLink(rawLink);
             try {
-              await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false });
+              await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
               total++; kept++;
             } catch (err) {
               debug.push({ insertError: err.message || String(err), item: title });
@@ -702,6 +735,19 @@ try {
           const link = String(it.permalink || "").split("#")[0].split("?")[0];
           const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-[A-Z]\.jpg$/i, "-O.jpg");
           if (!title || !link) continue;
+          const commissionRate = ML_DEFAULT_COMMISSION_RATE;
+          const commissionValue = price * commissionRate / 100;
+          const sales = Number(it.sold_quantity || 0);
+          // ML API search nao retorna rating direto; tenta reviews se filtro for rating
+          let rating = 0;
+          if (FILTER_MODE === "rating" && it.id) {
+            try {
+              const rev = await http({ method: "GET", url: "https://api.mercadolibre.com/reviews/item/" + it.id, headers: { "user-agent": UA, "accept": "application/json" }, json: true });
+              rating = Number((rev && rev.rating_average) || 0);
+            } catch (_) {}
+          }
+          if (commissionValue < MIN_COMMISSION_VALUE) continue;
+          if (!passesQualityFilter(sales, rating)) continue;
           const offer = await affiliateLink(link);
           try {
             await insertRow(tableId, {
@@ -712,6 +758,10 @@ try {
               offerlink: offer,
               imageUrl: image,
               sending: false,
+              commission_rate: commissionRate,
+              commission_value: commissionValue,
+              sales,
+              rating,
             });
             total++; kept++;
           } catch (e) {
@@ -886,6 +936,10 @@ Deno.serve(async (req) => {
         { name: "offerlink", type: "string" },
         { name: "imageUrl", type: "string" },
         { name: "sending", type: "boolean" },
+        { name: "commission_rate", type: "number" },
+        { name: "commission_value", type: "number" },
+        { name: "sales", type: "number" },
+        { name: "rating", type: "number" },
       ];
 
       let datatableId: string | null = null;
