@@ -514,11 +514,7 @@ try {
   try {
     const cutoffMs = Date.now() - 30*24*60*60*1000;
     let listed = [];
-    try {
-      const r = await http({ method: "GET", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=1000\`,
-        headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
-      listed = (r && (r.data || r)) || [];
-    } catch (e) { debug.push({ cleanupListErr: e.message || String(e) }); }
+    try { listed = await listRows(tableId); } catch (_) {}
     const toDelete = (Array.isArray(listed) ? listed : []).filter(r => {
       if (!r || !r.sending) return false;
       const t = r.sent_at ? Date.parse(r.sent_at) : 0;
