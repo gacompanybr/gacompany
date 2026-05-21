@@ -646,6 +646,15 @@ try {
 
 
     async function affiliateLink(rawLink){
+      // Fallback canonical (curto) caso a API de afiliado falhe
+      function canonical(u){
+        try {
+          const m = String(u).match(/\\/p\\/(MLB\\d+)/i) || String(u).match(/(MLB-?\\d{6,})/i);
+          if (m) return "https://produto.mercadolivre.com.br/" + m[1].replace("-", "");
+        } catch(_) {}
+        return String(u).split("#")[0].split("?")[0];
+      }
+      const fb = canonical(rawLink);
       try {
         const r = await http({
           method: "POST",
@@ -663,13 +672,14 @@ try {
           body: { urls: [rawLink], tag: ML_TAG, format: "SHORT" },
           json: true,
         });
-        const u = r && r.urls && r.urls[0];
-        const shortUrl = u && (u.short_url || u.shortUrl || u.shortenedUrl);
-        if (!shortUrl) debug.push({ affiliateNoShort: true, raw: u, link: rawLink });
-        return shortUrl || (u && u.url) || rawLink;
+        const u = (r && r.urls && r.urls[0]) || r || {};
+        const cand = u.short_url || u.shortUrl || u.shortenedUrl || u.short_link || u.shortLink || u.url_short || u.url || u.long_url;
+        if (cand && /meli\\.la|mercadolivre\\.com\\/sec\\//i.test(cand)) return cand;
+        debug.push({ affiliateNoShort: true, raw: u, link: rawLink });
+        return fb;
       } catch (e) {
         debug.push({ affiliateErr: e.message || String(e), link: rawLink });
-        return rawLink;
+        return fb;
       }
     }
 
