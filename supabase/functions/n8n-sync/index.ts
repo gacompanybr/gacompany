@@ -1125,9 +1125,19 @@ Deno.serve(async (req) => {
       }
       if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
       try {
-        const data = await n8nFetch(`/data-tables/${tableId}/rows?take=1000`);
-        const rows = data?.data ?? data ?? [];
-        return j({ rows: Array.isArray(rows) ? rows : [], tableId, tableName });
+        let rows: any[] = [];
+        let lastErr = "";
+        for (const path of [`/data-tables/${tableId}/rows?limit=1000`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=1000`]) {
+          try {
+            const data = await n8nFetch(path);
+            const parsed = data?.data ?? data ?? [];
+            rows = Array.isArray(parsed) ? parsed : [];
+            lastErr = "";
+            break;
+          } catch (err) { lastErr = err instanceof Error ? err.message : String(err); }
+        }
+        if (lastErr) throw new Error(lastErr);
+        return j({ rows, tableId, tableName });
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
