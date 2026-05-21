@@ -493,6 +493,33 @@ try {
   const tableId = await findTableId(TABLE_NAME);
   if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n. Crie-a primeiro.");
 
+  // Cleanup: remove produtos enviados ha mais de 30 dias
+  try {
+    const cutoff = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const cleanupFilter = { type: "and", filters: [
+      { columnName: "sending", condition: "eq", value: true },
+      { columnName: "sent_at", condition: "lt", value: cutoff },
+    ] };
+    let cleaned = false;
+    try {
+      await http({ method: "POST", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/delete\`,
+        headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+        body: { filter: cleanupFilter }, json: true });
+      cleaned = true;
+    } catch (e1) {
+      try {
+        await http({ method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+          headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+          body: { filter: cleanupFilter }, json: true });
+        cleaned = true;
+      } catch (e2) {
+        debug.push({ cleanupErr: (e1.message||String(e1)) + " | " + (e2.message||String(e2)) });
+      }
+    }
+    if (cleaned) debug.push({ cleanup: "ok", cutoff });
+  } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
+
+
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
     const keywords = TERMOS.length ? TERMOS : CATEGORIAS;
