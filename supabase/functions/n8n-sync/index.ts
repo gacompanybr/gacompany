@@ -242,7 +242,7 @@ if (sendStatus === 200) {
       headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
       body: {
         filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
-        data: { sending: true },
+        data: { sending: true, sent_at: new Date().toISOString() },
       },
       json: true,
     });
@@ -492,6 +492,33 @@ const debug = [];
 try {
   const tableId = await findTableId(TABLE_NAME);
   if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n. Crie-a primeiro.");
+
+  // Cleanup: remove produtos enviados ha mais de 30 dias
+  try {
+    const cutoff = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const cleanupFilter = { type: "and", filters: [
+      { columnName: "sending", condition: "eq", value: true },
+      { columnName: "sent_at", condition: "lt", value: cutoff },
+    ] };
+    let cleaned = false;
+    try {
+      await http({ method: "POST", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/delete\`,
+        headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+        body: { filter: cleanupFilter }, json: true });
+      cleaned = true;
+    } catch (e1) {
+      try {
+        await http({ method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+          headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+          body: { filter: cleanupFilter }, json: true });
+        cleaned = true;
+      } catch (e2) {
+        debug.push({ cleanupErr: (e1.message||String(e1)) + " | " + (e2.message||String(e2)) });
+      }
+    }
+    if (cleaned) debug.push({ cleanup: "ok", cutoff });
+  } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
+
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
@@ -956,7 +983,9 @@ Deno.serve(async (req) => {
         { name: "commission_value", type: "number" },
         { name: "sales", type: "number" },
         { name: "rating", type: "number" },
+        { name: "sent_at", type: "string" },
       ];
+
 
       let datatableId: string | null = null;
       // procura existente
@@ -1039,6 +1068,44 @@ Deno.serve(async (req) => {
         console.warn("delete workflow falhou (talvez já excluído):", e);
       }
       return j({ ok: true });
+    }
+
+
+    if (action === "list_datatable_rows") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+      let tableId = job.n8n_datatable_id as string | null;
+      const tableName: string = job.data_table_name || "";
+      if (!tableId && tableName) {
+        // procura pelo nome
+        const searchPaths = ["/data-tables", "/data-tables?includeProject=true"];
+        try {
+          const projs = await n8nFetch("/projects");
+          const list = projs?.data ?? projs ?? [];
+          for (const p of (Array.isArray(list) ? list : [])) {
+            if (p?.id) searchPaths.push(`/projects/${p.id}/data-tables`);
+          }
+        } catch (_) {}
+        for (const path of searchPaths) {
+          try {
+            const d = await n8nFetch(path);
+            const arr = d?.data ?? d ?? [];
+            const found = (Array.isArray(arr) ? arr : []).find((t: any) => String(t?.name ?? "").trim() === tableName);
+            if (found?.id) { tableId = found.id; break; }
+          } catch (_) {}
+        }
+      }
+      if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
+      try {
+        const data = await n8nFetch(`/data-tables/${tableId}/rows?take=1000`);
+        const rows = data?.data ?? data ?? [];
+        return j({ rows: Array.isArray(rows) ? rows : [], tableId, tableName });
+      } catch (e) {
+        return j({ error: (e as Error).message, tableId, tableName }, 500);
+      }
     }
 
     return j({ error: "action desconhecida" }, 400);
