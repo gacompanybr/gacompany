@@ -709,6 +709,7 @@ try {
           if (fallback.blocked) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", blocked: "ML bloqueou também a página de ofertas", htmlSize: fallback.htmlSize }); continue; }
           let kept = 0;
           for (const it of fallback.products) {
+            if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
             if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
             const title = String(it.title || "");
             const rawLink = String(it.link || "").split("#")[0].split("?")[0];
