@@ -685,7 +685,8 @@ try {
       if (!q) continue;
       for (let page = 1; page <= ML_PAGES; page++) {
         const offset = (page - 1) * 50;
-        const apiUrl = "https://api.mercadolibre.com/sites/MLB/search?q=" + encodeURIComponent(q) + "&sort=price_desc&limit=50&offset=" + offset;
+        // sort=relevance (default) = ML mistura popularidade/vendas/relevância — proxy de "mais vendidos/hypados do dia"
+        const apiUrl = "https://api.mercadolibre.com/sites/MLB/search?q=" + encodeURIComponent(q) + "&sort=relevance&limit=50&offset=" + offset;
         let resp;
         try {
           resp = await http({
