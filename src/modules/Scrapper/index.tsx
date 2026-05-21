@@ -536,3 +536,117 @@ function JobDialog({
     </Dialog>
   );
 }
+
+function DataTableViewer({ job, onClose }: { job: Job | null; onClose: () => void }) {
+  const [rows, setRows] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "sent" | "pending">("all");
+
+  useEffect(() => {
+    if (!job) { setRows(null); setErr(null); return; }
+    setLoading(true);
+    setErr(null);
+    supabase.functions.invoke("n8n-sync", { body: { action: "list_datatable_rows", jobId: job.id } })
+      .then(({ data, error }) => {
+        if (error) setErr(error.message);
+        else if (data?.error) setErr(data.error);
+        else setRows(data?.rows ?? []);
+      })
+      .finally(() => setLoading(false));
+  }, [job]);
+
+  const filtered = (rows ?? []).filter((r) => {
+    if (filter === "sent") return !!r.sending;
+    if (filter === "pending") return !r.sending;
+    return true;
+  });
+  const totalSent = (rows ?? []).filter((r) => r.sending).length;
+
+  return (
+    <Dialog open={!!job} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>{job?.data_table_name || "Data table"}</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            {rows ? `${rows.length} produtos · ${totalSent} enviados · ${rows.length - totalSent} pendentes` : "—"}
+            {" · "}Enviados há mais de 30 dias são excluídos automaticamente.
+          </p>
+        </DialogHeader>
+        <div className="flex gap-2 items-center">
+          <Select value={filter} onValueChange={(v) => setFilter(v as any)}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="pending">Pendentes</SelectItem>
+              <SelectItem value="sent">Já enviados</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1 overflow-auto border rounded-md">
+          {loading ? (
+            <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
+          ) : err ? (
+            <div className="p-6 text-sm text-destructive">⚠ {err}</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-10 text-center text-sm text-muted-foreground">Nenhum produto.</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40 sticky top-0">
+                <tr>
+                  <th className="text-left p-2">Status</th>
+                  <th className="text-left p-2">Imagem</th>
+                  <th className="text-left p-2 min-w-[200px]">Produto</th>
+                  <th className="text-left p-2">Loja</th>
+                  <th className="text-right p-2">Preço</th>
+                  <th className="text-right p-2">% OFF</th>
+                  <th className="text-right p-2">Comissão</th>
+                  <th className="text-right p-2">Taxa %</th>
+                  <th className="text-right p-2">Vendas</th>
+                  <th className="text-right p-2">Rating</th>
+                  <th className="text-left p-2">Link</th>
+                  <th className="text-left p-2">Enviado em</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r, i) => (
+                  <tr key={r.id ?? i} className="border-t">
+                    <td className="p-2">
+                      <Badge variant={r.sending ? "default" : "outline"} className="text-[10px]">
+                        {r.sending ? "enviado" : "pendente"}
+                      </Badge>
+                    </td>
+                    <td className="p-2">
+                      {r.imageUrl ? <img src={r.imageUrl} alt="" className="h-10 w-10 object-cover rounded" /> : "—"}
+                    </td>
+                    <td className="p-2">{r.productname}</td>
+                    <td className="p-2">{r.shopname}</td>
+                    <td className="p-2 text-right">R$ {Number(r.price || 0).toFixed(2)}</td>
+                    <td className="p-2 text-right">{r.pricediscountrate ?? 0}%</td>
+                    <td className="p-2 text-right">R$ {Number(r.commission_value || 0).toFixed(2)}</td>
+                    <td className="p-2 text-right">{Number(r.commission_rate || 0)}%</td>
+                    <td className="p-2 text-right">{r.sales ?? 0}</td>
+                    <td className="p-2 text-right">{r.rating ? Number(r.rating).toFixed(1) : "—"}</td>
+                    <td className="p-2">
+                      {r.offerlink && (
+                        <a href={r.offerlink} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                          abrir <ExternalLink size={10} />
+                        </a>
+                      )}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      {r.sent_at ? new Date(r.sent_at).toLocaleString("pt-BR") : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
