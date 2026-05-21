@@ -406,7 +406,60 @@ function JobDialog({
                   <Input type="number" min={0} max={99} value={mlMinDiscount} onChange={(e) => setMlMinDiscount(Number(e.target.value) || 0)} />
                 </div>
               </div>
+              <div>
+                <Label>Comissão estimada do ML (%)</Label>
+                <Input type="number" min={0} max={50} step={0.5} value={mlDefaultCommissionRate} onChange={(e) => setMlDefaultCommissionRate(Number(e.target.value) || 0)} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  ML não devolve a comissão por produto na API pública; usamos esta % padrão para estimar (ex: 6%).
+                </p>
+              </div>
             </>
+          )}
+
+          {(plataforma === "shopee" || plataforma === "mercado_livre") && (
+            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Filtros de qualidade</div>
+              <div>
+                <Label>Comissão mínima por produto (R$)</Label>
+                <Input type="number" min={0} step={0.5} value={minCommissionValue} onChange={(e) => setMinCommissionValue(Number(e.target.value) || 0)} placeholder="0 = sem mínimo" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Produto com comissão estimada abaixo deste valor é pulado.
+                </p>
+              </div>
+              <div>
+                <Label>Filtrar por</Label>
+                <Select value={filterMode} onValueChange={(v) => setFilterMode(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem filtro</SelectItem>
+                    <SelectItem value="sales">Vendas mínimas</SelectItem>
+                    <SelectItem value="rating">Avaliação mínima</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {filterMode === "sales" && (
+                <div>
+                  <Label>Mínimo de vendas</Label>
+                  <Input type="number" min={0} value={minSales} onChange={(e) => setMinSales(Number(e.target.value) || 0)} placeholder="10" />
+                  {plataforma === "mercado_livre" && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ML: usa <code>sold_quantity</code> da API (no fallback HTML pode vir 0).
+                    </p>
+                  )}
+                </div>
+              )}
+              {filterMode === "rating" && (
+                <div>
+                  <Label>Avaliação mínima (0-5)</Label>
+                  <Input type="number" min={0} max={5} step={0.1} value={minRating} onChange={(e) => setMinRating(Number(e.target.value) || 0)} placeholder="4.0" />
+                  {plataforma === "mercado_livre" && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ML: faz 1 request extra por produto para buscar a média de reviews (mais lento).
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           <div>
             <Label>Termos de busca (separados por vírgula)</Label>
