@@ -505,6 +505,7 @@ async function shopeeSearch(keyword) {
 
 let total = 0;
 let erro = null;
+let dupSkipped = 0;
 const debug = [];
 try {
   const tableId = await findTableId(TABLE_NAME);
@@ -550,7 +551,6 @@ try {
     }
     debug.push({ dedup: { loaded: existingNames.size } });
   } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
-  let dupSkipped = 0;
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
