@@ -1078,6 +1078,7 @@ export type Database = {
           plataforma: string
           portfolio_id: string
           status: string
+          ultima_affiliate_errors: number
           ultima_execucao: string | null
           ultima_qtd: number
           ultimo_erro: string | null
@@ -1098,6 +1099,7 @@ export type Database = {
           plataforma: string
           portfolio_id: string
           status?: string
+          ultima_affiliate_errors?: number
           ultima_execucao?: string | null
           ultima_qtd?: number
           ultimo_erro?: string | null
@@ -1118,6 +1120,7 @@ export type Database = {
           plataforma?: string
           portfolio_id?: string
           status?: string
+          ultima_affiliate_errors?: number
           ultima_execucao?: string | null
           ultima_qtd?: number
           ultimo_erro?: string | null
