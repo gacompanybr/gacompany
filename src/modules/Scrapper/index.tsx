@@ -223,6 +223,8 @@ function JobDialog({
   const [filterMode, setFilterMode] = useState<"none" | "sales" | "rating">("none");
   const [minSales, setMinSales] = useState(0);
   const [minRating, setMinRating] = useState(0);
+  const [minProducts, setMinProducts] = useState(0);
+  const [maxProducts, setMaxProducts] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -245,6 +247,8 @@ function JobDialog({
     setFilterMode(editing?.config?.filter_mode ?? "none");
     setMinSales(editing?.config?.min_sales ?? 0);
     setMinRating(editing?.config?.min_rating ?? 0);
+    setMinProducts(editing?.config?.min_products ?? 0);
+    setMaxProducts(editing?.config?.max_products ?? 0);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
@@ -288,6 +292,8 @@ function JobDialog({
     config.filter_mode = filterMode;
     config.min_sales = minSales;
     config.min_rating = minRating;
+    config.min_products = minProducts;
+    config.max_products = maxProducts;
 
     const payload: any = {
       portfolio_id: portfolioId,
@@ -459,6 +465,18 @@ function JobDialog({
                   )}
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                <div>
+                  <Label>Mínimo por execução</Label>
+                  <Input type="number" min={0} value={minProducts} onChange={(e) => setMinProducts(Number(e.target.value) || 0)} placeholder="0 = sem mínimo" />
+                  <p className="text-xs text-muted-foreground mt-1">Avisa erro se coletar menos.</p>
+                </div>
+                <div>
+                  <Label>Máximo por execução</Label>
+                  <Input type="number" min={0} value={maxProducts} onChange={(e) => setMaxProducts(Number(e.target.value) || 0)} placeholder="0 = sem limite" />
+                  <p className="text-xs text-muted-foreground mt-1">Para de coletar ao atingir.</p>
+                </div>
+              </div>
             </div>
           )}
           <div>

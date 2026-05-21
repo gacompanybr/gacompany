@@ -358,6 +358,9 @@ function buildScrapperWorkflow(job: any) {
   const minSales = Math.max(0, Number(cfg.min_sales ?? 0));
   const minRating = Math.max(0, Math.min(5, Number(cfg.min_rating ?? 0)));
   const mlDefaultCommissionRate = Math.max(0, Math.min(50, Number(cfg.ml_default_commission_rate ?? 6)));
+  const minProducts = Math.max(0, Number(cfg.min_products ?? 0));
+  const maxProductsRaw = Number(cfg.max_products ?? 0);
+  const maxProducts = maxProductsRaw > 0 ? Math.max(1, maxProductsRaw) : 0; // 0 = sem limite
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
@@ -378,6 +381,8 @@ const FILTER_MODE = ${JSON.stringify(filterMode)};
 const MIN_SALES = ${minSales};
 const MIN_RATING = ${minRating};
 const ML_DEFAULT_COMMISSION_RATE = ${mlDefaultCommissionRate};
+const MIN_PRODUCTS = ${minProducts};
+const MAX_PRODUCTS = ${maxProducts};
 const TABLE_NAME = ${JSON.stringify(dataTableName)};
 const JOB_ID = ${JSON.stringify(job.id)};
 const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
@@ -492,10 +497,11 @@ try {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
     const keywords = TERMOS.length ? TERMOS : CATEGORIAS;
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
-    for (const kw of keywords) {
+    outerShopee: for (const kw of keywords) {
       const r = await shopeeSearch(kw);
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
       for (const it of (r.nodes || [])) {
+        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerShopee; }
         try {
           const price = Number(it.price ?? it.priceMin ?? 0);
           const commissionRate = Number(it.commissionRate ?? 0);
@@ -680,10 +686,11 @@ try {
     }
 
     // ===== usa API quando disponível; se der 403, cai para /ofertas (HTML que não bloqueia igual search) =====
-    for (const kw of keywords) {
+    outerML: for (const kw of keywords) {
       const q = String(kw).trim();
       if (!q) continue;
       for (let page = 1; page <= ML_PAGES; page++) {
+        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
         const offset = (page - 1) * 50;
         // sort=relevance (default) = ML mistura popularidade/vendas/relevância — proxy de "mais vendidos/hypados do dia"
         const apiUrl = "https://api.mercadolibre.com/sites/MLB/search?q=" + encodeURIComponent(q) + "&sort=relevance&limit=50&offset=" + offset;
@@ -702,6 +709,7 @@ try {
           if (fallback.blocked) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", blocked: "ML bloqueou também a página de ofertas", htmlSize: fallback.htmlSize }); continue; }
           let kept = 0;
           for (const it of fallback.products) {
+            if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
             if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
             const title = String(it.title || "");
             const rawLink = String(it.link || "").split("#")[0].split("?")[0];
@@ -728,6 +736,7 @@ try {
         const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
         let kept = 0;
         for (const it of results) {
+          if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
           const price = Number(it.price || 0);
           const original = Number(it.original_price || 0);
           const discount = original > 0 && price > 0 ? Math.round((1 - price / original) * 100) : 0;
@@ -777,6 +786,10 @@ try {
   }
 } catch (e) {
   erro = e.message || String(e);
+}
+
+if (!erro && MIN_PRODUCTS > 0 && total < MIN_PRODUCTS) {
+  erro = "Apenas " + total + " produtos coletados (mínimo configurado: " + MIN_PRODUCTS + "). Afrouxe os filtros ou aumente termos/páginas.";
 }
 
 try {
