@@ -497,14 +497,25 @@ try {
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
       for (const it of (r.nodes || [])) {
         try {
+          const price = Number(it.price ?? it.priceMin ?? 0);
+          const commissionRate = Number(it.commissionRate ?? 0);
+          const commissionValue = Number(it.commission ?? (price * commissionRate / 100));
+          const sales = Number(it.sales ?? 0);
+          const rating = Number(it.ratingStar ?? 0);
+          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", item: it.productName, commissionValue }); continue; }
+          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", item: it.productName, sales, rating }); continue; }
           await insertRow(tableId, {
             productname: it.productName,
-            price: Number(it.price ?? it.priceMin ?? 0),
+            price,
             pricediscountrate: it.priceDiscountRate,
             shopname: it.shopName,
             offerlink: it.offerLink,
             imageUrl: it.imageUrl,
             sending: false,
+            commission_rate: commissionRate,
+            commission_value: commissionValue,
+            sales,
+            rating,
           });
           total++;
         } catch (e) {
