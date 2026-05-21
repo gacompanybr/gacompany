@@ -218,6 +218,11 @@ function JobDialog({
   const [mlTag, setMlTag] = useState("");
   const [mlPages, setMlPages] = useState(5);
   const [mlMinDiscount, setMlMinDiscount] = useState(20);
+  const [mlDefaultCommissionRate, setMlDefaultCommissionRate] = useState(6);
+  const [minCommissionValue, setMinCommissionValue] = useState(0);
+  const [filterMode, setFilterMode] = useState<"none" | "sales" | "rating">("none");
+  const [minSales, setMinSales] = useState(0);
+  const [minRating, setMinRating] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -235,6 +240,11 @@ function JobDialog({
     setMlTag(editing?.config?.ml_affiliate_tag ?? "");
     setMlPages(editing?.config?.ml_pages ?? 5);
     setMlMinDiscount(editing?.config?.ml_min_discount ?? 20);
+    setMlDefaultCommissionRate(editing?.config?.ml_default_commission_rate ?? 6);
+    setMinCommissionValue(editing?.config?.min_commission_value ?? 0);
+    setFilterMode(editing?.config?.filter_mode ?? "none");
+    setMinSales(editing?.config?.min_sales ?? 0);
+    setMinRating(editing?.config?.min_rating ?? 0);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
