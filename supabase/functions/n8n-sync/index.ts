@@ -242,7 +242,7 @@ if (sendStatus === 200) {
       headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
       body: {
         filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
-        data: { sending: true },
+        data: { sending: true, sent_at: new Date().toISOString() },
       },
       json: true,
     });
