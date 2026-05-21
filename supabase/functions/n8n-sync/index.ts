@@ -353,6 +353,11 @@ function buildScrapperWorkflow(job: any) {
   const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
   const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 5)));
   const mlMinDiscount = Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 20)));
+  const minCommissionValue = Math.max(0, Number(cfg.min_commission_value ?? 0));
+  const filterMode: string = String(cfg.filter_mode ?? "none"); // "sales" | "rating" | "none"
+  const minSales = Math.max(0, Number(cfg.min_sales ?? 0));
+  const minRating = Math.max(0, Math.min(5, Number(cfg.min_rating ?? 0)));
+  const mlDefaultCommissionRate = Math.max(0, Math.min(50, Number(cfg.ml_default_commission_rate ?? 6)));
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
@@ -368,10 +373,21 @@ const ML_CSRF = ${JSON.stringify(mlCsrf)};
 const ML_TAG = ${JSON.stringify(mlTag)};
 const ML_PAGES = ${mlPages};
 const ML_MIN_DISCOUNT = ${mlMinDiscount};
+const MIN_COMMISSION_VALUE = ${minCommissionValue};
+const FILTER_MODE = ${JSON.stringify(filterMode)};
+const MIN_SALES = ${minSales};
+const MIN_RATING = ${minRating};
+const ML_DEFAULT_COMMISSION_RATE = ${mlDefaultCommissionRate};
 const TABLE_NAME = ${JSON.stringify(dataTableName)};
 const JOB_ID = ${JSON.stringify(job.id)};
 const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
 const SCRAPPER_SECRET = ${JSON.stringify(Deno.env.get("SCRAPPER_API_SECRET") ?? "")};
+
+function passesQualityFilter(sales, rating) {
+  if (FILTER_MODE === "sales") return Number(sales || 0) >= MIN_SALES;
+  if (FILTER_MODE === "rating") return Number(rating || 0) >= MIN_RATING;
+  return true;
+}
 
 const http = this.helpers.httpRequest;
 
