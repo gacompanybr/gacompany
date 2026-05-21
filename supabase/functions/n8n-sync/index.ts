@@ -646,15 +646,6 @@ try {
 
 
     async function affiliateLink(rawLink){
-      // Fallback canonical (curto) caso a API de afiliado falhe
-      function canonical(u){
-        try {
-          const m = String(u).match(/\\/p\\/(MLB\\d+)/i) || String(u).match(/(MLB-?\\d{6,})/i);
-          if (m) return "https://www.mercadolivre.com.br/p/" + m[1].replace("-", "");
-        } catch(_) {}
-        return String(u).split("#")[0].split("?")[0];
-      }
-      const fb = canonical(rawLink);
       try {
         const r = await http({
           method: "POST",
@@ -664,7 +655,7 @@ try {
             "content-type": "application/json",
             "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
             "origin": "https://www.mercadolivre.com.br",
-            "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilde",
+            "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
             "x-csrf-token": ML_CSRF,
             "cookie": ML_COOKIE,
             "user-agent": UA,
@@ -676,10 +667,10 @@ try {
         const cand = u.short_url || u.shortUrl || u.shortenedUrl || u.short_link || u.shortLink || u.url_short || u.url || u.long_url;
         if (cand && /meli\\.la|mercadolivre\\.com\\/sec\\//i.test(cand)) return cand;
         debug.push({ affiliateNoShort: true, raw: u, link: rawLink });
-        return fb;
+        return null;
       } catch (e) {
         debug.push({ affiliateErr: e.message || String(e), link: rawLink });
-        return fb;
+        return null;
       }
     }
 
