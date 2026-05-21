@@ -223,6 +223,8 @@ function JobDialog({
   const [filterMode, setFilterMode] = useState<"none" | "sales" | "rating">("none");
   const [minSales, setMinSales] = useState(0);
   const [minRating, setMinRating] = useState(0);
+  const [minProducts, setMinProducts] = useState(0);
+  const [maxProducts, setMaxProducts] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
