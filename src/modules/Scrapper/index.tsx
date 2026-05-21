@@ -29,6 +29,7 @@ type Job = {
   data_table_name: string | null;
   n8n_workflow_id: string | null;
   ultimo_erro: string | null;
+  ultima_affiliate_errors: number | null;
   config: any;
 };
 
