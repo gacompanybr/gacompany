@@ -735,6 +735,19 @@ try {
           const link = String(it.permalink || "").split("#")[0].split("?")[0];
           const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-[A-Z]\.jpg$/i, "-O.jpg");
           if (!title || !link) continue;
+          const commissionRate = ML_DEFAULT_COMMISSION_RATE;
+          const commissionValue = price * commissionRate / 100;
+          const sales = Number(it.sold_quantity || 0);
+          // ML API search nao retorna rating direto; tenta reviews se filtro for rating
+          let rating = 0;
+          if (FILTER_MODE === "rating" && it.id) {
+            try {
+              const rev = await http({ method: "GET", url: "https://api.mercadolibre.com/reviews/item/" + it.id, headers: { "user-agent": UA, "accept": "application/json" }, json: true });
+              rating = Number((rev && rev.rating_average) || 0);
+            } catch (_) {}
+          }
+          if (commissionValue < MIN_COMMISSION_VALUE) continue;
+          if (!passesQualityFilter(sales, rating)) continue;
           const offer = await affiliateLink(link);
           try {
             await insertRow(tableId, {
@@ -745,6 +758,10 @@ try {
               offerlink: offer,
               imageUrl: image,
               sending: false,
+              commission_rate: commissionRate,
+              commission_value: commissionValue,
+              sales,
+              rating,
             });
             total++; kept++;
           } catch (e) {
