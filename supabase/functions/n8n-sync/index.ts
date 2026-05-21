@@ -567,6 +567,8 @@ try {
           const commissionValue = Number(it.commission ?? (price * commissionRate / 100));
           const sales = Number(it.sales ?? 0);
           const rating = Number(it.ratingStar ?? 0);
+          const nameKey = normName(it.productName);
+          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
           if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", item: it.productName, commissionValue }); continue; }
           if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", item: it.productName, sales, rating }); continue; }
           await insertRow(tableId, {
