@@ -788,6 +788,10 @@ try {
   erro = e.message || String(e);
 }
 
+if (!erro && MIN_PRODUCTS > 0 && total < MIN_PRODUCTS) {
+  erro = "Apenas " + total + " produtos coletados (mínimo configurado: " + MIN_PRODUCTS + "). Afrouxe os filtros ou aumente termos/páginas.";
+}
+
 try {
   await http({
     method: "POST",
