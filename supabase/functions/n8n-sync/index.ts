@@ -849,6 +849,7 @@ try {
               sales,
               rating,
             });
+            if (nameKey) existingNames.add(nameKey);
             total++; kept++;
           } catch (e) {
             debug.push({ insertError: e.message || String(e), item: title });
