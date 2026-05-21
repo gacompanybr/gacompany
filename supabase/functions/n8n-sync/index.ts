@@ -358,6 +358,9 @@ function buildScrapperWorkflow(job: any) {
   const minSales = Math.max(0, Number(cfg.min_sales ?? 0));
   const minRating = Math.max(0, Math.min(5, Number(cfg.min_rating ?? 0)));
   const mlDefaultCommissionRate = Math.max(0, Math.min(50, Number(cfg.ml_default_commission_rate ?? 6)));
+  const minProducts = Math.max(0, Number(cfg.min_products ?? 0));
+  const maxProductsRaw = Number(cfg.max_products ?? 0);
+  const maxProducts = maxProductsRaw > 0 ? Math.max(1, maxProductsRaw) : 0; // 0 = sem limite
   const dataTableName: string = job.data_table_name || `${(plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
 
   const jsCode = `
