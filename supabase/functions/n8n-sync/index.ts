@@ -1106,6 +1106,13 @@ Deno.serve(async (req) => {
       const result = await n8nFetch(`/workflows/${workflowId}/${action}`, {
         method: "POST",
       });
+      // Ao ativar: zera ultima_execucao para que o próximo tick do cron (≤1 min)
+      // dispare imediatamente, sem respeitar o intervalo do disparo anterior.
+      if (action === "activate") {
+        await admin.from("robo_campanhas")
+          .update({ ultima_execucao: null, ultimo_erro: null })
+          .eq("n8n_workflow_id", workflowId);
+      }
       return j({ ok: true, result });
     }
 
