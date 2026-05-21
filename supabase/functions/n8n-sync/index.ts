@@ -160,12 +160,34 @@ const grupo = DESTINOS[Math.floor(Math.random() * DESTINOS.length)];
 let sendData; let sendStatus = 0; let sendErr = null;
 const imgUrl = String(row.imageUrl || "").trim();
 const hasImg = /^https?:\\/\\//i.test(imgUrl);
-async function tryMedia() {
+async function fetchImageBase64(url) {
+  const buf = await http({
+    method: "GET",
+    url,
+    headers: { "user-agent": "Mozilla/5.0", "accept": "image/*,*/*" },
+    encoding: "arraybuffer",
+    returnFullResponse: false,
+  });
+  // n8n http helper retorna Buffer quando encoding=arraybuffer
+  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  return b.toString("base64");
+}
+async function tryMediaUrl() {
   return await http({
     method: "POST",
     url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
     headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
     body: { number: grupo, mediatype: "image", mimetype: "image/jpeg", media: imgUrl, caption: caption, fileName: "promo.jpg" },
+    json: true,
+  });
+}
+async function tryMediaBase64() {
+  const b64 = await fetchImageBase64(imgUrl);
+  return await http({
+    method: "POST",
+    url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
+    headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
+    body: { number: grupo, mediatype: "image", mimetype: "image/jpeg", media: b64, caption: caption, fileName: "promo.jpg" },
     json: true,
   });
 }
