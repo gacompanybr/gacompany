@@ -156,20 +156,52 @@ const caption = TEMPLATE
 // 6. Escolhe grupo aleatorio
 const grupo = DESTINOS[Math.floor(Math.random() * DESTINOS.length)];
 
-// 7. Envia via Evolution
+// 7. Envia via Evolution (tenta sendMedia; se falhar, cai para sendText com link)
 let sendData; let sendStatus = 0; let sendErr = null;
-try {
-  sendData = await http({
+const imgUrl = String(row.imageUrl || "").trim();
+const hasImg = /^https?:\\/\\//i.test(imgUrl);
+async function tryMedia() {
+  return await http({
     method: "POST",
     url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
     headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
-    body: { number: grupo, mediatype: "image", media: row.imageUrl, caption: caption, fileName: "promo.jpg" },
+    body: { number: grupo, mediatype: "image", mimetype: "image/jpeg", media: imgUrl, caption: caption, fileName: "promo.jpg" },
     json: true,
   });
-  sendStatus = 200;
-} catch (e) {
-  sendErr = e.message || String(e);
-  sendStatus = e.httpCode || 500;
+}
+async function tryText() {
+  return await http({
+    method: "POST",
+    url: \`\${EVO_URL}/message/sendText/\${INSTANCE}\`,
+    headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
+    body: { number: grupo, text: caption + (hasImg ? "\\n\\n" + imgUrl : "") },
+    json: true,
+  });
+}
+function errBody(e){ const b = e && e.response && (e.response.body || e.response.data); return typeof b === "string" ? b : JSON.stringify(b || e.message || String(e)); }
+if (hasImg) {
+  try {
+    sendData = await tryMedia();
+    sendStatus = 200;
+  } catch (e1) {
+    const detalheMedia = errBody(e1);
+    try {
+      sendData = await tryText();
+      sendStatus = 200;
+      sendErr = "sendMedia falhou (" + detalheMedia + "), enviado como texto";
+    } catch (e2) {
+      sendErr = "Media: " + detalheMedia + " | Text: " + errBody(e2);
+      sendStatus = e2.httpCode || e2.statusCode || 500;
+    }
+  }
+} else {
+  try {
+    sendData = await tryText();
+    sendStatus = 200;
+  } catch (e) {
+    sendErr = errBody(e);
+    sendStatus = e.httpCode || e.statusCode || 500;
+  }
 }
 
 // 8. Marca como usada (so se enviou OK)
