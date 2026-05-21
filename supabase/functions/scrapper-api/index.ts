@@ -88,13 +88,13 @@ Deno.serve(async (req) => {
 
       // update_job
       if (bodyAction === "update_job") {
-        const { id, ultima_qtd, output_url, ultimo_erro } = body;
+        const { id, ultima_qtd, output_url, ultimo_erro, ultima_affiliate_errors } = body;
         if (!id) return json({ error: "id obrigatório" }, 400);
 
         if (ultimo_erro) {
           const { error } = await admin
             .from("scrapper_jobs")
-            .update({ ultimo_erro })
+            .update({ ultimo_erro, ultima_affiliate_errors: ultima_affiliate_errors ?? 0 })
             .eq("id", id);
           if (error) return json({ error: error.message }, 500);
         } else {
@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
               ultima_qtd: ultima_qtd ?? 0,
               output_url: output_url ?? null,
               ultimo_erro: null,
+              ultima_affiliate_errors: ultima_affiliate_errors ?? 0,
             })
             .eq("id", id);
           if (error) return json({ error: error.message }, 500);
