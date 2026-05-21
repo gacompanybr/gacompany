@@ -505,6 +505,7 @@ async function shopeeSearch(keyword) {
 
 let total = 0;
 let erro = null;
+let dupSkipped = 0;
 const debug = [];
 try {
   const tableId = await findTableId(TABLE_NAME);
