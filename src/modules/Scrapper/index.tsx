@@ -14,7 +14,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Search, Trash2, ExternalLink, Play, Pause, Settings } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ExternalLink, Play, Pause, Settings, Eye } from "lucide-react";
 
 type Job = {
   id: string;
