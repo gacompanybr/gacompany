@@ -535,7 +535,7 @@ try {
         if (!title || !link) continue;
 
         let image = "";
-        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component__picture[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
+        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component_?picture[^"]*"[^>]*>/) || card.match(/<img[^>]+(?:src|data-src|srcset|data-srcset)="[^"]*mlstatic\.com[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
         if (imgTagM){
           const tag = imgTagM[0];
           const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/);
