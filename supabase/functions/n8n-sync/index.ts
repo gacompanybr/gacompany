@@ -736,6 +736,7 @@ try {
         const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
         let kept = 0;
         for (const it of results) {
+          if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
           const price = Number(it.price || 0);
           const original = Number(it.original_price || 0);
           const discount = original > 0 && price > 0 ? Math.round((1 - price / original) * 100) : 0;
