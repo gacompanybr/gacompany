@@ -535,10 +535,10 @@ try {
         if (!title || !link) continue;
 
         let image = "";
-        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component_?picture[^"]*"[^>]*>/) || card.match(/<img[^>]+(?:src|data-src|srcset|data-srcset)="[^"]*mlstatic\\.com[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
+        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component_*picture[^"]*"[^>]*>/) || card.match(/<img[^>]+(?:src|data-src|srcset|data-srcset|data-original|data-lazy-src)="[^"]*mlstatic\\.com[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
         if (imgTagM){
           const tag = imgTagM[0];
-          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/) || tag.match(/\\bdata-srcset="([^"]+)"/) || tag.match(/\\bsrcset="([^"]+)"/);
+          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/) || tag.match(/\\bdata-srcset="([^"]+)"/) || tag.match(/\\bsrcset="([^"]+)"/) || tag.match(/\\bdata-original="([^"]+)"/) || tag.match(/\\bdata-lazy-src="([^"]+)"/);
           if (srcM) image = decodeEntities(String(srcM[1]).split(/\\s+/)[0]);
         }
         if (!image) {
