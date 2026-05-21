@@ -203,17 +203,24 @@ async function tryText() {
 function errBody(e){ const b = e && e.response && (e.response.body || e.response.data); return typeof b === "string" ? b : JSON.stringify(b || e.message || String(e)); }
 if (hasImg) {
   try {
-    sendData = await tryMedia();
+    sendData = await tryMediaUrl();
     sendStatus = 200;
   } catch (e1) {
-    const detalheMedia = errBody(e1);
+    const detalheUrl = errBody(e1);
     try {
-      sendData = await tryText();
+      sendData = await tryMediaBase64();
       sendStatus = 200;
-      sendErr = "sendMedia falhou (" + detalheMedia + "), enviado como texto";
+      sendErr = "sendMedia URL falhou (" + detalheUrl + "), enviado via base64";
     } catch (e2) {
-      sendErr = "Media: " + detalheMedia + " | Text: " + errBody(e2);
-      sendStatus = e2.httpCode || e2.statusCode || 500;
+      const detalheB64 = errBody(e2);
+      try {
+        sendData = await tryText();
+        sendStatus = 200;
+        sendErr = "sendMedia URL e base64 falharam, enviado como texto. URL: " + detalheUrl + " | Base64: " + detalheB64;
+      } catch (e3) {
+        sendErr = "Tudo falhou. URL: " + detalheUrl + " | B64: " + detalheB64 + " | Text: " + errBody(e3);
+        sendStatus = e3.httpCode || e3.statusCode || 500;
+      }
     }
   }
 } else {
