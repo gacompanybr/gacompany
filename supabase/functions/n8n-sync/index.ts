@@ -643,11 +643,11 @@ try {
           for (const it of fallback.products) {
             if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
             const title = String(it.title || "");
-            const link = String(it.link || "");
+            const rawLink = String(it.link || "").split("#")[0].split("?")[0];
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
-            if (!title || !link) continue;
-            const offer = await affiliateLink(link);
+            if (!title || !rawLink) continue;
+            const offer = await affiliateLink(rawLink);
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false });
               total++; kept++;
