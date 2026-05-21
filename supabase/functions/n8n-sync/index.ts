@@ -160,12 +160,34 @@ const grupo = DESTINOS[Math.floor(Math.random() * DESTINOS.length)];
 let sendData; let sendStatus = 0; let sendErr = null;
 const imgUrl = String(row.imageUrl || "").trim();
 const hasImg = /^https?:\\/\\//i.test(imgUrl);
-async function tryMedia() {
+async function fetchImageBase64(url) {
+  const buf = await http({
+    method: "GET",
+    url,
+    headers: { "user-agent": "Mozilla/5.0", "accept": "image/*,*/*" },
+    encoding: "arraybuffer",
+    returnFullResponse: false,
+  });
+  // n8n http helper retorna Buffer quando encoding=arraybuffer
+  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  return b.toString("base64");
+}
+async function tryMediaUrl() {
   return await http({
     method: "POST",
     url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
     headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
     body: { number: grupo, mediatype: "image", mimetype: "image/jpeg", media: imgUrl, caption: caption, fileName: "promo.jpg" },
+    json: true,
+  });
+}
+async function tryMediaBase64() {
+  const b64 = await fetchImageBase64(imgUrl);
+  return await http({
+    method: "POST",
+    url: \`\${EVO_URL}/message/sendMedia/\${INSTANCE}\`,
+    headers: { "apikey": EVO_KEY, "Content-Type": "application/json" },
+    body: { number: grupo, mediatype: "image", mimetype: "image/jpeg", media: b64, caption: caption, fileName: "promo.jpg" },
     json: true,
   });
 }
@@ -181,17 +203,24 @@ async function tryText() {
 function errBody(e){ const b = e && e.response && (e.response.body || e.response.data); return typeof b === "string" ? b : JSON.stringify(b || e.message || String(e)); }
 if (hasImg) {
   try {
-    sendData = await tryMedia();
+    sendData = await tryMediaUrl();
     sendStatus = 200;
   } catch (e1) {
-    const detalheMedia = errBody(e1);
+    const detalheUrl = errBody(e1);
     try {
-      sendData = await tryText();
+      sendData = await tryMediaBase64();
       sendStatus = 200;
-      sendErr = "sendMedia falhou (" + detalheMedia + "), enviado como texto";
+      sendErr = "sendMedia URL falhou (" + detalheUrl + "), enviado via base64";
     } catch (e2) {
-      sendErr = "Media: " + detalheMedia + " | Text: " + errBody(e2);
-      sendStatus = e2.httpCode || e2.statusCode || 500;
+      const detalheB64 = errBody(e2);
+      try {
+        sendData = await tryText();
+        sendStatus = 200;
+        sendErr = "sendMedia URL e base64 falharam, enviado como texto. URL: " + detalheUrl + " | Base64: " + detalheB64;
+      } catch (e3) {
+        sendErr = "Tudo falhou. URL: " + detalheUrl + " | B64: " + detalheB64 + " | Text: " + errBody(e3);
+        sendStatus = e3.httpCode || e3.statusCode || 500;
+      }
     }
   }
 } else {
@@ -643,11 +672,11 @@ try {
           for (const it of fallback.products) {
             if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
             const title = String(it.title || "");
-            const link = String(it.link || "");
+            const rawLink = String(it.link || "").split("#")[0].split("?")[0];
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
-            if (!title || !link) continue;
-            const offer = await affiliateLink(link);
+            if (!title || !rawLink) continue;
+            const offer = await affiliateLink(rawLink);
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false });
               total++; kept++;
@@ -666,8 +695,8 @@ try {
           const discount = original > 0 && price > 0 ? Math.round((1 - price / original) * 100) : 0;
           if (discount < ML_MIN_DISCOUNT) continue;
           const title = String(it.title || "");
-          const link = String(it.permalink || "");
-          const image = String(it.thumbnail || "").replace(/^http:/, "https:");
+          const link = String(it.permalink || "").split("#")[0].split("?")[0];
+          const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-[A-Z]\.jpg$/i, "-O.jpg");
           if (!title || !link) continue;
           const offer = await affiliateLink(link);
           try {
