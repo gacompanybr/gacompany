@@ -784,6 +784,8 @@ try {
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
             if (!title || !rawLink || price <= 0) { skip.missing++; continue; }
+            const nameKey = normName(title);
+            if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
             const commissionRate = ML_DEFAULT_COMMISSION_RATE;
             const commissionValue = price * commissionRate / 100;
             const sales = Number(it.sales || 0);
@@ -794,6 +796,7 @@ try {
             if (!offer) { skip.affiliate = (skip.affiliate || 0) + 1; continue; }
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
+              if (nameKey) existingNames.add(nameKey);
               total++; kept++;
             } catch (err) {
               skip.insert++;
