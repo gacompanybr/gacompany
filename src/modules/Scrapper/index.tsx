@@ -164,6 +164,11 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
                       Ver planilha <ExternalLink size={10} />
                     </a>
                   )}
+                  {j.plataforma === "mercado_livre" && (j.ultima_affiliate_errors ?? 0) > 0 && (
+                    <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                      ⚠️ <strong>{j.ultima_affiliate_errors} links sem afiliado</strong> na última execução — cookie/CSRF do ML expirou. Edite o job e cole as credenciais novas para a Adriana voltar a receber comissão.
+                    </div>
+                  )}
                   {j.ultimo_erro && (
                     <p className="text-xs text-destructive mt-1 truncate">⚠ {j.ultimo_erro}</p>
                   )}
