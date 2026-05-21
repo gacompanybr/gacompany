@@ -538,8 +538,12 @@ try {
         const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component_?picture[^"]*"[^>]*>/) || card.match(/<img[^>]+(?:src|data-src|srcset|data-srcset)="[^"]*mlstatic\.com[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
         if (imgTagM){
           const tag = imgTagM[0];
-          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/);
-          if (srcM) image = decodeEntities(srcM[1]);
+          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/) || tag.match(/\\bdata-srcset="([^"]+)"/) || tag.match(/\\bsrcset="([^"]+)"/);
+          if (srcM) image = decodeEntities(String(srcM[1]).split(/\s+/)[0]);
+        }
+        if (!image) {
+          const anyImgM = card.match(/https?:\/\/[^\s"'<>]+mlstatic\.com[^\s"'<>]+\.(?:webp|jpg|jpeg|png)/i);
+          if (anyImgM) image = decodeEntities(anyImgM[0]);
         }
 
         const fractions = [...card.matchAll(/class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d.]+)</g)].map(x => x[1]);
