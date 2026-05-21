@@ -956,7 +956,7 @@ Deno.serve(async (req) => {
         { name: "commission_value", type: "number" },
         { name: "sales", type: "number" },
         { name: "rating", type: "number" },
-      ];
+        { name: "sent_at", type: "string" },
 
       let datatableId: string | null = null;
       // procura existente
