@@ -281,7 +281,13 @@ function JobDialog({
       config.ml_affiliate_tag = mlTag.trim();
       config.ml_pages = mlPages;
       config.ml_min_discount = mlMinDiscount;
+      config.ml_default_commission_rate = mlDefaultCommissionRate;
     }
+    // filtros de qualidade (comuns às plataformas e-commerce)
+    config.min_commission_value = minCommissionValue;
+    config.filter_mode = filterMode;
+    config.min_sales = minSales;
+    config.min_rating = minRating;
 
     const payload: any = {
       portfolio_id: portfolioId,
