@@ -493,31 +493,39 @@ try {
   const tableId = await findTableId(TABLE_NAME);
   if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n. Crie-a primeiro.");
 
-  // Cleanup: remove produtos enviados ha mais de 30 dias
+  // Cleanup: remove produtos enviados ha mais de 30 dias (lista + deleta por id)
   try {
-    const cutoff = new Date(Date.now() - 30*24*60*60*1000).toISOString();
-    const cleanupFilter = { type: "and", filters: [
-      { columnName: "sending", condition: "eq", value: true },
-      { columnName: "sent_at", condition: "lt", value: cutoff },
-    ] };
-    let cleaned = false;
+    const cutoffMs = Date.now() - 30*24*60*60*1000;
+    let listed = [];
     try {
-      await http({ method: "POST", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/delete\`,
-        headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
-        body: { filter: cleanupFilter }, json: true });
-      cleaned = true;
-    } catch (e1) {
-      try {
-        await http({ method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
-          headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
-          body: { filter: cleanupFilter }, json: true });
-        cleaned = true;
-      } catch (e2) {
-        debug.push({ cleanupErr: (e1.message||String(e1)) + " | " + (e2.message||String(e2)) });
+      const r = await http({ method: "GET", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=1000\`,
+        headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+      listed = (r && (r.data || r)) || [];
+    } catch (e) { debug.push({ cleanupListErr: e.message || String(e) }); }
+    const toDelete = (Array.isArray(listed) ? listed : []).filter(r => {
+      if (!r || !r.sending) return false;
+      const t = r.sent_at ? Date.parse(r.sent_at) : 0;
+      return t > 0 && t < cutoffMs;
+    });
+    let deleted = 0;
+    for (const r of toDelete) {
+      const tries = [
+        { method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/\${r.id}\` },
+        { method: "POST", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/delete\`, body: { filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] } } },
+        { method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows?filter=\${encodeURIComponent(JSON.stringify({ type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] }))}\` },
+      ];
+      let ok = false;
+      for (const t of tries) {
+        try {
+          await http({ method: t.method, url: t.url, headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" }, body: t.body, json: true });
+          ok = true; break;
+        } catch (_) {}
       }
+      if (ok) deleted++;
     }
-    if (cleaned) debug.push({ cleanup: "ok", cutoff });
+    if (toDelete.length || deleted) debug.push({ cleanup: { candidates: toDelete.length, deleted } });
   } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
+
 
 
   if (PLATAFORMA === "shopee") {
@@ -739,7 +747,9 @@ try {
           let kept = 0;
           for (const it of fallback.products) {
             if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
-            if (Number(it.discount || 0) < ML_MIN_DISCOUNT) continue;
+            // /ofertas só lista produtos em promoção; se parser não pegou %, aceita mesmo assim
+            const disc = Number(it.discount || 0);
+            if (disc > 0 && disc < ML_MIN_DISCOUNT) continue;
             const title = String(it.title || "");
             const rawLink = String(it.link || "").split("#")[0].split("?")[0];
             const image = String(it.image || "").replace(/^http:/, "https:");
