@@ -539,7 +539,18 @@ try {
     if (toDelete.length || deleted) debug.push({ cleanup: { candidates: toDelete.length, deleted } });
   } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
 
-
+  // Dedup: monta set com produtos ja existentes no data table (nome normalizado)
+  const normName = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const existingNames = new Set();
+  try {
+    const all = await listRows(tableId);
+    for (const r of (Array.isArray(all) ? all : [])) {
+      const n = normName(r && r.productname);
+      if (n) existingNames.add(n);
+    }
+    debug.push({ dedup: { loaded: existingNames.size } });
+  } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
+  let dupSkipped = 0;
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
