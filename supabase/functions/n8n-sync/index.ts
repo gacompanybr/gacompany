@@ -758,31 +758,33 @@ try {
           if (fallback.fetchErr) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", fetchErr: fallback.fetchErr }); continue; }
           if (fallback.blocked) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", blocked: "ML bloqueou também a página de ofertas", htmlSize: fallback.htmlSize }); continue; }
           let kept = 0;
+          const skip = { discount: 0, missing: 0, commission: 0, insert: 0 };
           for (const it of fallback.products) {
             if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
             // /ofertas só lista produtos em promoção; se parser não pegou %, aceita mesmo assim
             const disc = Number(it.discount || 0);
-            if (disc > 0 && disc < ML_MIN_DISCOUNT) continue;
+            if (disc > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
             const title = String(it.title || "");
             const rawLink = String(it.link || "").split("#")[0].split("?")[0];
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
-            if (!title || !rawLink) continue;
+            if (!title || !rawLink || price <= 0) { skip.missing++; continue; }
             const commissionRate = ML_DEFAULT_COMMISSION_RATE;
             const commissionValue = price * commissionRate / 100;
             const sales = Number(it.sales || 0);
             const rating = Number(it.rating || 0);
-            if (commissionValue < MIN_COMMISSION_VALUE) continue;
-            if (!passesQualityFilter(sales, rating)) continue;
+            if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
+            // No fallback HTML do ML não existem vendas/avaliações confiáveis; não zera a coleta por esses filtros.
             const offer = await affiliateLink(rawLink);
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
               total++; kept++;
             } catch (err) {
+              skip.insert++;
               debug.push({ insertError: err.message || String(err), item: title });
             }
           }
-          debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", got: fallback.products.length, kept, htmlSize: fallback.htmlSize, apiFetchErr: e.message || String(e) });
+          debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", got: fallback.products.length, kept, skipped: skip, ignoredQualityFilter: FILTER_MODE !== "none", htmlSize: fallback.htmlSize, apiFetchErr: e.message || String(e) });
           continue;
         }
         const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
