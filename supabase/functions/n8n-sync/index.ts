@@ -666,8 +666,8 @@ try {
           const discount = original > 0 && price > 0 ? Math.round((1 - price / original) * 100) : 0;
           if (discount < ML_MIN_DISCOUNT) continue;
           const title = String(it.title || "");
-          const link = String(it.permalink || "");
-          const image = String(it.thumbnail || "").replace(/^http:/, "https:");
+          const link = String(it.permalink || "").split("#")[0].split("?")[0];
+          const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-[A-Z]\.jpg$/i, "-O.jpg");
           if (!title || !link) continue;
           const offer = await affiliateLink(link);
           try {
