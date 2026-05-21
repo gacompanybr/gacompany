@@ -777,6 +777,7 @@ try {
             if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
             // No fallback HTML do ML não existem vendas/avaliações confiáveis; não zera a coleta por esses filtros.
             const offer = await affiliateLink(rawLink);
+            if (!offer) { skip.affiliate = (skip.affiliate || 0) + 1; continue; }
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
               total++; kept++;
@@ -814,6 +815,7 @@ try {
           if (commissionValue < MIN_COMMISSION_VALUE) continue;
           if (!passesQualityFilter(sales, rating)) continue;
           const offer = await affiliateLink(link);
+          if (!offer) continue;
           try {
             await insertRow(tableId, {
               productname: title,
