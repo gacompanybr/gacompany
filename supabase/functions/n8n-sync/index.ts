@@ -686,10 +686,11 @@ try {
     }
 
     // ===== usa API quando disponível; se der 403, cai para /ofertas (HTML que não bloqueia igual search) =====
-    for (const kw of keywords) {
+    outerML: for (const kw of keywords) {
       const q = String(kw).trim();
       if (!q) continue;
       for (let page = 1; page <= ML_PAGES; page++) {
+        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
         const offset = (page - 1) * 50;
         // sort=relevance (default) = ML mistura popularidade/vendas/relevância — proxy de "mais vendidos/hypados do dia"
         const apiUrl = "https://api.mercadolibre.com/sites/MLB/search?q=" + encodeURIComponent(q) + "&sort=relevance&limit=50&offset=" + offset;
