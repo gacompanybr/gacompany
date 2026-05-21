@@ -458,7 +458,7 @@ async function insertRow(tableId, row) {
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
-  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: 1, sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName}}}";
+  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: 1, sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName sales ratingStar}}}";
   const payload = JSON.stringify({ query });
   const ts = String(Math.floor(Date.now() / 1000));
   const sig = sha256(SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET);
