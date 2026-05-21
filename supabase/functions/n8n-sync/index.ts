@@ -707,9 +707,15 @@ try {
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
             if (!title || !rawLink) continue;
+            const commissionRate = ML_DEFAULT_COMMISSION_RATE;
+            const commissionValue = price * commissionRate / 100;
+            const sales = Number(it.sales || 0);
+            const rating = Number(it.rating || 0);
+            if (commissionValue < MIN_COMMISSION_VALUE) continue;
+            if (!passesQualityFilter(sales, rating)) continue;
             const offer = await affiliateLink(rawLink);
             try {
-              await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false });
+              await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
               total++; kept++;
             } catch (err) {
               debug.push({ insertError: err.message || String(err), item: title });
