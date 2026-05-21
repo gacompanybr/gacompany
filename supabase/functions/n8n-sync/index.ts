@@ -584,6 +584,7 @@ try {
             sales,
             rating,
           });
+          if (nameKey) existingNames.add(nameKey);
           total++;
         } catch (e) {
           debug.push({ insertError: e.message || String(e), item: it.productName });
