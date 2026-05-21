@@ -77,6 +77,7 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Job | null>(null);
+  const [viewing, setViewing] = useState<Job | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["scrapper", portfolioId, categoria],
