@@ -460,6 +460,23 @@ async function insertRow(tableId, row) {
   });
 }
 
+async function listRows(tableId) {
+  const urls = [
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows?limit=1000\`,
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=1000\`,
+  ];
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      const r = await http({ method: "GET", url, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+      const rows = (r && (r.data || r)) || [];
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("Falha ao listar data table");
+}
+
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
