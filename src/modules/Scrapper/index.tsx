@@ -292,6 +292,8 @@ function JobDialog({
     config.filter_mode = filterMode;
     config.min_sales = minSales;
     config.min_rating = minRating;
+    config.min_products = minProducts;
+    config.max_products = maxProducts;
 
     const payload: any = {
       portfolio_id: portfolioId,
