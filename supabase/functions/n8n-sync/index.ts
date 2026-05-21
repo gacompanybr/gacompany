@@ -886,6 +886,10 @@ Deno.serve(async (req) => {
         { name: "offerlink", type: "string" },
         { name: "imageUrl", type: "string" },
         { name: "sending", type: "boolean" },
+        { name: "commission_rate", type: "number" },
+        { name: "commission_value", type: "number" },
+        { name: "sales", type: "number" },
+        { name: "rating", type: "number" },
       ];
 
       let datatableId: string | null = null;
