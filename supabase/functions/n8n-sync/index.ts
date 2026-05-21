@@ -460,6 +460,23 @@ async function insertRow(tableId, row) {
   });
 }
 
+async function listRows(tableId) {
+  const urls = [
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows?limit=1000\`,
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=1000\`,
+  ];
+  let lastErr = null;
+  for (const url of urls) {
+    try {
+      const r = await http({ method: "GET", url, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+      const rows = (r && (r.data || r)) || [];
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("Falha ao listar data table");
+}
+
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
@@ -497,11 +514,7 @@ try {
   try {
     const cutoffMs = Date.now() - 30*24*60*60*1000;
     let listed = [];
-    try {
-      const r = await http({ method: "GET", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=1000\`,
-        headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
-      listed = (r && (r.data || r)) || [];
-    } catch (e) { debug.push({ cleanupListErr: e.message || String(e) }); }
+    try { listed = await listRows(tableId); } catch (_) {}
     const toDelete = (Array.isArray(listed) ? listed : []).filter(r => {
       if (!r || !r.sending) return false;
       const t = r.sent_at ? Date.parse(r.sent_at) : 0;
@@ -745,31 +758,33 @@ try {
           if (fallback.fetchErr) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", fetchErr: fallback.fetchErr }); continue; }
           if (fallback.blocked) { debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", blocked: "ML bloqueou também a página de ofertas", htmlSize: fallback.htmlSize }); continue; }
           let kept = 0;
+          const skip = { discount: 0, missing: 0, commission: 0, insert: 0 };
           for (const it of fallback.products) {
             if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
             // /ofertas só lista produtos em promoção; se parser não pegou %, aceita mesmo assim
             const disc = Number(it.discount || 0);
-            if (disc > 0 && disc < ML_MIN_DISCOUNT) continue;
+            if (disc > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
             const title = String(it.title || "");
             const rawLink = String(it.link || "").split("#")[0].split("?")[0];
             const image = String(it.image || "").replace(/^http:/, "https:");
             const price = Number(it.price || 0);
-            if (!title || !rawLink) continue;
+            if (!title || !rawLink || price <= 0) { skip.missing++; continue; }
             const commissionRate = ML_DEFAULT_COMMISSION_RATE;
             const commissionValue = price * commissionRate / 100;
             const sales = Number(it.sales || 0);
             const rating = Number(it.rating || 0);
-            if (commissionValue < MIN_COMMISSION_VALUE) continue;
-            if (!passesQualityFilter(sales, rating)) continue;
+            if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
+            // No fallback HTML do ML não existem vendas/avaliações confiáveis; não zera a coleta por esses filtros.
             const offer = await affiliateLink(rawLink);
             try {
               await insertRow(tableId, { productname: title, price, pricediscountrate: Number(it.discount || 0), shopname: "Mercado Livre", offerlink: offer, imageUrl: image, sending: false, commission_rate: commissionRate, commission_value: commissionValue, sales, rating });
               total++; kept++;
             } catch (err) {
+              skip.insert++;
               debug.push({ insertError: err.message || String(err), item: title });
             }
           }
-          debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", got: fallback.products.length, kept, htmlSize: fallback.htmlSize, apiFetchErr: e.message || String(e) });
+          debug.push({ keyword: kw, page, url: fallback.url, apiUrl, categoryId, fallback: "ofertas", got: fallback.products.length, kept, skipped: skip, ignoredQualityFilter: FILTER_MODE !== "none", htmlSize: fallback.htmlSize, apiFetchErr: e.message || String(e) });
           continue;
         }
         const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
@@ -1110,9 +1125,19 @@ Deno.serve(async (req) => {
       }
       if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
       try {
-        const data = await n8nFetch(`/data-tables/${tableId}/rows?take=1000`);
-        const rows = data?.data ?? data ?? [];
-        return j({ rows: Array.isArray(rows) ? rows : [], tableId, tableName });
+        let rows: any[] = [];
+        let lastErr = "";
+        for (const path of [`/data-tables/${tableId}/rows?limit=1000`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=1000`]) {
+          try {
+            const data = await n8nFetch(path);
+            const parsed = data?.data ?? data ?? [];
+            rows = Array.isArray(parsed) ? parsed : [];
+            lastErr = "";
+            break;
+          } catch (err) { lastErr = err instanceof Error ? err.message : String(err); }
+        }
+        if (lastErr) throw new Error(lastErr);
+        return j({ rows, tableId, tableName });
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
