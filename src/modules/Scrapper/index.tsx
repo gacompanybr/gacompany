@@ -168,6 +168,9 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
                   )}
                 </div>
                 <div className="flex gap-1">
+                  <Button size="icon" variant="ghost" onClick={() => setViewing(j)} title="Ver produtos">
+                    <Eye size={14} />
+                  </Button>
                   <Button size="icon" variant="ghost" onClick={() => { setEditing(j); setOpen(true); }}>
                     <Settings size={14} />
                   </Button>
