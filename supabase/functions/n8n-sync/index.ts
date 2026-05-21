@@ -856,12 +856,14 @@ if (!erro && MIN_PRODUCTS > 0 && total < MIN_PRODUCTS) {
   erro = "Apenas " + total + " produtos coletados (mínimo configurado: " + MIN_PRODUCTS + "). Afrouxe os filtros ou aumente termos/páginas.";
 }
 
+const affiliateErrors = (debug || []).filter(function(d){ return d && d.affiliateErr; }).length;
+
 try {
   await http({
     method: "POST",
     url: SCRAPPER_API,
     headers: { "Authorization": "Bearer " + SCRAPPER_SECRET, "Content-Type": "application/json" },
-    body: { action: "update_job", id: JOB_ID, ultima_qtd: total, ultimo_erro: erro },
+    body: { action: "update_job", id: JOB_ID, ultima_qtd: total, ultimo_erro: erro, ultima_affiliate_errors: affiliateErrors },
     json: true,
   });
 } catch (_) {}

@@ -1,0 +1,1 @@
+ALTER TABLE public.scrapper_jobs ADD COLUMN IF NOT EXISTS ultima_affiliate_errors integer NOT NULL DEFAULT 0;
