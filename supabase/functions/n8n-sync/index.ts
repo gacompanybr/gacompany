@@ -509,7 +509,7 @@ try {
     function parseMLProducts(html){
       const out = [];
       // tenta poly-card primeiro; senão cai pra ui-search-layout__item / ui-search-result
-      let splitRe = /<(?:div|li)[^>]+class="[^"]*poly-card[^"]*"/g;
+      let splitRe = /<(?:div|li)[^>]+class="[^"]*poly-card(?!__)[^"]*"/g;
       const indices = [];
       let m;
       while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
