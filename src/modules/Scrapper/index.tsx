@@ -247,6 +247,8 @@ function JobDialog({
     setFilterMode(editing?.config?.filter_mode ?? "none");
     setMinSales(editing?.config?.min_sales ?? 0);
     setMinRating(editing?.config?.min_rating ?? 0);
+    setMinProducts(editing?.config?.min_products ?? 0);
+    setMaxProducts(editing?.config?.max_products ?? 0);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
