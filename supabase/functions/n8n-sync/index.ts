@@ -650,7 +650,7 @@ try {
       function canonical(u){
         try {
           const m = String(u).match(/\\/p\\/(MLB\\d+)/i) || String(u).match(/(MLB-?\\d{6,})/i);
-          if (m) return "https://produto.mercadolivre.com.br/" + m[1].replace("-", "");
+          if (m) return "https://www.mercadolivre.com.br/p/" + m[1].replace("-", "");
         } catch(_) {}
         return String(u).split("#")[0].split("?")[0];
       }
