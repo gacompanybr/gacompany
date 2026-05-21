@@ -191,6 +191,7 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
         editing={editing}
         onSaved={() => qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] })}
       />
+      <DataTableViewer job={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }
