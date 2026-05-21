@@ -465,6 +465,18 @@ function JobDialog({
                   )}
                 </div>
               )}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                <div>
+                  <Label>Mínimo por execução</Label>
+                  <Input type="number" min={0} value={minProducts} onChange={(e) => setMinProducts(Number(e.target.value) || 0)} placeholder="0 = sem mínimo" />
+                  <p className="text-xs text-muted-foreground mt-1">Avisa erro se coletar menos.</p>
+                </div>
+                <div>
+                  <Label>Máximo por execução</Label>
+                  <Input type="number" min={0} value={maxProducts} onChange={(e) => setMaxProducts(Number(e.target.value) || 0)} placeholder="0 = sem limite" />
+                  <p className="text-xs text-muted-foreground mt-1">Para de coletar ao atingir.</p>
+                </div>
+              </div>
             </div>
           )}
           <div>
