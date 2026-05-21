@@ -818,6 +818,8 @@ try {
           const link = String(it.permalink || "").split("#")[0].split("?")[0];
           const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-[A-Z]\.jpg$/i, "-O.jpg");
           if (!title || !link) continue;
+          const nameKey = normName(title);
+          if (nameKey && existingNames.has(nameKey)) { kept; dupSkipped++; continue; }
           const commissionRate = ML_DEFAULT_COMMISSION_RATE;
           const commissionValue = price * commissionRate / 100;
           const sales = Number(it.sold_quantity || 0);
