@@ -612,11 +612,13 @@ try {
             "cookie": ML_COOKIE,
             "user-agent": UA,
           },
-          body: { urls: [rawLink], tag: ML_TAG },
+          body: { urls: [rawLink], tag: ML_TAG, format: "SHORT" },
           json: true,
         });
         const u = r && r.urls && r.urls[0];
-        return (u && (u.short_url || u.shortUrl || u.url)) || rawLink;
+        const shortUrl = u && (u.short_url || u.shortUrl || u.shortenedUrl);
+        if (!shortUrl) debug.push({ affiliateNoShort: true, raw: u, link: rawLink });
+        return shortUrl || (u && u.url) || rawLink;
       } catch (e) {
         debug.push({ affiliateErr: e.message || String(e), link: rawLink });
         return rawLink;
