@@ -150,13 +150,70 @@ if (!row) {
   return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
 }
 
-// 5. Monta caption
+// 5. Enriquecimento: priceoriginal calculado, link encurtado, frase IA
+function fmtBRL(n) {
+  const v = Number(n) || 0;
+  return v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+const priceNum = Number(row.price) || 0;
+const discNum = Number(row.pricediscountrate) || 0;
+let priceOriginalNum = Number(row.priceoriginal) || 0;
+if (!priceOriginalNum && priceNum > 0 && discNum > 0 && discNum < 100) {
+  priceOriginalNum = priceNum / (1 - discNum / 100);
+}
+if (!priceOriginalNum) priceOriginalNum = priceNum;
+
+// Encurtador da.gd (mantém ?tag= / commission)
+let shortLink = String(row.offerlink || "");
+try {
+  const longUrl = String(row.offerlink || "").trim();
+  if (longUrl && longUrl.length > 40) {
+    const shortRes = await http({
+      method: "GET",
+      url: "https://da.gd/s",
+      qs: { url: longUrl },
+      timeout: 4000,
+    });
+    const sl = String(shortRes || "").trim();
+    if (/^https?:\\/\\/da\\.gd\\//i.test(sl)) shortLink = sl;
+  }
+} catch (_) {}
+
+// Frase curta gerada por IA (Lovable AI / Gemini Flash) — fallback se falhar
+let frase = "OFERTA IMPERDÍVEL";
+try {
+  if (LOVABLE_API_KEY) {
+    const aiResp = await http({
+      method: "POST",
+      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+      headers: { "Authorization": "Bearer " + LOVABLE_API_KEY, "Content-Type": "application/json" },
+      body: {
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: "Você é um copy de marketing. Gere UMA frase curtíssima em CAIXA ALTA (máximo 4 palavras, sem aspas, sem pontuação final, sem emoji) que combine com o produto e chame atenção. Exemplos: ESSE É VERSÁTIL / OFERTA RELÂMPAGO / PRA QUEM AMA CHURRASCO / SÓ HOJE / IMPERDÍVEL. Responda APENAS a frase, nada mais." },
+          { role: "user", content: "Produto: " + String(row.productname || "") },
+        ],
+        max_tokens: 20,
+        temperature: 0.9,
+      },
+      json: true,
+      timeout: 8000,
+    });
+    const txt = String(aiResp && aiResp.choices && aiResp.choices[0] && aiResp.choices[0].message && aiResp.choices[0].message.content || "").trim();
+    const cleaned = txt.replace(/["'\`*_]/g, "").replace(/[\\.!?,;:]+$/g, "").trim().toUpperCase();
+    if (cleaned && cleaned.length <= 40) frase = cleaned;
+  }
+} catch (_) {}
+
+// 6. Monta caption
 const caption = TEMPLATE
+  .replace(/\\{frase\\}/g, frase)
   .replace(/\\{productname\\}/g, String(row.productname == null ? "" : row.productname))
-  .replace(/\\{price\\}/g, String(row.price == null ? "" : row.price))
-  .replace(/\\{pricediscountrate\\}/g, String(row.pricediscountrate == null ? "" : row.pricediscountrate))
+  .replace(/\\{price\\}/g, fmtBRL(priceNum))
+  .replace(/\\{priceoriginal\\}/g, fmtBRL(priceOriginalNum))
+  .replace(/\\{pricediscountrate\\}/g, String(discNum || ""))
   .replace(/\\{shopname\\}/g, String(row.shopname == null ? "" : row.shopname))
-  .replace(/\\{offerlink\\}/g, String(row.offerlink == null ? "" : row.offerlink))
+  .replace(/\\{offerlink\\}/g, shortLink)
   .replace(/\\{imageUrl\\}/g, String(row.imageUrl == null ? "" : row.imageUrl));
 
 // 6. Escolhe grupo aleatorio
