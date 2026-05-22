@@ -30,6 +30,7 @@ const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any 
       { key: "tarefas", label: "Tarefas", icon: CheckSquare },
       { key: "calendario", label: "Calendário", icon: Calendar },
       { key: "financeiro", label: "Financeiro", icon: Wallet },
+      { key: "integracoes", label: "Integrações", icon: Plug },
     ],
   },
   {
