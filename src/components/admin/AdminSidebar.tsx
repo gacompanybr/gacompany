@@ -1,4 +1,4 @@
-import { Building2, Users, Settings, LogOut, Wallet, LayoutDashboard, Calendar, CheckSquare } from "lucide-react";
+import { Building2, Users, Settings, LogOut, Wallet, LayoutDashboard, Calendar, CheckSquare, Plug } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader,
