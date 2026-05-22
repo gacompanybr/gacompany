@@ -634,10 +634,15 @@ try {
           if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
           if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", item: it.productName, commissionValue }); continue; }
           if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", item: it.productName, sales, rating }); continue; }
+          const discRate = Number(it.priceDiscountRate) || 0;
+          const priceOriginal = (price > 0 && discRate > 0 && discRate < 100)
+            ? Math.round((price / (1 - discRate / 100)) * 100) / 100
+            : price;
           await insertRow(tableId, {
             productname: it.productName,
             price,
-            pricediscountrate: it.priceDiscountRate,
+            priceoriginal: priceOriginal,
+            pricediscountrate: discRate,
             shopname: it.shopName,
             offerlink: it.offerLink,
             imageUrl: it.imageUrl,
