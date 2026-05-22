@@ -62,6 +62,7 @@ function buildEcommerceWorkflow(robo: any) {
   const instance: string = robo.instancia_id || "";
   const horariosPorDia = robo.horarios_por_dia ?? {};
   const scrapperSecret = Deno.env.get("SCRAPPER_API_SECRET") ?? "";
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
 
   // O cron dispara a cada 1 minuto; o próprio JS decide se manda ou pula
   // baseado em horarios_por_dia + ultima_execucao (lido via scrapper-api).
@@ -77,6 +78,7 @@ const TEMPLATE = ${JSON.stringify(template)};
 const ROBO_ID = ${JSON.stringify(robo.id)};
 const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
 const SCRAPPER_SECRET = ${JSON.stringify(scrapperSecret)};
+const LOVABLE_API_KEY = ${JSON.stringify(lovableApiKey)};
 const HORARIOS_PADRAO = ${JSON.stringify(horariosPorDia)};
 
 const http = this.helpers.httpRequest;
