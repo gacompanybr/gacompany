@@ -1,0 +1,1 @@
+UPDATE public.scrapper_jobs SET agendamento_cron = '0 10 * * *' WHERE id = '1c47db61-6171-4945-8299-576178f83f49';

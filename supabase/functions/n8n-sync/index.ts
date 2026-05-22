@@ -814,7 +814,7 @@ return [{ json: { total, erro, table: TABLE_NAME, dupSkipped, debug } }];
     name: `SCRAPPER_${job.id}`,
     nodes: [
       {
-        parameters: { rule: { interval: [{ field: "hours", hoursInterval: intervalHours }] } },
+        parameters: { rule: { interval: [{ field: "cronExpression", expression: (job.agendamento_cron && String(job.agendamento_cron).trim()) || "0 10 * * *" }] } },
         id: "trigger",
         name: "Schedule",
         type: "n8n-nodes-base.scheduleTrigger",
