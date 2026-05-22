@@ -14,6 +14,7 @@ export type AdminTab =
   | "tarefas"
   | "calendario"
   | "financeiro"
+  | "integracoes"
   | "config";
 
 const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any }[] }[] = [
