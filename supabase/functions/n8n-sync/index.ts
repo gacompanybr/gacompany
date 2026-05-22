@@ -1013,6 +1013,7 @@ Deno.serve(async (req) => {
       const columns = [
         { name: "productname", type: "string" },
         { name: "price", type: "number" },
+        { name: "priceoriginal", type: "number" },
         { name: "pricediscountrate", type: "number" },
         { name: "shopname", type: "string" },
         { name: "offerlink", type: "string" },
