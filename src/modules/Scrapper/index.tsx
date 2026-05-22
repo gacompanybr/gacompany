@@ -529,7 +529,7 @@ function JobDialog({
               placeholder="SHOPEE_ADRIANA"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              A data table é criada automaticamente no n8n com as colunas: productname, price, pricediscountrate, shopname, offerlink, imageUrl, sending, commission_rate, commission_value, sales, rating. Se já existe, adicione as 4 novas manualmente no n8n.
+              A data table é criada automaticamente no n8n com as colunas: productname, price, priceoriginal, pricediscountrate, shopname, offerlink, imageUrl, sending, commission_rate, commission_value, sales, rating. Se já existe, adicione manualmente no n8n a coluna <strong>priceoriginal</strong> (number).
             </p>
           </div>
         </div>
