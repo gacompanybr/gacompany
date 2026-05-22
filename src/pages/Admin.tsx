@@ -7,6 +7,7 @@ import { FinanceiroTab } from "@/components/admin/FinanceiroTab";
 import { DashboardTab } from "@/components/admin/DashboardTab";
 import { CalendarioTab } from "@/components/admin/CalendarioTab";
 import { TarefasTab } from "@/components/admin/TarefasTab";
+import { IntegracoesTab } from "@/components/admin/IntegracoesTab";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +20,7 @@ const TITLES: Record<AdminTab, string> = {
   tarefas: "Tarefas",
   calendario: "Calendário",
   financeiro: "Financeiro",
+  integracoes: "Integrações",
   config: "Configurações",
 };
 
