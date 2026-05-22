@@ -669,7 +669,27 @@ try {
     }
 
 
+    function withAffiliateTag(rawLink){
+      try {
+        const url = new URL(String(rawLink || ""));
+        const tag = String(ML_TAG || "").trim();
+        if (!tag) return String(rawLink || "");
+        if (/^matt:/i.test(tag)) {
+          const parts = tag.split(":");
+          if (parts[1]) url.searchParams.set("matt_word", parts[1]);
+          if (parts[2]) url.searchParams.set("matt_tool", parts[2]);
+        } else {
+          url.searchParams.set("tag", tag.replace(/^tag:/i, ""));
+        }
+        return url.toString();
+      } catch (_) {
+        const sep = String(rawLink || "").includes("?") ? "&" : "?";
+        return String(rawLink || "") + sep + "tag=" + encodeURIComponent(String(ML_TAG || "").replace(/^tag:/i, ""));
+      }
+    }
+
     async function affiliateLink(rawLink){
+      const tagged = withAffiliateTag(rawLink);
       try {
         const r = await http({
           method: "POST",
