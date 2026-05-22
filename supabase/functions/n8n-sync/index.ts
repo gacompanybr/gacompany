@@ -710,11 +710,11 @@ try {
         const u = (r && r.urls && r.urls[0]) || r || {};
         const cand = u.short_url || u.shortUrl || u.shortenedUrl || u.short_link || u.shortLink || u.url_short || u.url || u.long_url;
         if (cand && /meli\\.la|mercadolivre\\.com\\/sec\\//i.test(cand)) return cand;
-        debug.push({ affiliateNoShort: true, raw: u, link: rawLink });
-        return null;
+        debug.push({ affiliateNoShort: true, fallback: "tag_url", raw: u, link: rawLink });
+        return tagged;
       } catch (e) {
-        debug.push({ affiliateErr: e.message || String(e), link: rawLink });
-        return null;
+        debug.push({ affiliateErr: e.message || String(e), fallback: "tag_url", link: rawLink });
+        return tagged;
       }
     }
 
