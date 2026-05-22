@@ -829,9 +829,13 @@ try {
           const offer = await affiliateLink(rawLink);
           if (!offer) { skip.affiliate++; continue; }
           try {
+            const priceOriginalML = (disc > 0 && disc < 100)
+              ? Math.round((price / (1 - disc / 100)) * 100) / 100
+              : (it.priceOld && it.priceOld > price ? it.priceOld : price);
             await insertRow(tableId, {
               productname: title,
               price,
+              priceoriginal: priceOriginalML,
               pricediscountrate: disc,
               shopname: it.shop || "Mercado Livre",
               offerlink: offer,
