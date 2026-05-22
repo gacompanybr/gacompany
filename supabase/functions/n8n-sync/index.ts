@@ -731,7 +731,7 @@ try {
           if (candidate && candidate.length <= 60 && !/R\$|OFF|frete|chegar/i.test(candidate)) { shop = candidate; break; }
         }
 
-        out.push({ title, link, image, price, discount, shop });
+        out.push({ title, link, image, price, priceOld, discount, shop });
       }
       return out;
     }
