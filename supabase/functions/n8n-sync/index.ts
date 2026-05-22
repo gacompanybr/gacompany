@@ -653,39 +653,49 @@ try {
         const discM = card.match(/(\\d{1,2})\\s*%\\s*OFF/i);
         const discount = discM ? Number(discM[1]) : (priceOld && price ? Math.round((1 - price/priceOld)*100) : 0);
 
-        out.push({ title, link, image, price, discount });
+        let shop = "Mercado Livre";
+        const shopMatches = [
+          card.match(/class="[^"]*(?:poly-component__seller|poly-component__seller-link|ui-search-official-store-label|ui-search-seller__name)[^"]*"[^>]*>([\\s\\S]*?)<\\/(?:span|a|p|div)>/i),
+          card.match(/(?:Vendido por|Por)\\s*<[^>]+>([\\s\\S]*?)<\\//i),
+        ];
+        for (const sm of shopMatches) {
+          const candidate = stripTags(sm && sm[1] || "").replace(/^por\\s+/i, "").trim();
+          if (candidate && candidate.length <= 60 && !/R\$|OFF|frete|chegar/i.test(candidate)) { shop = candidate; break; }
+        }
+
+        out.push({ title, link, image, price, discount, shop });
       }
       return out;
     }
 
 
-    async function affiliateLink(rawLink){
+    function withAffiliateTag(rawLink){
       try {
-        const r = await http({
-          method: "POST",
-          url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
-          headers: {
-            "accept": "application/json, text/plain, */*",
-            "content-type": "application/json",
-            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "origin": "https://www.mercadolivre.com.br",
-            "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
-            "x-csrf-token": ML_CSRF,
-            "cookie": ML_COOKIE,
-            "user-agent": UA,
-          },
-          body: { urls: [rawLink], tag: ML_TAG, format: "SHORT" },
-          json: true,
-        });
-        const u = (r && r.urls && r.urls[0]) || r || {};
-        const cand = u.short_url || u.shortUrl || u.shortenedUrl || u.short_link || u.shortLink || u.url_short || u.url || u.long_url;
-        if (cand && /meli\\.la|mercadolivre\\.com\\/sec\\//i.test(cand)) return cand;
-        debug.push({ affiliateNoShort: true, raw: u, link: rawLink });
-        return null;
-      } catch (e) {
-        debug.push({ affiliateErr: e.message || String(e), link: rawLink });
-        return null;
+        const url = new URL(String(rawLink || ""));
+        const tag = String(ML_TAG || "").trim();
+        if (!tag) return String(rawLink || "");
+        if (/^matt:/i.test(tag)) {
+          const parts = tag.split(":");
+          if (parts[1]) url.searchParams.set("matt_word", parts[1]);
+          if (parts[2]) url.searchParams.set("matt_tool", parts[2]);
+        } else {
+          url.searchParams.set("tag", tag.replace(/^tag:/i, ""));
+        }
+        return url.toString();
+      } catch (_) {
+        const sep = String(rawLink || "").includes("?") ? "&" : "?";
+        return String(rawLink || "") + sep + "tag=" + encodeURIComponent(String(ML_TAG || "").replace(/^tag:/i, ""));
       }
+    }
+
+    let affiliateModeLogged = false;
+    async function affiliateLink(rawLink){
+      const tagged = withAffiliateTag(rawLink);
+      if (!affiliateModeLogged) {
+        debug.push({ affiliateMode: "direct_tag_url", tagFormat: /^matt:/i.test(String(ML_TAG || "")) ? "matt_word/matt_tool" : "tag" });
+        affiliateModeLogged = true;
+      }
+      return tagged;
     }
 
     // ===== Busca por keyword: SOMENTE HTML com cookie. Sem api.mercadolibre.com (403). =====
@@ -708,6 +718,7 @@ try {
             "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
             "cache-control": "no-cache",
             "cookie": ML_COOKIE,
+            "x-csrf-token": ML_CSRF,
             "referer": "https://www.mercadolivre.com.br/",
             "upgrade-insecure-requests": "1",
             "user-agent": UA,
@@ -754,7 +765,7 @@ try {
               productname: title,
               price,
               pricediscountrate: disc,
-              shopname: "Mercado Livre",
+              shopname: it.shop || "Mercado Livre",
               offerlink: offer,
               imageUrl: image,
               sending: false,
