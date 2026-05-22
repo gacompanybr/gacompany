@@ -784,7 +784,7 @@ try {
               productname: title,
               price,
               pricediscountrate: disc,
-              shopname: "Mercado Livre",
+              shopname: it.shop || "Mercado Livre",
               offerlink: offer,
               imageUrl: image,
               sending: false,
