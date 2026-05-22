@@ -688,34 +688,14 @@ try {
       }
     }
 
+    let affiliateModeLogged = false;
     async function affiliateLink(rawLink){
       const tagged = withAffiliateTag(rawLink);
-      try {
-        const r = await http({
-          method: "POST",
-          url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
-          headers: {
-            "accept": "application/json, text/plain, */*",
-            "content-type": "application/json",
-            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "origin": "https://www.mercadolivre.com.br",
-            "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
-            "x-csrf-token": ML_CSRF,
-            "cookie": ML_COOKIE,
-            "user-agent": UA,
-          },
-          body: { urls: [rawLink], tag: ML_TAG, format: "SHORT" },
-          json: true,
-        });
-        const u = (r && r.urls && r.urls[0]) || r || {};
-        const cand = u.short_url || u.shortUrl || u.shortenedUrl || u.short_link || u.shortLink || u.url_short || u.url || u.long_url;
-        if (cand && /meli\\.la|mercadolivre\\.com\\/sec\\//i.test(cand)) return cand;
-        debug.push({ affiliateNoShort: true, fallback: "tag_url", raw: u, link: rawLink });
-        return tagged;
-      } catch (e) {
-        debug.push({ affiliateErr: e.message || String(e), fallback: "tag_url", link: rawLink });
-        return tagged;
+      if (!affiliateModeLogged) {
+        debug.push({ affiliateMode: "direct_tag_url", tagFormat: /^matt:/i.test(String(ML_TAG || "")) ? "matt_word/matt_tool" : "tag" });
+        affiliateModeLogged = true;
       }
+      return tagged;
     }
 
     // ===== Busca por keyword: SOMENTE HTML com cookie. Sem api.mercadolibre.com (403). =====
@@ -738,6 +718,7 @@ try {
             "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
             "cache-control": "no-cache",
             "cookie": ML_COOKIE,
+            "x-csrf-token": ML_CSRF,
             "referer": "https://www.mercadolivre.com.br/",
             "upgrade-insecure-requests": "1",
             "user-agent": UA,
