@@ -653,7 +653,17 @@ try {
         const discM = card.match(/(\\d{1,2})\\s*%\\s*OFF/i);
         const discount = discM ? Number(discM[1]) : (priceOld && price ? Math.round((1 - price/priceOld)*100) : 0);
 
-        out.push({ title, link, image, price, discount });
+        let shop = "Mercado Livre";
+        const shopMatches = [
+          card.match(/class="[^"]*(?:poly-component__seller|poly-component__seller-link|ui-search-official-store-label|ui-search-seller__name)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|a|p|div)>/i),
+          card.match(/(?:Vendido por|Por)\s*<[^>]+>([\s\S]*?)<\//i),
+        ];
+        for (const sm of shopMatches) {
+          const candidate = stripTags(sm && sm[1] || "").replace(/^por\s+/i, "").trim();
+          if (candidate && candidate.length <= 60 && !/R\$|OFF|frete|chegar/i.test(candidate)) { shop = candidate; break; }
+        }
+
+        out.push({ title, link, image, price, discount, shop });
       }
       return out;
     }
