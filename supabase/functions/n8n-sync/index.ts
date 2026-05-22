@@ -44,9 +44,13 @@ const MARKETPLACE_PREFIX: Record<string, string> = {
   amazon: "AMZ",
 };
 
-const DEFAULT_TEMPLATE = `🔥 *{productname}*
+const DEFAULT_TEMPLATE = `*{frase}*
 
-💰 R$ {price}  ({pricediscountrate}% OFF)
+{productname}
+
+De ~R$ {priceoriginal}~ ❌
+Por *R$ {price}* ✅ ({pricediscountrate}% OFF)
+
 🏪 {shopname}
 
 👉 {offerlink}`;
