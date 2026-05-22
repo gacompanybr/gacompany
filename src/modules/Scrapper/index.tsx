@@ -314,8 +314,9 @@ function JobDialog({
       config,
       intervalo_horas: intervaloHoras,
       data_table_name: dataTableName.trim(),
-      // cron derivado pra retrocompat
-      agendamento_cron: `0 */${intervaloHoras} * * *`,
+      // cron com horário fixo (evita "deslize" quando o n8n reinicia)
+      // 24h -> todo dia 07:00 BRT (10:00 UTC); sub-diário -> a cada N horas
+      agendamento_cron: intervaloHoras >= 24 ? "0 10 * * *" : `0 */${intervaloHoras} * * *`,
     };
 
     let jobId = editing?.id;
