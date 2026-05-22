@@ -56,6 +56,7 @@ export default function Admin() {
             {tab === "tarefas" && <TarefasTab />}
             {tab === "calendario" && <CalendarioTab />}
             {tab === "financeiro" && <FinanceiroTab />}
+            {tab === "integracoes" && <IntegracoesTab />}
             {tab === "config" && (
               <Card className="p-8 text-center text-muted-foreground">
                 Configurações gerais em breve.
