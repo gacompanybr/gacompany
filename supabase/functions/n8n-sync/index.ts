@@ -340,7 +340,7 @@ return [{ json: { sent: row.productname, grupo, status: sendStatus, dia: diaKey,
   `.trim();
 
   return {
-    name: `ROBO_${robo.id}`,
+    name: friendlyWorkflowName("ROBO", robo),
     nodes: [
       {
         parameters: {
