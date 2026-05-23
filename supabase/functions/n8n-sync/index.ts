@@ -872,6 +872,9 @@ try {
             });
             if (nameKey) existingNames.add(nameKey);
             total++; kept++;
+            // Anti-bot: delay aleatório 3-12s entre produtos
+            const delayMs = Math.floor(Math.random() * (12000 - 3000 + 1)) + 3000;
+            await new Promise((res) => setTimeout(res, delayMs));
           } catch (err) {
             skip.insert++;
             debug.push({ insertError: err.message || String(err), item: title });
