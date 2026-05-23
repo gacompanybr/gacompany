@@ -44,6 +44,17 @@ const MARKETPLACE_PREFIX: Record<string, string> = {
   amazon: "AMZ",
 };
 
+// Gera um nome legível para o workflow no n8n, incluindo o nome dado pelo
+// usuário no painel + plataforma, mantendo o ID técnico ao final.
+function friendlyWorkflowName(kind: "ROBO" | "SCRAPPER" | "DISPARO", entity: any) {
+  const nome = String(entity?.nome ?? "").trim();
+  const plat = String(entity?.plataforma ?? "").trim();
+  const platLabel = plat ? (MARKETPLACE_PREFIX[plat.toLowerCase()] ?? plat.toUpperCase()) : "";
+  const tag = [nome, platLabel].filter(Boolean).join(" · ");
+  const idShort = String(entity?.id ?? "").slice(0, 8);
+  return tag ? `[${kind}] ${tag} — ${idShort}` : `${kind}_${entity?.id ?? ""}`;
+}
+
 const DEFAULT_TEMPLATE = `*{frase}*
 
 {productname}
