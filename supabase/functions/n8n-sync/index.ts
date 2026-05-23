@@ -628,8 +628,13 @@ try {
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
-    const keywords = TERMOS.length ? TERMOS : CATEGORIAS;
+    let keywords = TERMOS.length ? TERMOS : CATEGORIAS;
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
+    // Shuffle: embaralha keywords para variedade a cada execução
+    for (let i = keywords.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
+    }
     outerShopee: for (const kw of keywords) {
       const r = await shopeeSearch(kw);
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
