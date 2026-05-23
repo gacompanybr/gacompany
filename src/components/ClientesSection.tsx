@@ -6,14 +6,16 @@ import rodsBurguer from "@/assets/clients/rods-burguer.png";
 import mcg from "@/assets/clients/mcg.png";
 import cacilia from "@/assets/clients/cacilia.png";
 import superCleaning from "@/assets/clients/super-cleaning.png";
+import oarco from "@/assets/clients/oarco.png";
+import garimpaAi from "@/assets/clients/garimpa-ai.png";
 
 const clients = [
   { name: "Farma Conde", logo: farmaConde },
-  { name: "Oarco", logo: null },
+  { name: "Oarco", logo: oarco },
   { name: "Lopes Saúde e Odontologia", logo: lopes },
   { name: "Lóvitta", logo: lovitta },
   { name: "Vila Gym", logo: vilaGym },
-  { name: "Garimpa Aí", logo: null },
+  { name: "Garimpa Aí", logo: garimpaAi },
   { name: "Rod's Burguer", logo: rodsBurguer },
   { name: "MCG", logo: mcg },
   { name: "Cacilia Imobiliária", logo: cacilia },
@@ -31,22 +33,22 @@ const ClientesSection = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-8 gap-y-10 items-center">
           {clients.map((c) => (
             <div
               key={c.name}
-              className="group aspect-[3/2] bg-card border border-border rounded-2xl flex items-center justify-center p-5 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all duration-300"
+              className="flex items-center justify-center h-16 md:h-20"
               title={c.name}
             >
               {c.logo ? (
                 <img
                   src={c.logo}
                   alt={`Logo ${c.name}`}
-                  className="max-h-full max-w-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                  className="max-h-full max-w-full object-contain grayscale opacity-60 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
                   loading="lazy"
                 />
               ) : (
-                <span className="font-heading font-bold text-base md:text-lg text-foreground/80 text-center group-hover:text-primary transition-colors">
+                <span className="font-heading font-bold text-base md:text-lg text-muted-foreground hover:text-foreground transition-colors">
                   {c.name}
                 </span>
               )}
