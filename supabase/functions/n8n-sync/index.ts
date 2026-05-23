@@ -382,7 +382,7 @@ function buildDisparoWorkflow(robo: any) {
 return [{ json: { robo_id: ${JSON.stringify(robo.id)}, note: "disparo flow placeholder" } }];
   `.trim();
   return {
-    name: `ROBO_${robo.id}`,
+    name: friendlyWorkflowName(robo.campaign_type === "disparo" ? "DISPARO" : "ROBO", robo),
     nodes: [
       {
         parameters: {
