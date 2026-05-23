@@ -894,7 +894,7 @@ return [{ json: { total, erro, table: TABLE_NAME, dupSkipped, debug } }];
   `.trim();
 
   return {
-    name: `SCRAPPER_${job.id}`,
+    name: friendlyWorkflowName("SCRAPPER", job),
     nodes: [
       {
         parameters: { rule: { interval: [{ field: "cronExpression", expression: (job.agendamento_cron && String(job.agendamento_cron).trim()) || "0 10 * * *" }] } },
