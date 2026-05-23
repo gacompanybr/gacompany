@@ -1,0 +1,1 @@
+SELECT id, nome, config->>'ml_cookie' AS ml_cookie_preview FROM scrapper_jobs WHERE plataforma = 'mercadolivre' AND status = 'ativo' LIMIT 5;
