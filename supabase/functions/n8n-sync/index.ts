@@ -628,8 +628,13 @@ try {
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
-    const keywords = TERMOS.length ? TERMOS : CATEGORIAS;
+    let keywords = TERMOS.length ? TERMOS : CATEGORIAS;
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
+    // Shuffle: embaralha keywords para variedade a cada execução
+    for (let i = keywords.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
+    }
     outerShopee: for (const kw of keywords) {
       const r = await shopeeSearch(kw);
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
@@ -672,8 +677,13 @@ try {
     }
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
     if (!ML_COOKIE || !ML_CSRF || !ML_TAG) throw new Error("Faltam credenciais ML (cookie, csrf, affiliate tag).");
-    const keywords = (TERMOS.length ? TERMOS : CATEGORIAS).filter(Boolean);
+    let keywords = (TERMOS.length ? TERMOS : CATEGORIAS).filter(Boolean);
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
+    // Shuffle: embaralha keywords para variedade a cada execução
+    for (let i = keywords.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
+    }
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
