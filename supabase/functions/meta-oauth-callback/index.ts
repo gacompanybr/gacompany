@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       });
     }
     code = url.searchParams.get("code");
-
+    const state = url.searchParams.get("state");
     if (state) {
       try {
         const parsed = JSON.parse(atob(state));
@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
         redirect_uri = parsed.redirect_uri ?? null;
       } catch { /* ignore */ }
     }
+
   } else {
     const body = await req.json().catch(() => ({}));
     code = body.code ?? null;
