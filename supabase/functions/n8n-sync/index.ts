@@ -174,21 +174,9 @@ if (!priceOriginalNum && priceNum > 0 && discNum > 0 && discNum < 100) {
 }
 if (!priceOriginalNum) priceOriginalNum = priceNum;
 
-// Encurtador da.gd (mantém ?tag= / commission)
-let shortLink = String(row.offerlink || "");
-try {
-  const longUrl = String(row.offerlink || "").trim();
-  if (longUrl && longUrl.length > 40) {
-    const shortRes = await http({
-      method: "GET",
-      url: "https://da.gd/s",
-      qs: { url: longUrl },
-      timeout: 4000,
-    });
-    const sl = String(shortRes || "").trim();
-    if (/^https?:\\/\\/da\\.gd\\//i.test(sl)) shortLink = sl;
-  }
-} catch (_) {}
+// Link já vem encurtado como meli.la do scrapper — não reencurta
+const shortLink = String(row.offerlink || "");
+
 
 // Frase curta gerada por IA (Lovable AI / Gemini Flash) — fallback se falhar
 let frase = "OFERTA IMPERDÍVEL";
