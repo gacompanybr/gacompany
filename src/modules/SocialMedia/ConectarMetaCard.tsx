@@ -7,10 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Instagram, Facebook, Link2, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-const META_APP_ID = "1500000000000000"; // placeholder; real value vem do secret no backend
 const SUPABASE_PROJECT_REF = "ouarszsnukpjbvsymmts";
-const REDIRECT_URI = `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/meta-oauth-callback`;
-
+const CALLBACK_URL = `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/meta-oauth-callback`;
 const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
@@ -23,7 +21,6 @@ const META_SCOPES = [
 export function ConectarMetaCard({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
   const [loading, setLoading] = useState(false);
-  const [appId, setAppId] = useState<string | null>(null);
 
   const { data: integrations = [] } = useQuery({
     queryKey: ["social-integrations", portfolioId],
@@ -33,14 +30,6 @@ export function ConectarMetaCard({ portfolioId }: { portfolioId: string }) {
       return data ?? [];
     },
   });
-
-  // Pega o META_APP_ID via edge function ou config pública. Por simplicidade: salvamos como secret e usamos no callback.
-  // Aqui usamos uma rota de helper para evitar hardcode. Como fallback, pedimos pra cadastrar no .env do projeto.
-  useEffect(() => {
-    fetch(`https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/meta-oauth-callback?ping=1`)
-      .then(() => setAppId("ok")) // só para confirmar que função existe
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     function onMsg(e: MessageEvent) {
@@ -57,28 +46,19 @@ export function ConectarMetaCard({ portfolioId }: { portfolioId: string }) {
     return () => window.removeEventListener("message", onMsg);
   }, [qc, portfolioId]);
 
-  function connect() {
-    const state = btoa(JSON.stringify({ portfolio_id: portfolioId, redirect_uri: REDIRECT_URI }));
-    // O App ID está no secret no backend — para gerar a URL OAuth precisamos do APP_ID publicamente.
-    // Solução: armazenamos APP_ID também em env Vite OU buscamos via edge function. Aqui vamos buscar via fetch.
+  async function connect() {
     setLoading(true);
-    fetch(`https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/meta-oauth-callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "get_app_id" }),
-    })
-      .then((r) => r.json())
-      .then((j) => {
-        const id = j.app_id ?? import.meta.env.VITE_META_APP_ID;
-        if (!id) {
-          toast.error("META_APP_ID não disponível. Configure VITE_META_APP_ID.");
-          setLoading(false);
-          return;
-        }
-        const url = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${id}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${state}&scope=${META_SCOPES}&response_type=code`;
-        window.open(url, "meta-oauth", "width=600,height=700");
-      })
-      .catch(() => { setLoading(false); toast.error("Falha ao iniciar OAuth"); });
+    try {
+      const r = await fetch(`${CALLBACK_URL}?config=1`);
+      const { app_id } = await r.json();
+      if (!app_id) throw new Error("META_APP_ID não configurado");
+      const state = btoa(JSON.stringify({ portfolio_id: portfolioId, redirect_uri: CALLBACK_URL }));
+      const url = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${app_id}&redirect_uri=${encodeURIComponent(CALLBACK_URL)}&state=${state}&scope=${META_SCOPES}&response_type=code`;
+      window.open(url, "meta-oauth", "width=600,height=700");
+    } catch (e: any) {
+      toast.error(e.message ?? "Falha ao iniciar OAuth");
+      setLoading(false);
+    }
   }
 
   async function disconnect(id: string) {
