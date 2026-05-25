@@ -782,11 +782,48 @@ try {
 
     let affiliateModeLogged = false;
     async function affiliateLink(rawLink){
-      const tagged = withAffiliateTag(rawLink);
-      if (!affiliateModeLogged) {
-        debug.push({ affiliateMode: "direct_tag_url", tagFormat: /^matt:/i.test(String(ML_TAG || "")) ? "matt_word/matt_tool" : "tag" });
-        affiliateModeLogged = true;
+      const tag = String(ML_TAG || "").trim().replace(/^tag:/i, "");
+      // Tenta API oficial do painel de afiliados: gera link meli.la
+      if (tag && !/^matt:/i.test(String(ML_TAG || "")) && ML_COOKIE && ML_CSRF) {
+        try {
+          const resp = await http({
+            method: "POST",
+            url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
+            headers: {
+              "accept": "application/json, text/plain, */*",
+              "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+              "content-type": "application/json",
+              "origin": "https://www.mercadolivre.com.br",
+              "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
+              "user-agent": UA,
+              "cookie": ML_COOKIE,
+              "x-csrf-token": ML_CSRF,
+            },
+            body: JSON.stringify({ urls: [String(rawLink || "")], tag }),
+          });
+          let data: any = resp;
+          if (typeof resp === "string") { try { data = JSON.parse(resp); } catch (_) { data = null; } }
+          const shortUrl = data?.urls?.[0]?.short_url || data?.urls?.[0]?.shortUrl;
+          if (shortUrl && /^https?:\/\//i.test(String(shortUrl))) {
+            if (!affiliateModeLogged) {
+              debug.push({ affiliateMode: "createLink_api", sample: shortUrl });
+              affiliateModeLogged = true;
+            }
+            return String(shortUrl);
+          }
+          if (!affiliateModeLogged) {
+            debug.push({ affiliateMode: "createLink_api_fallback", resp: typeof resp === "string" ? resp.slice(0, 300) : JSON.stringify(resp).slice(0, 300) });
+            affiliateModeLogged = true;
+          }
+        } catch (e) {
+          if (!affiliateModeLogged) {
+            debug.push({ affiliateMode: "createLink_api_error", err: (e as any)?.message || String(e) });
+            affiliateModeLogged = true;
+          }
+        }
       }
+      // Fallback: anexa tag/matt na URL crua (não credita comissão, mas mantém o produto)
+      const tagged = withAffiliateTag(rawLink);
       return tagged;
     }
 
