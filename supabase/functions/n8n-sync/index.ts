@@ -889,6 +889,7 @@ try {
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
           const offer = await affiliateLink(rawLink);
           if (!offer) { skip.affiliate++; continue; }
+          if (!/meli\\.la\\//i.test(String(offer))) { skip.affiliate++; continue; }
           try {
             const priceOriginalML = (disc > 0 && disc < 100)
               ? Math.round((price / (1 - disc / 100)) * 100) / 100
