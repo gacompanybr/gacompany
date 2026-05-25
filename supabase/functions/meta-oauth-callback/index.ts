@@ -27,8 +27,14 @@ Deno.serve(async (req) => {
   let redirect_uri: string | null = null;
 
   if (isGet) {
+    // Endpoint público para o frontend descobrir o APP_ID (não é secreto)
+    if (url.searchParams.get("config") === "1") {
+      return new Response(JSON.stringify({ app_id: APP_ID }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
+
     if (state) {
       try {
         const parsed = JSON.parse(atob(state));
