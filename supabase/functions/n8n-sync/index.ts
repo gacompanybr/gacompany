@@ -804,7 +804,7 @@ try {
           let data = resp;
           if (typeof resp === "string") { try { data = JSON.parse(resp); } catch (_) { data = null; } }
           const shortUrl = data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl);
-          if (shortUrl && /^https?:\\/\\//i.test(String(shortUrl))) {
+          if (shortUrl && /^https?:\/\//i.test(String(shortUrl))) {
             if (!affiliateModeLogged) {
               debug.push({ affiliateMode: "createLink_api", sample: shortUrl });
               affiliateModeLogged = true;
