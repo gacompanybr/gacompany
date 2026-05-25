@@ -8,3 +8,7 @@ verify_jwt = false
 
 [functions.scrapper-api]
 verify_jwt = false
+
+[functions.meta-oauth-callback]
+verify_jwt = false
+

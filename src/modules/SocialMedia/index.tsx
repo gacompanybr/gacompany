@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, Plus, Instagram, Facebook, Linkedin, Music2 } from "lucide-react";
 import { PostDialog } from "./PostDialog";
+import { ConectarMetaCard } from "./ConectarMetaCard";
 import { PLATAFORMAS, STATUS_COLOR, type Plataforma, type PostStatus, type SocialPost } from "./types";
+
 
 const PLAT_ICON: Record<Plataforma, any> = {
   instagram: Instagram, facebook: Facebook, tiktok: Music2, linkedin: Linkedin,
@@ -82,6 +84,8 @@ export default function SocialMediaModule({ portfolioId }: { portfolioId: string
           <Plus size={16} /> Novo post
         </Button>
       </div>
+      <ConectarMetaCard portfolioId={portfolioId} />
+
 
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs text-muted-foreground">Plataformas:</span>

@@ -1128,6 +1128,54 @@ export type Database = {
         }
         Relationships: []
       }
+      social_media_integrations: {
+        Row: {
+          access_token: string
+          created_at: string
+          fb_page_id: string | null
+          fb_page_name: string | null
+          fb_user_id: string | null
+          id: string
+          ig_business_id: string | null
+          ig_username: string | null
+          last_error: string | null
+          portfolio_id: string
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          fb_page_id?: string | null
+          fb_page_name?: string | null
+          fb_user_id?: string | null
+          id?: string
+          ig_business_id?: string | null
+          ig_username?: string | null
+          last_error?: string | null
+          portfolio_id: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          fb_page_id?: string | null
+          fb_page_name?: string | null
+          fb_user_id?: string | null
+          id?: string
+          ig_business_id?: string | null
+          ig_username?: string | null
+          last_error?: string | null
+          portfolio_id?: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       social_posts: {
         Row: {
           conteudo: string
