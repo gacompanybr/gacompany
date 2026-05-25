@@ -801,10 +801,10 @@ try {
             },
             body: JSON.stringify({ urls: [String(rawLink || "")], tag }),
           });
-          let data: any = resp;
+          let data = resp;
           if (typeof resp === "string") { try { data = JSON.parse(resp); } catch (_) { data = null; } }
-          const shortUrl = data?.urls?.[0]?.short_url || data?.urls?.[0]?.shortUrl;
-          if (shortUrl && /^https?:\/\//i.test(String(shortUrl))) {
+          const shortUrl = data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl);
+          if (shortUrl && /^https?:\\/\\//i.test(String(shortUrl))) {
             if (!affiliateModeLogged) {
               debug.push({ affiliateMode: "createLink_api", sample: shortUrl });
               affiliateModeLogged = true;
@@ -817,7 +817,7 @@ try {
           }
         } catch (e) {
           if (!affiliateModeLogged) {
-            debug.push({ affiliateMode: "createLink_api_error", err: (e as any)?.message || String(e) });
+            debug.push({ affiliateMode: "createLink_api_error", err: (e && e.message) || String(e) });
             affiliateModeLogged = true;
           }
         }
