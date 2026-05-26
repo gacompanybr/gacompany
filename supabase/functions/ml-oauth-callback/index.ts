@@ -22,8 +22,19 @@ function html(body: string, status = 200) {
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
+
+  // Modo "init": gera a URL OAuth e redireciona para o consent do Mercado Livre
+  if (url.searchParams.get("init") === "1") {
+    const initState = url.searchParams.get("state");
+    if (!initState) {
+      return html(`<h1 class="err">state obrigatório</h1>`, 400);
+    }
+    const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(initState)}`;
+    return new Response(null, { status: 302, headers: { Location: authUrl } });
+  }
+
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state"); // portfolio_id
+  const state = url.searchParams.get("state"); // portfolio_id ou portfolio_id:robo_id
   const error = url.searchParams.get("error");
 
   if (error) {
@@ -32,6 +43,7 @@ Deno.serve(async (req) => {
   if (!code || !state) {
     return html(`<h1 class="err">Parâmetros faltando</h1><p>code ou state ausentes.</p>`, 400);
   }
+
 
   // state = "portfolio_id" (legado) ou "portfolio_id:robo_id"
   const [portfolioId, roboId] = state.split(":");
