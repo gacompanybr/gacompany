@@ -10,9 +10,10 @@ import {
 import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, Loader2, Settings2 } from "lucide-react";
+import { Plus, Loader2, Settings2, KeyRound } from "lucide-react";
 import { ConvidarUsuarioDialog } from "./ConvidarUsuarioDialog";
 import { GerenciarAcessosDialog } from "./GerenciarAcessosDialog";
+import { DefinirSenhaDialog } from "./DefinirSenhaDialog";
 
 type EquipeRow = {
   user_id: string;
