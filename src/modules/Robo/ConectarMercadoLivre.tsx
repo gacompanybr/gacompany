@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Link as LinkIcon, Unlink, RefreshCw, CheckCircle2 } from "lucide-react";
 
-const ML_APP_ID = "8313728108896534"; // public client_id do Mercado Livre
+const ML_INIT_URL = "https://ouarszsnukpjbvsymmts.supabase.co/functions/v1/ml-oauth-callback";
 
 type Integ = {
   id: string;
