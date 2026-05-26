@@ -639,6 +639,7 @@ export type Database = {
           nickname: string | null
           portfolio_id: string
           refresh_token: string
+          robo_campanha_id: string | null
           scope: string | null
           status: string
           updated_at: string
@@ -653,6 +654,7 @@ export type Database = {
           nickname?: string | null
           portfolio_id: string
           refresh_token: string
+          robo_campanha_id?: string | null
           scope?: string | null
           status?: string
           updated_at?: string
@@ -667,6 +669,7 @@ export type Database = {
           nickname?: string | null
           portfolio_id?: string
           refresh_token?: string
+          robo_campanha_id?: string | null
           scope?: string | null
           status?: string
           updated_at?: string

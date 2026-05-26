@@ -22,8 +22,19 @@ function html(body: string, status = 200) {
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
+
+  // Modo "init": gera a URL OAuth e redireciona para o consent do Mercado Livre
+  if (url.searchParams.get("init") === "1") {
+    const initState = url.searchParams.get("state");
+    if (!initState) {
+      return html(`<h1 class="err">state obrigatório</h1>`, 400);
+    }
+    const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(initState)}`;
+    return new Response(null, { status: 302, headers: { Location: authUrl } });
+  }
+
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state"); // portfolio_id
+  const state = url.searchParams.get("state"); // portfolio_id ou portfolio_id:robo_id
   const error = url.searchParams.get("error");
 
   if (error) {
@@ -32,6 +43,11 @@ Deno.serve(async (req) => {
   if (!code || !state) {
     return html(`<h1 class="err">Parâmetros faltando</h1><p>code ou state ausentes.</p>`, 400);
   }
+
+
+  // state = "portfolio_id" (legado) ou "portfolio_id:robo_id"
+  const [portfolioId, roboId] = state.split(":");
+
 
   try {
     // Troca code por access_token
@@ -64,19 +80,25 @@ Deno.serve(async (req) => {
 
     const expires_at = new Date(Date.now() + (expires_in ?? 21600) * 1000).toISOString();
 
+    // Se tem robo_id, vincula ao robô (1 robô = 1 conexão). Senão, fallback no portfolio.
+    const row: any = {
+      portfolio_id: portfolioId,
+      ml_user_id: String(user_id),
+      nickname,
+      access_token,
+      refresh_token,
+      expires_at,
+      scope,
+      status: "active",
+      last_error: null,
+    };
+    if (roboId) row.robo_campanha_id = roboId;
+
+    const onConflict = roboId ? "robo_campanha_id" : "portfolio_id,ml_user_id";
     const { error: upErr } = await admin
       .from("mercadolivre_integracoes")
-      .upsert({
-        portfolio_id: state,
-        ml_user_id: String(user_id),
-        nickname,
-        access_token,
-        refresh_token,
-        expires_at,
-        scope,
-        status: "active",
-        last_error: null,
-      }, { onConflict: "portfolio_id,ml_user_id" });
+      .upsert(row, { onConflict });
+
 
     if (upErr) {
       return html(`<h1 class="err">Erro ao salvar</h1><p>${upErr.message}</p>`, 500);
