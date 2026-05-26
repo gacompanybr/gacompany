@@ -81,6 +81,7 @@ function buildEcommerceWorkflow(robo: any) {
 const N8N_BASE = ${JSON.stringify(N8N_BASE)};
 const N8N_KEY = ${JSON.stringify(N8N_KEY)};
 const TABLE_ID = ${JSON.stringify(tableId)};
+const PLATAFORMA = ${JSON.stringify(robo.plataforma ?? robo.marketplace ?? "")};
 const EVO_URL = ${JSON.stringify(EVO_URL)};
 const EVO_KEY = ${JSON.stringify(EVO_KEY)};
 const INSTANCE = ${JSON.stringify(instance)};
@@ -146,16 +147,38 @@ if (state && state.ultima_execucao) {
   }
 }
 
-// 4. Busca 1 produto disponivel (sending=false)
+// 4. Busca produtos disponiveis (sending=false) e ignora ML sem meli.la
 const filterObj = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
 const rowsData = await http({
   method: "GET",
   url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-  qs: { filter: JSON.stringify(filterObj), limit: 1 },
+  qs: { filter: JSON.stringify(filterObj), limit: 20 },
   headers: { "X-N8N-API-KEY": N8N_KEY },
   json: true,
 });
-const row = rowsData && rowsData.data && rowsData.data[0];
+const candidates = rowsData && rowsData.data ? rowsData.data : [];
+let row = null;
+for (const candidate of candidates) {
+  const link = String(candidate && candidate.offerlink || "").trim();
+  const isMercadoLivre = /mercado/i.test(String(PLATAFORMA || ""));
+  if (isMercadoLivre && !/^https?:\/\/meli\.la\//i.test(link)) {
+    try {
+      await http({
+        method: "PATCH",
+        url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
+        headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+        body: {
+          filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: candidate.id }] },
+          data: { sending: true, sent_at: new Date().toISOString() },
+        },
+        json: true,
+      });
+    } catch (_) {}
+    continue;
+  }
+  row = candidate;
+  break;
+}
 if (!row) {
   // Sem produto novo nao e erro - so nao dispara, aguardando proximo scraper
   return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
@@ -539,6 +562,21 @@ async function listRows(tableId) {
   throw lastErr || new Error("Falha ao listar data table");
 }
 
+async function deleteRow(tableId, rowId) {
+  const tries = [
+    { method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/\${rowId}\` },
+    { method: "POST", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/delete\`, body: { filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: rowId }] } } },
+    { method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows?filter=\${encodeURIComponent(JSON.stringify({ type: "and", filters: [{ columnName: "id", condition: "eq", value: rowId }] }))}\` },
+  ];
+  for (const t of tries) {
+    try {
+      await http({ method: t.method, url: t.url, headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" }, body: t.body, json: true });
+      return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
@@ -610,11 +648,17 @@ try {
   const existingNames = new Set();
   try {
     const all = await listRows(tableId);
+    let badMlLinksDeleted = 0;
+    const isMlPlatform = PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre";
     for (const r of (Array.isArray(all) ? all : [])) {
+      if (isMlPlatform && r && !r.sending && !/^https?:\/\/meli\.la\//i.test(String(r.offerlink || ""))) {
+        if (r.id && await deleteRow(tableId, r.id)) badMlLinksDeleted++;
+        continue;
+      }
       const n = normName(r && r.productname);
       if (n) existingNames.add(n);
     }
-    debug.push({ dedup: { loaded: existingNames.size } });
+    debug.push({ dedup: { loaded: existingNames.size, badMlLinksDeleted } });
   } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
 
   if (PLATAFORMA === "shopee") {
@@ -750,7 +794,8 @@ try {
           if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api_error", err: (e && e.message) || String(e) }); affiliateModeLogged = true; }
         }
       }
-      return withAffiliateTag(rawLink);
+      debug.push({ affiliateErr: "createLink_api_failed_no_meli_la", rawLink: String(rawLink || "").slice(0, 180) });
+      return "";
     }
 
     // ===== Busca via API oficial: /products/search retorna catálogo (id, nome, imagem) =====
@@ -827,7 +872,7 @@ try {
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
           const rawLink = "https://www.mercadolivre.com.br/p/" + productId;
           const offer = await affiliateLink(rawLink);
-          if (!offer) { skip.affiliate++; continue; }
+          if (!offer || !/^https?:\/\/meli\.la\//i.test(String(offer))) { skip.affiliate++; continue; }
           try {
             await insertRow(tableId, {
               productname: title,
