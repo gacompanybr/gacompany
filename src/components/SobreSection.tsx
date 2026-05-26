@@ -24,7 +24,7 @@ const SobreSection = () => {
               A GA Company é uma empresa com mais de 3 anos de atuação no mercado, unindo estratégias de marketing digital, inovação e tecnologia para entregar resultados reais para empresas que desejam crescer, vender mais e melhorar sua operação digital.
             </p>
             <p>
-              Criada por <strong className="text-foreground">Bruno Bocardi</strong> e <strong className="text-foreground">Gustavo Daré</strong>, a empresa vem se destacando pela capacidade de integrar marketing, dados, automação, inteligência artificial e e-commerce em soluções estratégicas para negócios de diferentes segmentos.
+              A empresa vem se destacando pela capacidade de integrar marketing, dados, automação, inteligência artificial e e-commerce em soluções estratégicas para negócios de diferentes segmentos.
             </p>
             <p>
               Nosso foco é construir operações digitais mais inteligentes, conectando campanhas, sites, CRM, dashboards, automações e canais de venda em uma estratégia única, clara e orientada por performance.
