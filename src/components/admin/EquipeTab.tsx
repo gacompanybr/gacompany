@@ -133,14 +133,24 @@ export function EquipeTab() {
                     {new Date(u.created_at).toLocaleDateString("pt-BR")}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1"
-                      onClick={() => setEditingUser(u)}
-                    >
-                      <Settings2 size={14} /> Acessos
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => setSenhaUser(u)}
+                      >
+                        <KeyRound size={14} /> Senha
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => setEditingUser(u)}
+                      >
+                        <Settings2 size={14} /> Acessos
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
