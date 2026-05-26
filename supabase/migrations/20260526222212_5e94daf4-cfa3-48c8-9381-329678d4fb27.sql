@@ -1,0 +1,5 @@
+ALTER TABLE public.mercadolivre_integracoes
+ADD CONSTRAINT mercadolivre_integracoes_scrapper_job_id_unique_all UNIQUE (scrapper_job_id);
+
+ALTER TABLE public.mercadolivre_integracoes
+ADD CONSTRAINT mercadolivre_integracoes_robo_campanha_id_unique_all UNIQUE (robo_campanha_id);
