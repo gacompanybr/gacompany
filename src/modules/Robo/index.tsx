@@ -406,9 +406,6 @@ function RoboDialog({
                 </div>
               </div>
 
-              {marketplace === "mercadolivre" && (
-                <ConectarMercadoLivre portfolioId={portfolioId} roboId={editing?.id ?? null} />
-              )}
 
 
               {(datatables.length > 0 || tableId) && (
