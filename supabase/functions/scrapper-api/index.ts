@@ -6,12 +6,56 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+const ML_APP_ID = Deno.env.get("MERCADOLIVRE_APP_ID") ?? "";
+const ML_SECRET = Deno.env.get("MERCADOLIVRE_SECRET") ?? "";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// Garante access_token válido para uma integração ML; renova via refresh_token se faltar < 5min.
+async function ensureMlToken(integ: any): Promise<any> {
+  if (!integ) return null;
+  const expMs = integ.expires_at ? new Date(integ.expires_at).getTime() : 0;
+  const needsRefresh = !expMs || expMs - Date.now() < 5 * 60_000;
+  if (!needsRefresh) return integ;
+  if (!integ.refresh_token || !ML_APP_ID || !ML_SECRET) return integ;
+  try {
+    const res = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: ML_APP_ID,
+        client_secret: ML_SECRET,
+        refresh_token: integ.refresh_token,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      await admin
+        .from("mercadolivre_integracoes")
+        .update({ status: "expired", last_error: `refresh: ${JSON.stringify(data)}` })
+        .eq("id", integ.id);
+      return integ;
+    }
+    const newExp = new Date(Date.now() + (data.expires_in ?? 21600) * 1000).toISOString();
+    const updated = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token ?? integ.refresh_token,
+      expires_at: newExp,
+      scope: data.scope ?? integ.scope,
+      status: "active",
+      last_error: null,
+    };
+    await admin.from("mercadolivre_integracoes").update(updated).eq("id", integ.id);
+    return { ...integ, ...updated };
+  } catch (e) {
+    return integ;
+  }
 }
 
 Deno.serve(async (req) => {
