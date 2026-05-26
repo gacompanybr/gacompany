@@ -6,12 +6,56 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+const ML_APP_ID = Deno.env.get("MERCADOLIVRE_APP_ID") ?? "";
+const ML_SECRET = Deno.env.get("MERCADOLIVRE_SECRET") ?? "";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// Garante access_token válido para uma integração ML; renova via refresh_token se faltar < 5min.
+async function ensureMlToken(integ: any): Promise<any> {
+  if (!integ) return null;
+  const expMs = integ.expires_at ? new Date(integ.expires_at).getTime() : 0;
+  const needsRefresh = !expMs || expMs - Date.now() < 5 * 60_000;
+  if (!needsRefresh) return integ;
+  if (!integ.refresh_token || !ML_APP_ID || !ML_SECRET) return integ;
+  try {
+    const res = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: ML_APP_ID,
+        client_secret: ML_SECRET,
+        refresh_token: integ.refresh_token,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      await admin
+        .from("mercadolivre_integracoes")
+        .update({ status: "expired", last_error: `refresh: ${JSON.stringify(data)}` })
+        .eq("id", integ.id);
+      return integ;
+    }
+    const newExp = new Date(Date.now() + (data.expires_in ?? 21600) * 1000).toISOString();
+    const updated = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token ?? integ.refresh_token,
+      expires_at: newExp,
+      scope: data.scope ?? integ.scope,
+      status: "active",
+      last_error: null,
+    };
+    await admin.from("mercadolivre_integracoes").update(updated).eq("id", integ.id);
+    return { ...integ, ...updated };
+  } catch (e) {
+    return integ;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -38,19 +82,67 @@ Deno.serve(async (req) => {
       const { data, error } = await q;
       if (error) return json({ error: error.message }, 500);
 
-      const jobs = (data ?? []).map((j: any) => ({
-        id: j.id,
-        portfolio_id: j.portfolio_id,
-        nome: j.nome,
-        plataforma: j.plataforma,
-        shopee_app_id: j.config?.shopee_app_id ?? null,
-        shopee_secret: j.config?.shopee_secret ?? null,
-        termos: j.config?.termos ?? [],
-        categorias: j.config?.categorias ?? [],
-        agendamento_cron: j.agendamento_cron,
-        ultima_execucao: j.ultima_execucao,
-      }));
+      // Para jobs do Mercado Livre, anexa access_token fresco da integração vinculada.
+      const jobsRaw = data ?? [];
+      const mlJobIds = jobsRaw
+        .filter((j: any) => /mercado/i.test(j.plataforma ?? ""))
+        .map((j: any) => j.id);
+      const integByJob = new Map<string, any>();
+      if (mlJobIds.length) {
+        const { data: integs } = await admin
+          .from("mercadolivre_integracoes")
+          .select("id, scrapper_job_id, ml_user_id, nickname, access_token, refresh_token, expires_at, scope, status")
+          .in("scrapper_job_id", mlJobIds);
+        for (const integ of integs ?? []) {
+          const fresh = await ensureMlToken(integ);
+          if (fresh?.scrapper_job_id) integByJob.set(fresh.scrapper_job_id, fresh);
+        }
+      }
+
+      const jobs = jobsRaw.map((j: any) => {
+        const integ = integByJob.get(j.id);
+        return {
+          id: j.id,
+          portfolio_id: j.portfolio_id,
+          nome: j.nome,
+          plataforma: j.plataforma,
+          shopee_app_id: j.config?.shopee_app_id ?? null,
+          shopee_secret: j.config?.shopee_secret ?? null,
+          termos: j.config?.termos ?? [],
+          categorias: j.config?.categorias ?? [],
+          agendamento_cron: j.agendamento_cron,
+          ultima_execucao: j.ultima_execucao,
+          ml_access_token: integ?.access_token ?? null,
+          ml_user_id: integ?.ml_user_id ?? null,
+          ml_nickname: integ?.nickname ?? null,
+          ml_expires_at: integ?.expires_at ?? null,
+          ml_status: integ?.status ?? null,
+        };
+      });
       return json({ jobs });
+    }
+
+    // ---------- GET: força refresh do token ML de UMA integração ----------
+    if (req.method === "GET" && action === "ml_token") {
+      const jobId = url.searchParams.get("scrapper_job_id");
+      const integId = url.searchParams.get("integration_id");
+      if (!jobId && !integId) return json({ error: "scrapper_job_id ou integration_id obrigatório" }, 400);
+      let q = admin
+        .from("mercadolivre_integracoes")
+        .select("id, scrapper_job_id, ml_user_id, nickname, access_token, refresh_token, expires_at, scope, status");
+      if (integId) q = q.eq("id", integId);
+      else q = q.eq("scrapper_job_id", jobId);
+      const { data: integ, error } = await q.maybeSingle();
+      if (error) return json({ error: error.message }, 500);
+      if (!integ) return json({ error: "integração não encontrada" }, 404);
+      const fresh = await ensureMlToken(integ);
+      return json({
+        access_token: fresh?.access_token ?? null,
+        expires_at: fresh?.expires_at ?? null,
+        ml_user_id: fresh?.ml_user_id ?? null,
+        nickname: fresh?.nickname ?? null,
+        status: fresh?.status ?? null,
+      });
     }
 
     // ---------- GET: campanhas do robô prontas pra disparar ----------
