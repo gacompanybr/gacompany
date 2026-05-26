@@ -27,6 +27,7 @@ export function EquipeTab() {
   const qc = useQueryClient();
   const [openConvidar, setOpenConvidar] = useState(false);
   const [editingUser, setEditingUser] = useState<EquipeRow | null>(null);
+  const [senhaUser, setSenhaUser] = useState<EquipeRow | null>(null);
 
   const { data: equipe = [], isLoading } = useQuery({
     queryKey: ["admin-equipe"],
