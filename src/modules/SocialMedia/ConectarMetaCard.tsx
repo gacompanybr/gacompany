@@ -61,7 +61,35 @@ export function ConectarMetaCard({ portfolioId }: { portfolioId: string }) {
         _ts: Date.now().toString(),
       });
       const url = `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
-      window.open(url, "meta-oauth", "width=600,height=700");
+      const popup = window.open(url, "meta-oauth", "width=600,height=700");
+
+      // Fallback: COOP pode bloquear postMessage entre supabase.co e lovable.app.
+      // Detecta popup fechada + faz polling no banco para liberar o loading.
+      const startCount = integrations.length;
+      const poll = setInterval(async () => {
+        let closed = false;
+        try { closed = !!popup?.closed; } catch { /* COOP */ }
+
+        const { data } = await sb
+          .from("social_media_integrations")
+          .select("id")
+          .eq("portfolio_id", portfolioId);
+        const newCount = data?.length ?? 0;
+
+        if (newCount > startCount) {
+          clearInterval(poll);
+          toast.success("Conta Meta conectada!");
+          qc.invalidateQueries({ queryKey: ["social-integrations", portfolioId] });
+          setLoading(false);
+          try { popup?.close(); } catch { /* ignore */ }
+        } else if (closed) {
+          clearInterval(poll);
+          setLoading(false);
+        }
+      }, 1500);
+
+      // Timeout de segurança (3 min)
+      setTimeout(() => { clearInterval(poll); setLoading(false); }, 180000);
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao iniciar OAuth");
       setLoading(false);
