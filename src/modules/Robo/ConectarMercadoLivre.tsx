@@ -44,11 +44,11 @@ export function ConectarMercadoLivre({
 
   function conectar() {
     if (!roboId) return toast.error("Salve o robô antes de conectar.");
-    const redirect = `https://ouarszsnukpjbvsymmts.supabase.co/functions/v1/ml-oauth-callback`;
     const state = `${portfolioId}:${roboId}`;
-    const url = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_APP_ID}&redirect_uri=${encodeURIComponent(redirect)}&state=${encodeURIComponent(state)}`;
+    const url = `${ML_INIT_URL}?init=1&state=${encodeURIComponent(state)}`;
     window.open(url, "_blank", "width=600,height=750");
   }
+
 
   async function desconectar() {
     if (!integ) return;
