@@ -16,6 +16,66 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// ---- Cron helpers ---------------------------------------------------------
+function parseCronField(expr: string, min: number, max: number): number[] {
+  const out = new Set<number>();
+  for (const part of expr.split(",")) {
+    const [range, stepStr] = part.split("/");
+    const step = stepStr ? parseInt(stepStr, 10) : 1;
+    let lo = min, hi = max;
+    if (range !== "*" && range !== "") {
+      if (range.includes("-")) {
+        const [a, b] = range.split("-").map((x) => parseInt(x, 10));
+        lo = a; hi = b;
+      } else {
+        lo = hi = parseInt(range, 10);
+      }
+    }
+    for (let v = lo; v <= hi; v++) {
+      if ((v - lo) % step === 0) out.add(v);
+    }
+  }
+  return [...out].filter((v) => v >= min && v <= max).sort((a, b) => a - b);
+}
+
+function lastCronTick(cron: string, now: Date): Date | null {
+  try {
+    const parts = cron.trim().split(/\s+/);
+    if (parts.length !== 5) return null;
+    const mins = parseCronField(parts[0], 0, 59);
+    const hours = parseCronField(parts[1], 0, 23);
+    const doms = parseCronField(parts[2], 1, 31);
+    const mons = parseCronField(parts[3], 1, 12);
+    const dows = parseCronField(parts[4], 0, 6);
+    const d = new Date(now.getTime());
+    d.setUTCSeconds(0, 0);
+    const limit = 60 * 24 * 60;
+    for (let i = 0; i < limit; i++) {
+      if (
+        mins.includes(d.getUTCMinutes()) &&
+        hours.includes(d.getUTCHours()) &&
+        doms.includes(d.getUTCDate()) &&
+        mons.includes(d.getUTCMonth() + 1) &&
+        dows.includes(d.getUTCDay())
+      ) {
+        return d;
+      }
+      d.setTime(d.getTime() - 60_000);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function jobIsDue(cron: string | null | undefined, ultimaExecucao: string | null | undefined): boolean {
+  if (!cron) return true;
+  const tick = lastCronTick(cron, new Date());
+  if (!tick) return true;
+  if (!ultimaExecucao) return true;
+  return new Date(ultimaExecucao).getTime() < tick.getTime();
+}
+
 // Garante access_token válido para uma integração ML; renova via refresh_token se faltar < 5min.
 async function ensureMlToken(integ: any): Promise<any> {
   if (!integ) return null;
