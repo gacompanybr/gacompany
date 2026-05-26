@@ -672,10 +672,9 @@ try {
       }
     }
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
-    if (!ML_COOKIE || !ML_CSRF || !ML_TAG) throw new Error("Faltam credenciais ML (cookie, csrf, affiliate tag).");
+    if (!ML_TAG) throw new Error("Faltam credenciais ML (affiliate tag).");
     let keywords = (TERMOS.length ? TERMOS : CATEGORIAS).filter(Boolean);
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
-    // Shuffle: embaralha keywords para variedade a cada execução
     for (let i = keywords.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
@@ -683,76 +682,22 @@ try {
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
-    function stripTags(s){ return String(s||"").replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim(); }
-    function decodeEntities(s){ return String(s||"").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">"); }
-
-    function parseMLProducts(html){
-      const out = [];
-      // tenta poly-card primeiro; senão cai pra ui-search-layout__item / ui-search-result
-      let splitRe = /<(?:div|li)[^>]+class="(?:[^"]*\\s)?poly-card(?:\\s[^"]*)?"[^>]*>/g;
-      const indices = [];
-      let m;
-      while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
-      if (indices.length === 0) {
-        splitRe = /<li[^>]+class="[^"]*ui-search-layout__item[^"]*"/g;
-        while ((m = splitRe.exec(html)) !== null) indices.push(m.index);
-      }
-      for (let i = 0; i < indices.length; i++){
-        const start = indices[i];
-        const end = i + 1 < indices.length ? indices[i+1] : Math.min(html.length, start + 12000);
-        const card = html.slice(start, end);
-
-        let linkM = card.match(/<a[^>]+class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
-        if (!linkM) linkM = card.match(/<a[^>]+class="[^"]*ui-search-link[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
-        if (!linkM) linkM = card.match(/<a[^>]+href="(https:\\/\\/(?:www\\.)?mercadolivre\\.com\\.br\\/[^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/);
-        if (!linkM) continue;
-        const link = decodeEntities(linkM[1]);
-        let title = stripTags(linkM[2]);
-        if (!title) {
-          const t2 = card.match(/<h[1-3][^>]*>([\\s\\S]*?)<\\/h[1-3]>/);
-          if (t2) title = stripTags(t2[1]);
-        }
-        if (!title || !link) continue;
-
-        let image = "";
-        const imgTagM = card.match(/<img[^>]+class="[^"]*poly-component_*picture[^"]*"[^>]*>/) || card.match(/<img[^>]+(?:src|data-src|srcset|data-srcset|data-original|data-lazy-src)="[^"]*mlstatic\\.com[^"]*"[^>]*>/) || card.match(/<img[^>]+>/);
-        if (imgTagM){
-          const tag = imgTagM[0];
-          const srcM = tag.match(/\\bdata-src="([^"]+)"/) || tag.match(/\\bsrc="([^"]+)"/) || tag.match(/\\bdata-srcset="([^"]+)"/) || tag.match(/\\bsrcset="([^"]+)"/) || tag.match(/\\bdata-original="([^"]+)"/) || tag.match(/\\bdata-lazy-src="([^"]+)"/);
-          if (srcM) image = decodeEntities(String(srcM[1]).split(/\\s+/)[0]);
-        }
-        if (!image) {
-          const anyImgM = card.match(/https?:\\/\\/[^\\s"'<>]+mlstatic\\.com[^\\s"'<>]+\\.(?:webp|jpg|jpeg|png)/i);
-          if (anyImgM) image = decodeEntities(anyImgM[0]);
-        }
-
-        const fractions = [...card.matchAll(/class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d.]+)</g)].map(x => x[1]);
-        const cents = [...card.matchAll(/class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\\d+)</g)].map(x => x[1]);
-        let priceOld = 0, price = 0;
-        if (fractions.length >= 1) priceOld = Number(fractions[0].replace(/\\./g, ""));
-        if (fractions.length >= 2) price = Number(fractions[1].replace(/\\./g, ""));
-        if (cents.length >= 1 && fractions.length >= 1) priceOld += Number(cents[0])/100;
-        if (cents.length >= 2 && fractions.length >= 2) price += Number(cents[1])/100;
-        if (!price && priceOld){ price = priceOld; priceOld = 0; }
-
-        const discM = card.match(/(\\d{1,2})\\s*%\\s*OFF/i);
-        const discount = discM ? Number(discM[1]) : (priceOld && price ? Math.round((1 - price/priceOld)*100) : 0);
-
-        let shop = "Mercado Livre";
-        const shopMatches = [
-          card.match(/class="[^"]*(?:poly-component__seller|poly-component__seller-link|ui-search-official-store-label|ui-search-seller__name)[^"]*"[^>]*>([\\s\\S]*?)<\\/(?:span|a|p|div)>/i),
-          card.match(/(?:Vendido por|Por)\\s*<[^>]+>([\\s\\S]*?)<\\//i),
-        ];
-        for (const sm of shopMatches) {
-          const candidate = stripTags(sm && sm[1] || "").replace(/^por\\s+/i, "").trim();
-          if (candidate && candidate.length <= 60 && !/R\$|OFF|frete|chegar/i.test(candidate)) { shop = candidate; break; }
-        }
-
-        out.push({ title, link, image, price, priceOld, discount, shop });
-      }
-      return out;
+    // ===== Pega access_token oficial fresco (renovado via refresh_token pelo scrapper-api) =====
+    let ML_ACCESS_TOKEN = "";
+    try {
+      const tokenResp = await http({
+        method: "GET",
+        url: SCRAPPER_API + "?action=ml_token&scrapper_job_id=" + encodeURIComponent(JOB_ID),
+        headers: { "Authorization": "Bearer " + SCRAPPER_SECRET },
+        json: true,
+      });
+      const td = typeof tokenResp === "string" ? JSON.parse(tokenResp) : tokenResp;
+      ML_ACCESS_TOKEN = (td && td.access_token) || "";
+      debug.push({ mlToken: { ok: !!ML_ACCESS_TOKEN, expires_at: td && td.expires_at, nickname: td && td.nickname, status: td && td.status } });
+    } catch (e) {
+      throw new Error("Falha ao obter access_token ML: " + (e.message || String(e)));
     }
-
+    if (!ML_ACCESS_TOKEN) throw new Error("Sem access_token ML. Reconecte a conta do Mercado Livre.");
 
     function withAffiliateTag(rawLink){
       try {
@@ -776,7 +721,6 @@ try {
     let affiliateModeLogged = false;
     async function affiliateLink(rawLink){
       const tag = String(ML_TAG || "").trim().replace(/^tag:/i, "");
-      // Tenta API oficial do painel de afiliados: gera link meli.la
       if (tag && !/^matt:/i.test(String(ML_TAG || "")) && ML_COOKIE && ML_CSRF) {
         try {
           const resp = await http({
@@ -798,62 +742,58 @@ try {
           if (typeof resp === "string") { try { data = JSON.parse(resp); } catch (_) { data = null; } }
           const shortUrl = data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl);
           if (shortUrl && /^https?:\\/\\//i.test(String(shortUrl))) {
-            if (!affiliateModeLogged) {
-              debug.push({ affiliateMode: "createLink_api", sample: shortUrl });
-              affiliateModeLogged = true;
-            }
+            if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api", sample: shortUrl }); affiliateModeLogged = true; }
             return String(shortUrl);
           }
-          if (!affiliateModeLogged) {
-            debug.push({ affiliateMode: "createLink_api_fallback", resp: typeof resp === "string" ? resp.slice(0, 300) : JSON.stringify(resp).slice(0, 300) });
-            affiliateModeLogged = true;
-          }
+          if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api_fallback", resp: typeof resp === "string" ? resp.slice(0, 300) : JSON.stringify(resp).slice(0, 300) }); affiliateModeLogged = true; }
         } catch (e) {
-          if (!affiliateModeLogged) {
-            debug.push({ affiliateMode: "createLink_api_error", err: (e && e.message) || String(e) });
-            affiliateModeLogged = true;
-          }
+          if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api_error", err: (e && e.message) || String(e) }); affiliateModeLogged = true; }
         }
       }
-      // Fallback: anexa tag/matt na URL crua (não credita comissão, mas mantém o produto)
-      const tagged = withAffiliateTag(rawLink);
-      return tagged;
+      return withAffiliateTag(rawLink);
     }
 
-    // ===== Busca por keyword: SOMENTE HTML com cookie. Sem api.mercadolibre.com (403). =====
-    async function fetchSearchHtml(keyword, page){
-      const isOferta = /^(ofertas?|promo[cç][aã]o|mais\s*vendid|novidades?|top)$/i.test(String(keyword || "").trim());
-      let url;
-      if (isOferta) {
-        url = "https://www.mercadolivre.com.br/ofertas" + (page > 1 ? "?page=" + page : "");
-      } else {
-        const slug = encodeURIComponent(String(keyword).trim()).replace(/%20/g, "-");
-        const from = (page - 1) * 50 + 1;
-        url = "https://lista.mercadolivre.com.br/" + slug + (page > 1 ? "_Desde_" + from : "");
-      }
+    // ===== Busca via API oficial: /products/search retorna catálogo (id, nome, imagem) =====
+    async function searchCatalog(keyword, page){
+      const offset = (page - 1) * 20;
+      const url = "https://api.mercadolibre.com/products/search?status=active&site_id=MLB&limit=20&offset=" + offset + "&q=" + encodeURIComponent(String(keyword).trim());
       try {
-        const html = await http({
+        const resp = await http({
           method: "GET",
           url,
           headers: {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "cache-control": "no-cache",
-            "cookie": ML_COOKIE,
-            "x-csrf-token": ML_CSRF,
-            "referer": "https://www.mercadolivre.com.br/",
-            "upgrade-insecure-requests": "1",
+            "Authorization": "Bearer " + ML_ACCESS_TOKEN,
+            "accept": "application/json",
             "user-agent": UA,
           },
+          json: true,
         });
-        const text = String(html || "");
-        if (/account-verification|x-is-search-bot|captcha/i.test(text.slice(0, 80000))) {
-          return { products: [], url, blocked: true, htmlSize: text.length };
-        }
-        return { products: parseMLProducts(text), url, blocked: false, htmlSize: text.length };
+        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
+        return { url, results: (data && data.results) || [], total: (data && data.paging && data.paging.total) || 0 };
       } catch (e) {
-        return { products: [], url, fetchErr: e.message || String(e) };
+        return { url, results: [], fetchErr: (e && e.message) || String(e), httpCode: e && (e.httpCode || e.statusCode) };
       }
+    }
+
+    // Pega preço real do melhor anúncio do catálogo. Falha silencioso → produto descartado.
+    async function fetchProductPrice(productId){
+      try {
+        const resp = await http({
+          method: "GET",
+          url: "https://api.mercadolibre.com/products/" + productId + "/items?limit=1",
+          headers: { "Authorization": "Bearer " + ML_ACCESS_TOKEN, "accept": "application/json" },
+          json: true,
+        });
+        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
+        const r = (data && data.results && data.results[0]) || null;
+        if (!r) return null;
+        return {
+          itemId: r.item_id,
+          price: Number(r.price || 0),
+          originalPrice: Number(r.original_price || 0),
+          freeShipping: !!(r.shipping && r.shipping.free_shipping),
+        };
+      } catch (_) { return null; }
     }
 
     outerML: for (const kw of keywords) {
@@ -861,38 +801,40 @@ try {
       if (!q) continue;
       for (let page = 1; page <= ML_PAGES; page++) {
         if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
-        const res = await fetchSearchHtml(q, page);
-        if (res.fetchErr) { debug.push({ keyword: kw, page, url: res.url, fetchErr: res.fetchErr }); continue; }
-        if (res.blocked) { debug.push({ keyword: kw, page, url: res.url, blocked: "ML pediu verificação — cookie pode estar expirado", htmlSize: res.htmlSize }); continue; }
+        if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
+        const res = await searchCatalog(q, page);
+        if (res.fetchErr) { debug.push({ keyword: kw, page, url: res.url, fetchErr: res.fetchErr, httpCode: res.httpCode }); continue; }
         let kept = 0;
-        const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0 };
-        for (const it of res.products) {
+        const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0, noPrice: 0 };
+        for (const it of res.results) {
           if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
-          const disc = Number(it.discount || 0);
-          if (ML_MIN_DISCOUNT > 0 && disc > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
-          const title = String(it.title || "");
-          const rawLink = String(it.link || "").split("#")[0].split("?")[0];
-          const image = String(it.image || "").replace(/^http:/, "https:");
-          const price = Number(it.price || 0);
-          if (!title || !rawLink || price <= 0) { skip.missing++; continue; }
+          if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
+          const title = String(it.name || "");
+          const productId = String(it.id || it.catalog_product_id || "");
+          if (!title || !productId) { skip.missing++; continue; }
           const nameKey = normName(title);
           if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
+          const pic = (it.pictures && it.pictures[0] && it.pictures[0].url) || "";
+          const image = String(pic).replace(/^http:/, "https:");
+          const priceInfo = await fetchProductPrice(productId);
+          if (!priceInfo || !priceInfo.price) { skip.noPrice++; continue; }
+          const price = priceInfo.price;
+          const priceOld = priceInfo.originalPrice && priceInfo.originalPrice > price ? priceInfo.originalPrice : 0;
+          const disc = priceOld > 0 ? Math.round((1 - price / priceOld) * 100) : 0;
+          if (ML_MIN_DISCOUNT > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
           const commissionRate = ML_DEFAULT_COMMISSION_RATE;
           const commissionValue = price * commissionRate / 100;
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
+          const rawLink = "https://www.mercadolivre.com.br/p/" + productId;
           const offer = await affiliateLink(rawLink);
           if (!offer) { skip.affiliate++; continue; }
-          if (!/meli\\.la\\//i.test(String(offer))) { skip.affiliate++; continue; }
           try {
-            const priceOriginalML = (disc > 0 && disc < 100)
-              ? Math.round((price / (1 - disc / 100)) * 100) / 100
-              : (it.priceOld && it.priceOld > price ? it.priceOld : price);
             await insertRow(tableId, {
               productname: title,
               price,
-              priceoriginal: priceOriginalML,
+              priceoriginal: priceOld || price,
               pricediscountrate: disc,
-              shopname: it.shop || "Mercado Livre",
+              shopname: "Mercado Livre",
               offerlink: offer,
               imageUrl: image,
               sending: false,
@@ -903,15 +845,15 @@ try {
             });
             if (nameKey) existingNames.add(nameKey);
             total++; kept++;
-            // Delay curto entre inserts (200-800ms) — antes 3-12s causava timeout no n8n.
-            const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
+            const delayMs = Math.floor(Math.random() * (400 - 100 + 1)) + 100;
             await new Promise((res) => setTimeout(res, delayMs));
           } catch (err) {
             skip.insert++;
             debug.push({ insertError: err.message || String(err), item: title });
           }
         }
-        debug.push({ keyword: kw, page, url: res.url, got: res.products.length, kept, skipped: skip, htmlSize: res.htmlSize });
+        debug.push({ keyword: kw, page, url: res.url, got: res.results.length, kept, skipped: skip });
+        if (res.results.length === 0) break; // sem mais resultados pra esta keyword
       }
     }
   } else {
