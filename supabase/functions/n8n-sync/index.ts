@@ -81,6 +81,7 @@ function buildEcommerceWorkflow(robo: any) {
 const N8N_BASE = ${JSON.stringify(N8N_BASE)};
 const N8N_KEY = ${JSON.stringify(N8N_KEY)};
 const TABLE_ID = ${JSON.stringify(tableId)};
+const PLATAFORMA = ${JSON.stringify(robo.plataforma ?? "")};
 const EVO_URL = ${JSON.stringify(EVO_URL)};
 const EVO_KEY = ${JSON.stringify(EVO_KEY)};
 const INSTANCE = ${JSON.stringify(instance)};
@@ -146,16 +147,38 @@ if (state && state.ultima_execucao) {
   }
 }
 
-// 4. Busca 1 produto disponivel (sending=false)
+// 4. Busca produtos disponiveis (sending=false) e ignora ML sem meli.la
 const filterObj = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
 const rowsData = await http({
   method: "GET",
   url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-  qs: { filter: JSON.stringify(filterObj), limit: 1 },
+  qs: { filter: JSON.stringify(filterObj), limit: 20 },
   headers: { "X-N8N-API-KEY": N8N_KEY },
   json: true,
 });
-const row = rowsData && rowsData.data && rowsData.data[0];
+const candidates = rowsData && rowsData.data ? rowsData.data : [];
+let row = null;
+for (const candidate of candidates) {
+  const link = String(candidate && candidate.offerlink || "").trim();
+  const isMercadoLivre = /mercado/i.test(String(PLATAFORMA || ""));
+  if (isMercadoLivre && !/^https?:\/\/meli\.la\//i.test(link)) {
+    try {
+      await http({
+        method: "PATCH",
+        url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
+        headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+        body: {
+          filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: candidate.id }] },
+          data: { sending: true, sent_at: new Date().toISOString() },
+        },
+        json: true,
+      });
+    } catch (_) {}
+    continue;
+  }
+  row = candidate;
+  break;
+}
 if (!row) {
   // Sem produto novo nao e erro - so nao dispara, aguardando proximo scraper
   return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
