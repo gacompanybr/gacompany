@@ -627,10 +627,12 @@ try {
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
     }
     outerShopee: for (const kw of keywords) {
+      if (timeUp()) { debug.push({ stopped: "time_up", total }); break; }
       const r = await shopeeSearch(kw);
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
       for (const it of (r.nodes || [])) {
         if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerShopee; }
+        if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerShopee; }
         try {
           const price = Number(it.price ?? it.priceMin ?? 0);
           const commissionRate = Number(it.commissionRate ?? 0);
@@ -661,8 +663,8 @@ try {
           });
           if (nameKey) existingNames.add(nameKey);
           total++;
-          // Anti-bot: delay aleatório 3-12s entre produtos
-          const delayMs = Math.floor(Math.random() * (12000 - 3000 + 1)) + 3000;
+          // Delay curto entre inserts (200-800ms) — tinha 3-12s e estourava o timeout de 300s do n8n.
+          const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
           await new Promise((res) => setTimeout(res, delayMs));
         } catch (e) {
           debug.push({ insertError: e.message || String(e), item: it.productName });
