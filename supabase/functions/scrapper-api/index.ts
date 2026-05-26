@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
     // ---------- GET: jobs ativos do scraper ----------
     if (req.method === "GET" && action === "jobs") {
       const plataforma = url.searchParams.get("plataforma");
+      const force = url.searchParams.get("force") === "1";
       let q = admin
         .from("scrapper_jobs")
         .select("id, portfolio_id, nome, plataforma, config, agendamento_cron, ultima_execucao")
@@ -142,8 +143,11 @@ Deno.serve(async (req) => {
       const { data, error } = await q;
       if (error) return json({ error: error.message }, 500);
 
-      // Para jobs do Mercado Livre, anexa access_token fresco da integração vinculada.
-      const jobsRaw = data ?? [];
+      // Filtra por cron: só retorna jobs cujo último tick agendado é depois da última execução.
+      const jobsRaw = (data ?? []).filter((j: any) =>
+        force ? true : jobIsDue(j.agendamento_cron, j.ultima_execucao)
+      );
+
       const mlJobIds = jobsRaw
         .filter((j: any) => /mercado/i.test(j.plataforma ?? ""))
         .map((j: any) => j.id);
@@ -158,6 +162,7 @@ Deno.serve(async (req) => {
           if (fresh?.scrapper_job_id) integByJob.set(fresh.scrapper_job_id, fresh);
         }
       }
+
 
       const jobs = jobsRaw.map((j: any) => {
         const integ = integByJob.get(j.id);
