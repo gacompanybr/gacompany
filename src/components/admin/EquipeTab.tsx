@@ -175,6 +175,15 @@ export function EquipeTab() {
           onSaved={() => qc.invalidateQueries({ queryKey: ["admin-equipe"] })}
         />
       )}
+
+      {senhaUser && (
+        <DefinirSenhaDialog
+          userId={senhaUser.user_id}
+          userLabel={senhaUser.display_name ?? senhaUser.user_id.slice(0, 8)}
+          open={!!senhaUser}
+          onOpenChange={(o) => !o && setSenhaUser(null)}
+        />
+      )}
     </div>
   );
 }
