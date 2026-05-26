@@ -1130,38 +1130,45 @@ Deno.serve(async (req) => {
       const jobId: string = body?.jobId;
       if (!jobId) return j({ error: "jobId requerido" }, 400);
       const { data: job, error } = await admin
-        .from("scrapper_jobs").select("id, n8n_workflow_id, ultima_execucao").eq("id", jobId).single();
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
       if (error || !job?.n8n_workflow_id) return j({ error: error?.message ?? "workflow não encontrado" }, 404);
-      // zera ultima_execucao pra o scrapper-api considerar "due"
       await admin.from("scrapper_jobs").update({ ultima_execucao: null, ultimo_erro: null }).eq("id", jobId);
-      // tenta executar via API do n8n
-      const attempts = [
-        { path: `/workflows/${job.n8n_workflow_id}/execute`, method: "POST" },
-        { path: `/workflows/${job.n8n_workflow_id}/run`, method: "POST" },
-      ];
-      let result: any = null;
-      let lastErr = "";
-      for (const a of attempts) {
-        try {
-          result = await n8nFetch(a.path, { method: a.method });
-          lastErr = "";
-          break;
-        } catch (e) {
-          lastErr = e instanceof Error ? e.message : String(e);
-        }
+      // 1) tenta API direta
+      try {
+        const r = await n8nFetch(`/workflows/${job.n8n_workflow_id}/execute`, { method: "POST" });
+        return j({ ok: true, mode: "executed", result: r });
+      } catch (_) { /* fallback */ }
+      // 2) fallback: flipa cron temporariamente pra * * * * * (every minute), reativa, agenda revert
+      const originalCron: string = job.agendamento_cron || "0 10 * * *";
+      const wfTemp = buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
+      try {
+        await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfTemp) });
+        try { await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" }); } catch (_) {}
+        await n8nFetch(`/workflows/${job.n8n_workflow_id}/activate`, { method: "POST" });
+      } catch (e) {
+        return j({ error: `falha ao baixar cron: ${(e as Error).message}` }, 500);
       }
-      if (lastErr) {
-        // fallback: deactivate + activate (próximo tick do cron dispara)
+      // background: aguarda ~90s e devolve cron original
+      const revert = (async () => {
+        await new Promise((r) => setTimeout(r, 90_000));
         try {
-          await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" });
+          const { data: jFresh } = await admin.from("scrapper_jobs").select("*").eq("id", jobId).single();
+          const wfOrig = buildScrapperWorkflow({ ...(jFresh ?? job), agendamento_cron: originalCron });
+          await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfOrig) });
+          try { await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" }); } catch (_) {}
           await n8nFetch(`/workflows/${job.n8n_workflow_id}/activate`, { method: "POST" });
-          return j({ ok: true, mode: "reactivated", note: "execute não disponível na API; workflow reativado, cron dispara no próximo tick", lastErr });
-        } catch (e2) {
-          return j({ error: `falha ao executar e reativar: ${lastErr} | ${(e2 as Error).message}` }, 500);
+          await admin.from("scrapper_jobs").update({ agendamento_cron: originalCron }).eq("id", jobId);
+          console.log("run_scrapper_now: cron revertido para", originalCron);
+        } catch (e) {
+          console.error("falha ao reverter cron:", (e as Error).message);
         }
-      }
-      return j({ ok: true, mode: "executed", result });
+      })();
+      // @ts-ignore Deno EdgeRuntime
+      try { (globalThis as any).EdgeRuntime?.waitUntil?.(revert); } catch (_) {}
+      return j({ ok: true, mode: "cron_flipped", note: "cron baixado pra * * * * * por ~90s; revert agendado", originalCron });
     }
+
+
 
 
 
