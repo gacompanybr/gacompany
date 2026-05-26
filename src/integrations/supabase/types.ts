@@ -641,6 +641,7 @@ export type Database = {
           refresh_token: string
           robo_campanha_id: string | null
           scope: string | null
+          scrapper_job_id: string | null
           status: string
           updated_at: string
         }
@@ -656,6 +657,7 @@ export type Database = {
           refresh_token: string
           robo_campanha_id?: string | null
           scope?: string | null
+          scrapper_job_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -671,6 +673,7 @@ export type Database = {
           refresh_token?: string
           robo_campanha_id?: string | null
           scope?: string | null
+          scrapper_job_id?: string | null
           status?: string
           updated_at?: string
         }

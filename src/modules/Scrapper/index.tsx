@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Search, Trash2, ExternalLink, Play, Pause, Settings, Eye } from "lucide-react";
+import { ConectarMercadoLivreScrapper } from "./ConectarMercadoLivre";
 
 type Job = {
   id: string;
@@ -391,6 +392,7 @@ function JobDialog({
           )}
           {plataforma === "mercado_livre" && (
             <>
+              <ConectarMercadoLivreScrapper portfolioId={portfolioId} scrapperJobId={editing?.id ?? null} />
               <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
                 <strong>Como pegar:</strong> abra <code>mercadolivre.com.br</code> logada → F12 → Network → recarregue
                 a página → clique em qualquer request <code>www.mercadolivre.com.br</code> → na aba <em>Headers</em> copie

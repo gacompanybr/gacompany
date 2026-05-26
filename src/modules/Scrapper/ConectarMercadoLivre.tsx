@@ -15,44 +15,42 @@ type Integ = {
   status: string;
 };
 
-export function ConectarMercadoLivre({
-  portfolioId, roboId,
-}: { portfolioId: string; roboId: string | null }) {
+export function ConectarMercadoLivreScrapper({
+  portfolioId, scrapperJobId,
+}: { portfolioId: string; scrapperJobId: string | null }) {
   const [integ, setInteg] = useState<Integ | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function fetchInteg() {
-    if (!roboId) return;
+    if (!scrapperJobId) return;
     setLoading(true);
     const { data } = await supabase
       .from("mercadolivre_integracoes" as any)
       .select("id, nickname, ml_user_id, expires_at, status")
-      .eq("robo_campanha_id", roboId)
+      .eq("scrapper_job_id", scrapperJobId)
       .maybeSingle();
     setInteg((data as any) ?? null);
     setLoading(false);
   }
 
-  useEffect(() => { fetchInteg(); }, [roboId]);
+  useEffect(() => { fetchInteg(); }, [scrapperJobId]);
 
-  // re-checa quando a aba volta ao foco (depois do OAuth)
   useEffect(() => {
     const onFocus = () => fetchInteg();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [roboId]);
+  }, [scrapperJobId]);
 
   function conectar() {
-    if (!roboId) return toast.error("Salve o robô antes de conectar.");
-    const state = `${portfolioId}:${roboId}`;
+    if (!scrapperJobId) return toast.error("Salve o job antes de conectar.");
+    const state = `${portfolioId}:scrap:${scrapperJobId}`;
     const url = `${ML_INIT_URL}?init=1&state=${encodeURIComponent(state)}`;
     window.open(url, "_blank", "width=600,height=750");
   }
 
-
   async function desconectar() {
     if (!integ) return;
-    if (!confirm("Desconectar essa conta do Mercado Livre desse robô?")) return;
+    if (!confirm("Desconectar essa conta do Mercado Livre desse job?")) return;
     const { error } = await supabase
       .from("mercadolivre_integracoes" as any)
       .delete()
@@ -62,10 +60,10 @@ export function ConectarMercadoLivre({
     setInteg(null);
   }
 
-  if (!roboId) {
+  if (!scrapperJobId) {
     return (
       <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-        Salve o robô primeiro para conectar uma conta do Mercado Livre.
+        Salve o job primeiro para conectar uma conta do Mercado Livre.
       </div>
     );
   }
@@ -97,7 +95,7 @@ export function ConectarMercadoLivre({
         </div>
       ) : (
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">Conecte uma conta para autorizar leitura/postagem.</p>
+          <p className="text-xs text-muted-foreground">Conecte a conta ML pra autorizar o scrap oficial via API.</p>
           <Button type="button" size="sm" onClick={conectar} className="gap-1">
             <LinkIcon size={12} /> Conectar
           </Button>
