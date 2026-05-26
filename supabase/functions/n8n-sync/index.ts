@@ -903,8 +903,8 @@ try {
             });
             if (nameKey) existingNames.add(nameKey);
             total++; kept++;
-            // Anti-bot: delay aleatório 3-12s entre produtos
-            const delayMs = Math.floor(Math.random() * (12000 - 3000 + 1)) + 3000;
+            // Delay curto entre inserts (200-800ms) — antes 3-12s causava timeout no n8n.
+            const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
             await new Promise((res) => setTimeout(res, delayMs));
           } catch (err) {
             skip.insert++;
