@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Send, Shield, Clock, CheckCircle } from "lucide-react";
+import { Send, Shield, Clock, CheckCircle, Phone, MessageCircle } from "lucide-react";
 
 const ContactFormSection = () => {
   const [submitted, setSubmitted] = useState(false);
@@ -36,6 +36,18 @@ const ContactFormSection = () => {
                   <span className="text-muted-foreground">{text}</span>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-8 p-6 bg-card/50 border border-border rounded-xl">
+              <h4 className="font-heading text-lg font-bold text-foreground mb-4">Prefere contato direto?</h4>
+              <div className="space-y-3">
+                <a href="https://wa.me/5512988334006" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-muted-foreground hover:text-green-400 transition-colors">
+                  <MessageCircle size={20} /> (12) 98833-4006 — WhatsApp
+                </a>
+                <a href="tel:+5512988334006" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
+                  <Phone size={20} /> (12) 98833-4006 — Ligar
+                </a>
+              </div>
             </div>
           </div>
 

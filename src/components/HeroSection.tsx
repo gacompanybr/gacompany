@@ -1,4 +1,4 @@
-import { ArrowRight, TrendingUp, Users, Target } from "lucide-react";
+import { ArrowRight, TrendingUp, Users, Target, Phone, MessageCircle } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const HeroSection = () => {
@@ -26,8 +26,11 @@ const HeroSection = () => {
           <a href="#formulario" className="bg-gradient-gold text-primary-foreground px-8 py-4 rounded-lg font-semibold text-lg flex items-center gap-2 hover:opacity-90 transition-all animate-pulse-glow">
             Quero Crescer Agora <ArrowRight size={20} />
           </a>
-          <a href="#resultados" className="border border-border text-foreground px-8 py-4 rounded-lg font-semibold hover:border-primary/50 transition-colors">
-            Ver Resultados
+          <a href="https://wa.me/5512988334006" target="_blank" rel="noopener noreferrer" className="border border-border text-foreground px-8 py-4 rounded-lg font-semibold hover:border-green-400 hover:text-green-400 transition-colors flex items-center gap-2">
+            <MessageCircle size={20} /> Falar no WhatsApp
+          </a>
+          <a href="tel:+5512988334006" className="border border-border text-foreground px-8 py-4 rounded-lg font-semibold hover:border-primary hover:text-primary transition-colors flex items-center gap-2">
+            <Phone size={20} /> Ligar Agora
           </a>
         </div>
 
