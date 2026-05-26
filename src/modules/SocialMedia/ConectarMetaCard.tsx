@@ -12,11 +12,9 @@ const CALLBACK_URL = `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/m
 const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
-  "pages_manage_engagement",
   "instagram_basic",
-  "instagram_content_publish",
   "business_management",
-].join(",");
+];
 
 export function ConectarMetaCard({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
@@ -53,7 +51,16 @@ export function ConectarMetaCard({ portfolioId }: { portfolioId: string }) {
       const { app_id } = await r.json();
       if (!app_id) throw new Error("META_APP_ID não configurado");
       const state = btoa(JSON.stringify({ portfolio_id: portfolioId, redirect_uri: CALLBACK_URL }));
-      const url = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${app_id}&redirect_uri=${encodeURIComponent(CALLBACK_URL)}&state=${state}&scope=${META_SCOPES}&response_type=code`;
+      const params = new URLSearchParams({
+        client_id: app_id,
+        redirect_uri: CALLBACK_URL,
+        state,
+        scope: META_SCOPES.join(","),
+        response_type: "code",
+        auth_type: "rerequest",
+        _ts: Date.now().toString(),
+      });
+      const url = `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
       window.open(url, "meta-oauth", "width=600,height=700");
     } catch (e: any) {
       toast.error(e.message ?? "Falha ao iniciar OAuth");
