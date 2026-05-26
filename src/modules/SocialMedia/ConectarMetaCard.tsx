@@ -12,7 +12,7 @@ const CALLBACK_URL = `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/m
 const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
-  "pages_manage_posts",
+  "pages_manage_engagement",
   "instagram_basic",
   "instagram_content_publish",
   "business_management",
