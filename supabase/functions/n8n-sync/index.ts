@@ -1126,6 +1126,45 @@ Deno.serve(async (req) => {
       return j({ ok: true });
     }
 
+    if (action === "run_scrapper_now") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("id, n8n_workflow_id, ultima_execucao").eq("id", jobId).single();
+      if (error || !job?.n8n_workflow_id) return j({ error: error?.message ?? "workflow não encontrado" }, 404);
+      // zera ultima_execucao pra o scrapper-api considerar "due"
+      await admin.from("scrapper_jobs").update({ ultima_execucao: null, ultimo_erro: null }).eq("id", jobId);
+      // tenta executar via API do n8n
+      const attempts = [
+        { path: `/workflows/${job.n8n_workflow_id}/execute`, method: "POST" },
+        { path: `/workflows/${job.n8n_workflow_id}/run`, method: "POST" },
+      ];
+      let result: any = null;
+      let lastErr = "";
+      for (const a of attempts) {
+        try {
+          result = await n8nFetch(a.path, { method: a.method });
+          lastErr = "";
+          break;
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : String(e);
+        }
+      }
+      if (lastErr) {
+        // fallback: deactivate + activate (próximo tick do cron dispara)
+        try {
+          await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" });
+          await n8nFetch(`/workflows/${job.n8n_workflow_id}/activate`, { method: "POST" });
+          return j({ ok: true, mode: "reactivated", note: "execute não disponível na API; workflow reativado, cron dispara no próximo tick", lastErr });
+        } catch (e2) {
+          return j({ error: `falha ao executar e reativar: ${lastErr} | ${(e2 as Error).message}` }, 500);
+        }
+      }
+      return j({ ok: true, mode: "executed", result });
+    }
+
+
+
 
     if (action === "list_datatable_rows") {
       const jobId: string = body?.jobId;
