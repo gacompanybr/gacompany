@@ -628,6 +628,51 @@ export type Database = {
           },
         ]
       }
+      mercadolivre_integracoes: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          id: string
+          last_error: string | null
+          ml_user_id: string
+          nickname: string | null
+          portfolio_id: string
+          refresh_token: string
+          scope: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_error?: string | null
+          ml_user_id: string
+          nickname?: string | null
+          portfolio_id: string
+          refresh_token: string
+          scope?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_error?: string | null
+          ml_user_id?: string
+          nickname?: string | null
+          portfolio_id?: string
+          refresh_token?: string
+          scope?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meta_campanhas: {
         Row: {
           budget: number | null
