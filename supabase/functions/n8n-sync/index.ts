@@ -539,6 +539,21 @@ async function listRows(tableId) {
   throw lastErr || new Error("Falha ao listar data table");
 }
 
+async function deleteRow(tableId, rowId) {
+  const tries = [
+    { method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/\${rowId}\` },
+    { method: "POST", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows/delete\`, body: { filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: rowId }] } } },
+    { method: "DELETE", url: \`\${N8N_BASE}/data-tables/\${tableId}/rows?filter=\${encodeURIComponent(JSON.stringify({ type: "and", filters: [{ columnName: "id", condition: "eq", value: rowId }] }))}\` },
+  ];
+  for (const t of tries) {
+    try {
+      await http({ method: t.method, url: t.url, headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" }, body: t.body, json: true });
+      return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
 async function shopeeSearch(keyword) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
@@ -610,11 +625,17 @@ try {
   const existingNames = new Set();
   try {
     const all = await listRows(tableId);
+    let badMlLinksDeleted = 0;
+    const isMlPlatform = PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre";
     for (const r of (Array.isArray(all) ? all : [])) {
+      if (isMlPlatform && r && !r.sending && !/^https?:\/\/meli\.la\//i.test(String(r.offerlink || ""))) {
+        if (r.id && await deleteRow(tableId, r.id)) badMlLinksDeleted++;
+        continue;
+      }
       const n = normName(r && r.productname);
       if (n) existingNames.add(n);
     }
-    debug.push({ dedup: { loaded: existingNames.size } });
+    debug.push({ dedup: { loaded: existingNames.size, badMlLinksDeleted } });
   } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
 
   if (PLATAFORMA === "shopee") {
