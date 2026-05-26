@@ -33,6 +33,10 @@ Deno.serve(async (req) => {
     return html(`<h1 class="err">Parâmetros faltando</h1><p>code ou state ausentes.</p>`, 400);
   }
 
+  // state = "portfolio_id" (legado) ou "portfolio_id:robo_id"
+  const [portfolioId, roboId] = state.split(":");
+
+
   try {
     // Troca code por access_token
     const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
