@@ -45,8 +45,22 @@ Deno.serve(async (req) => {
   }
 
 
-  // state = "portfolio_id" (legado) ou "portfolio_id:robo_id"
-  const [portfolioId, roboId] = state.split(":");
+  // state aceito:
+  //   "portfolio_id"                        -> só portfolio
+  //   "portfolio_id:robo_id"                -> legado (robô)
+  //   "portfolio_id:robo:robo_id"           -> explícito robô
+  //   "portfolio_id:scrap:scrapper_job_id"  -> Job do Scrapper
+  const parts = state.split(":");
+  const portfolioId = parts[0];
+  let roboId: string | null = null;
+  let scrapperJobId: string | null = null;
+  if (parts.length === 3 && parts[1] === "scrap") {
+    scrapperJobId = parts[2];
+  } else if (parts.length === 3 && parts[1] === "robo") {
+    roboId = parts[2];
+  } else if (parts.length === 2) {
+    roboId = parts[1];
+  }
 
 
   try {
@@ -80,7 +94,6 @@ Deno.serve(async (req) => {
 
     const expires_at = new Date(Date.now() + (expires_in ?? 21600) * 1000).toISOString();
 
-    // Se tem robo_id, vincula ao robô (1 robô = 1 conexão). Senão, fallback no portfolio.
     const row: any = {
       portfolio_id: portfolioId,
       ml_user_id: String(user_id),
@@ -93,8 +106,14 @@ Deno.serve(async (req) => {
       last_error: null,
     };
     if (roboId) row.robo_campanha_id = roboId;
+    if (scrapperJobId) row.scrapper_job_id = scrapperJobId;
 
-    const onConflict = roboId ? "robo_campanha_id" : "portfolio_id,ml_user_id";
+    const onConflict = scrapperJobId
+      ? "scrapper_job_id"
+      : roboId
+        ? "robo_campanha_id"
+        : "portfolio_id,ml_user_id";
+
     const { error: upErr } = await admin
       .from("mercadolivre_integracoes")
       .upsert(row, { onConflict });
