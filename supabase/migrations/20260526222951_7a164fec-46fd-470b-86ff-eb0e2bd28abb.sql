@@ -1,0 +1,1 @@
+ALTER TABLE public.mercadolivre_integracoes ALTER COLUMN refresh_token DROP NOT NULL;
