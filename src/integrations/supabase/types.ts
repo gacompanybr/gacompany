@@ -638,7 +638,7 @@ export type Database = {
           ml_user_id: string
           nickname: string | null
           portfolio_id: string
-          refresh_token: string
+          refresh_token: string | null
           robo_campanha_id: string | null
           scope: string | null
           scrapper_job_id: string | null
@@ -654,7 +654,7 @@ export type Database = {
           ml_user_id: string
           nickname?: string | null
           portfolio_id: string
-          refresh_token: string
+          refresh_token?: string | null
           robo_campanha_id?: string | null
           scope?: string | null
           scrapper_job_id?: string | null
@@ -670,7 +670,7 @@ export type Database = {
           ml_user_id?: string
           nickname?: string | null
           portfolio_id?: string
-          refresh_token?: string
+          refresh_token?: string | null
           robo_campanha_id?: string | null
           scope?: string | null
           scrapper_job_id?: string | null
