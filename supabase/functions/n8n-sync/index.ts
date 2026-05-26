@@ -771,7 +771,8 @@ try {
           if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api_error", err: (e && e.message) || String(e) }); affiliateModeLogged = true; }
         }
       }
-      return withAffiliateTag(rawLink);
+      debug.push({ affiliateErr: "createLink_api_failed_no_meli_la", rawLink: String(rawLink || "").slice(0, 180) });
+      return "";
     }
 
     // ===== Busca via API oficial: /products/search retorna catálogo (id, nome, imagem) =====
@@ -848,7 +849,7 @@ try {
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
           const rawLink = "https://www.mercadolivre.com.br/p/" + productId;
           const offer = await affiliateLink(rawLink);
-          if (!offer) { skip.affiliate++; continue; }
+          if (!offer || !/^https?:\/\/meli\.la\//i.test(String(offer))) { skip.affiliate++; continue; }
           try {
             await insertRow(tableId, {
               productname: title,
