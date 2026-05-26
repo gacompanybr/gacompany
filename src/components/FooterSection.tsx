@@ -1,4 +1,4 @@
-import { Instagram, Linkedin, Mail, Phone } from "lucide-react";
+import { Instagram, Linkedin, Mail, Phone, MessageCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 
 const FooterSection = () => {
@@ -17,11 +17,17 @@ const FooterSection = () => {
                 <Icon size={18} />
               </a>
             ))}
+            <a href="https://wa.me/5512988334006" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-green-400 hover:border-green-400/50 transition-colors">
+              <MessageCircle size={18} />
+            </a>
           </div>
 
-          <div className="text-right">
-            <a href="tel:+5511999999999" className="flex items-center justify-end gap-2 text-muted-foreground hover:text-primary transition-colors text-sm">
-              <Phone size={16} /> (11) 99999-9999
+          <div className="text-right space-y-2">
+            <a href="tel:+5512988334006" className="flex items-center justify-end gap-2 text-muted-foreground hover:text-primary transition-colors text-sm">
+              <Phone size={16} /> (12) 98833-4006
+            </a>
+            <a href="https://wa.me/5512988334006" target="_blank" rel="noopener noreferrer" className="flex items-center justify-end gap-2 text-muted-foreground hover:text-green-400 transition-colors text-sm">
+              <MessageCircle size={16} /> WhatsApp
             </a>
             <p className="text-xs text-muted-foreground mt-4">© 2025 GA Company. Todos os direitos reservados.</p>
           </div>
