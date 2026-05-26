@@ -569,6 +569,9 @@ let total = 0;
 let erro = null;
 let dupSkipped = 0;
 const debug = [];
+const JOB_START_MS = Date.now();
+const JOB_MAX_MS = 250 * 1000; // limite seguro abaixo do timeout de 300s do n8n
+const timeUp = () => (Date.now() - JOB_START_MS) > JOB_MAX_MS;
 try {
   const tableId = await findTableId(TABLE_NAME);
   if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n. Crie-a primeiro.");
