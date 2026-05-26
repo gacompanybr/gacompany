@@ -12,6 +12,6 @@ verify_jwt = false
 [functions.meta-oauth-callback]
 verify_jwt = false
 
-[functions.mercadolivre-oauth-callback]
+[functions.ml-oauth-callback]
 verify_jwt = false
 

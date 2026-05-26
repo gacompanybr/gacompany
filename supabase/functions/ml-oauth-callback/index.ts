@@ -4,7 +4,7 @@ const APP_ID = Deno.env.get("MERCADOLIVRE_APP_ID")!;
 const SECRET = Deno.env.get("MERCADOLIVRE_SECRET")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/mercadolivre-oauth-callback`;
+const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/ml-oauth-callback`;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
