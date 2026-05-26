@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Search, Trash2, ExternalLink, Play, Pause, Settings, Eye } from "lucide-react";
+import { ConectarMercadoLivreScrapper } from "./ConectarMercadoLivre";
 
 type Job = {
   id: string;
