@@ -81,7 +81,7 @@ function buildEcommerceWorkflow(robo: any) {
 const N8N_BASE = ${JSON.stringify(N8N_BASE)};
 const N8N_KEY = ${JSON.stringify(N8N_KEY)};
 const TABLE_ID = ${JSON.stringify(tableId)};
-const PLATAFORMA = ${JSON.stringify(robo.plataforma ?? "")};
+const PLATAFORMA = ${JSON.stringify(robo.plataforma ?? robo.marketplace ?? "")};
 const EVO_URL = ${JSON.stringify(EVO_URL)};
 const EVO_KEY = ${JSON.stringify(EVO_KEY)};
 const INSTANCE = ${JSON.stringify(instance)};
