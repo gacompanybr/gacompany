@@ -672,7 +672,6 @@ try {
       const j = Math.floor(Math.random() * (i + 1));
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
     }
-    keywords = keywords.slice(0, ML_KEYWORDS_PER_RUN);
     outerShopee: for (const kw of keywords) {
       if (timeUp()) { debug.push({ stopped: "time_up", total }); break; }
       const r = await shopeeSearch(kw);
@@ -726,6 +725,7 @@ try {
       const j = Math.floor(Math.random() * (i + 1));
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
     }
+    keywords = keywords.slice(0, ML_KEYWORDS_PER_RUN);
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
