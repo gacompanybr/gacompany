@@ -724,7 +724,8 @@ try {
       }
     }
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
-    if (!ML_TAG) throw new Error("Faltam credenciais ML (affiliate tag).");
+    if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID).");
+    if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (cookie/CSRF). Edite o job e cole as credenciais.");
     const blockedGenericKeywords = new Set(["oferta", "ofertas", "promocao", "promoção", "promocoes", "promoções"]);
     let keywords = (TERMOS.length ? TERMOS : CATEGORIAS)
       .filter(Boolean)
