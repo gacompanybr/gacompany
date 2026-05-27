@@ -651,7 +651,7 @@ try {
     let badMlLinksDeleted = 0;
     const isMlPlatform = PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre";
     for (const r of (Array.isArray(all) ? all : [])) {
-      if (isMlPlatform && r && !r.sending && !/^https?:\/\/meli\.la\//i.test(String(r.offerlink || ""))) {
+      if (isMlPlatform && r && !r.sending && !/^https?:\\/\\/meli\\.la\\//i.test(String(r.offerlink || ""))) {
         if (r.id && await deleteRow(tableId, r.id)) badMlLinksDeleted++;
         continue;
       }
