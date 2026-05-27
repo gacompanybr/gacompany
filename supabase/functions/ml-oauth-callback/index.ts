@@ -29,7 +29,9 @@ Deno.serve(async (req) => {
     if (!initState) {
       return html(`<h1 class="err">state obrigatório</h1>`, 400);
     }
-    const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(initState)}`;
+    // offline_access é obrigatório para o ML devolver refresh_token (renovação automática).
+    const scope = "offline_access read write";
+    const authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(initState)}&scope=${encodeURIComponent(scope)}`;
     return new Response(null, { status: 302, headers: { Location: authUrl } });
   }
 

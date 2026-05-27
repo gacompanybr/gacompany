@@ -82,7 +82,14 @@ async function ensureMlToken(integ: any): Promise<any> {
   const expMs = integ.expires_at ? new Date(integ.expires_at).getTime() : 0;
   const needsRefresh = !expMs || expMs - Date.now() < 5 * 60_000;
   if (!needsRefresh) return integ;
-  if (!integ.refresh_token || !ML_APP_ID || !ML_SECRET) return integ;
+  if (!integ.refresh_token) {
+    await admin
+      .from("mercadolivre_integracoes")
+      .update({ status: "expired", last_error: "Sem refresh_token: reconecte a conta ML (offline_access)." })
+      .eq("id", integ.id);
+    return { ...integ, status: "expired" };
+  }
+  if (!ML_APP_ID || !ML_SECRET) return integ;
   try {
     const res = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
