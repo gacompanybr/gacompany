@@ -847,7 +847,7 @@ try {
       try {
         const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
         const data = typeof resp === "string" ? JSON.parse(resp) : resp;
-        const content = (data && (data.content || data.results)) || [];
+        const content = Array.isArray(data && data.content) ? data.content : [];
         const entries = [];
         for (const c of content) {
           if (!c) continue;
@@ -855,12 +855,11 @@ try {
           if (!id) continue;
           let type = String(c.type || "").toUpperCase();
           if (!type) {
-            if (/^MLBU\d+$/i.test(id)) type = "USER_PRODUCT";
-            else if (/^MLB\d+$/i.test(id)) type = "ITEM";
+            if (/^MLBU[0-9]+$/i.test(id)) type = "USER_PRODUCT";
+            else if (/^MLB[0-9]+$/i.test(id)) type = "ITEM";
           }
-          if (type === "ITEM" && /^MLB\d+$/i.test(id)) entries.push({ id, type });
-          else if (type === "USER_PRODUCT" && /^MLBU\d+$/i.test(id)) entries.push({ id, type });
-          else if (type === "PRODUCT" && /^MLB\d+$/i.test(id)) entries.push({ id, type: "USER_PRODUCT" });
+          if (type === "ITEM" && /^MLB[0-9]+$/i.test(id)) entries.push({ id, type });
+          else if ((type === "USER_PRODUCT" || type === "PRODUCT") && /^(MLBU|MLB)[0-9]+$/i.test(id)) entries.push({ id, type: "USER_PRODUCT" });
         }
         return { url, entries };
       } catch (e) {
