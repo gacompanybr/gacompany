@@ -819,15 +819,18 @@ try {
     // ===== Busca via API oficial: /sites/MLB/search retorna anúncios reais (preço, imagem, permalink) =====
     async function searchItems(keyword, page){
       const offset = (page - 1) * ML_LIMIT_PER_PAGE;
-      const url = "https://api.mercadolibre.com/sites/MLB/search?status=active&condition=new&limit=" + ML_LIMIT_PER_PAGE + "&offset=" + offset + "&q=" + encodeURIComponent(String(keyword).trim());
+      const url = "https://api.mercadolibre.com/sites/MLB/search?condition=new&limit=" + ML_LIMIT_PER_PAGE + "&offset=" + offset + "&q=" + encodeURIComponent(String(keyword).trim());
       try {
         const resp = await http({
           method: "GET",
           url,
           headers: {
             "Authorization": "Bearer " + ML_ACCESS_TOKEN,
-            "accept": "application/json",
-            "user-agent": UA,
+            "Accept": "application/json",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "User-Agent": UA,
+            "Origin": "https://www.mercadolivre.com.br",
+            "Referer": "https://www.mercadolivre.com.br/",
           },
           json: true,
         });
