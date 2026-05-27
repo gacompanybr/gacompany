@@ -726,16 +726,17 @@ try {
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
     if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID).");
     if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (cookie/CSRF). Edite o job e cole as credenciais.");
-    const blockedGenericKeywords = new Set(["oferta", "ofertas", "promocao", "promoção", "promocoes", "promoções"]);
-    let keywords = (TERMOS.length ? TERMOS : CATEGORIAS)
-      .filter(Boolean)
-      .filter((kw) => !blockedGenericKeywords.has(String(kw).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
-    if (!keywords.length) keywords = [ML_DEFAULT_KEYWORD];
-    for (let i = keywords.length - 1; i > 0; i--) {
+    // Categorias padrão ML (Celulares, Eletrônicos, Informática, Eletrodomésticos, Moda)
+    const DEFAULT_ML_CATEGORIES = ["MLB1055","MLB1000","MLB1648","MLB1574","MLB1430"];
+    let categoryIds = (CATEGORIAS.length ? CATEGORIAS : (TERMOS.length ? TERMOS : DEFAULT_ML_CATEGORIES))
+      .map((c) => String(c).trim().toUpperCase())
+      .filter((c) => /^MLB\d+$/.test(c));
+    if (!categoryIds.length) categoryIds = DEFAULT_ML_CATEGORIES.slice();
+    for (let i = categoryIds.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
+      [categoryIds[i], categoryIds[j]] = [categoryIds[j], categoryIds[i]];
     }
-    keywords = keywords.slice(0, ML_KEYWORDS_PER_RUN);
+    categoryIds = categoryIds.slice(0, Math.max(1, ML_KEYWORDS_PER_RUN));
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
@@ -834,107 +835,136 @@ try {
       await new Promise((res) => setTimeout(res, delayMs));
     }
 
-    // ===== Busca via API oficial: /sites/MLB/search retorna anúncios reais (preço, imagem, permalink) =====
-    async function searchItems(keyword, page){
-      const offset = (page - 1) * ML_LIMIT_PER_PAGE;
-      const url = "https://api.mercadolibre.com/sites/MLB/search?condition=new&limit=" + ML_LIMIT_PER_PAGE + "&offset=" + offset + "&q=" + encodeURIComponent(String(keyword).trim());
+    // ===== Novo fluxo oficial: highlights por categoria + detalhes via /products =====
+    const ML_HEADERS = {
+      "Authorization": "Bearer " + ML_ACCESS_TOKEN,
+      "Accept": "application/json",
+      "User-Agent": UA,
+    };
+
+    async function fetchHighlights(categoryId){
+      const url = "https://api.mercadolibre.com/highlights/MLB/category/" + encodeURIComponent(categoryId);
       try {
-        const resp = await http({
-          method: "GET",
-          url,
-          headers: {
-            "Authorization": "Bearer " + ML_ACCESS_TOKEN,
-            "Accept": "application/json",
-            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "User-Agent": UA,
-            "Origin": "https://www.mercadolivre.com.br",
-            "Referer": "https://www.mercadolivre.com.br/",
-          },
-          json: true,
-        });
+        const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
         const data = typeof resp === "string" ? JSON.parse(resp) : resp;
-        return { url, results: (data && data.results) || [], total: (data && data.paging && data.paging.total) || 0 };
+        const content = (data && (data.content || data.results)) || [];
+        const productIds = [];
+        for (const c of content) {
+          if (!c) continue;
+          const id = String(c.id || c.product_id || "");
+          if (!id) continue;
+          const type = String(c.type || "").toUpperCase();
+          // Aceita PRODUCT/ITEM e quando type não vier; product_ids começam com MLB
+          if (type && type !== "PRODUCT" && type !== "ITEM") continue;
+          if (/^MLB\d+$/i.test(id)) productIds.push(id.toUpperCase());
+        }
+        return { url, productIds };
       } catch (e) {
         const httpCode = e && (e.httpCode || e.statusCode);
         const msg = String((e && e.message) || e || "");
-        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429"), accessBlocked: Number(httpCode) === 403 || msg.includes("403") };
+        return { url, productIds: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429"), accessBlocked: Number(httpCode) === 403 || msg.includes("403") };
       }
     }
 
-    outerML: for (const kw of keywords) {
-      const q = String(kw).trim();
-      if (!q) continue;
-      for (let page = 1; page <= ML_PAGES; page++) {
-        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
-        if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
-        if (page > 1) await mlPause(800, 1500);
-        const res = await searchItems(q, page);
-        if (res.fetchErr) {
-          debug.push({ keyword: kw, page, url: res.url, fetchErr: res.fetchErr, httpCode: res.httpCode });
-          if (res.accessBlocked) {
-            mlAccessBlocked = true;
-            debug.push({ stopped: "ml_access_blocked_403", keyword: kw, hint: "Troque termos genéricos como ofertas por buscas de produto/categoria específica." });
-            break;
-          }
-          if (res.rateLimited) {
-            mlRateLimited = true;
-            debug.push({ stopped: "ml_rate_limit_429", keywords_per_run: ML_KEYWORDS_PER_RUN, pages_per_keyword: ML_PAGES });
-            break outerML;
-          }
-          continue;
-        }
-        let kept = 0;
-        const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0, noPrice: 0 };
-        for (const it of res.results) {
-          if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
-          if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
-          const title = String(it.title || "");
-          const itemId = String(it.id || "");
-          if (!title || !itemId) { skip.missing++; continue; }
-          const nameKey = normName(title);
-          if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
-          const image = String(it.thumbnail || "").replace(/^http:/, "https:").replace(/-I\\.jpg/, "-O.jpg");
-          const price = Number(it.price || 0);
-          if (!price) { skip.noPrice++; continue; }
-          const priceOld = Number(it.original_price || 0) > price ? Number(it.original_price) : 0;
-          const disc = priceOld > 0 ? Math.round((1 - price / priceOld) * 100) : 0;
-          if (ML_MIN_DISCOUNT > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
-          const commissionRate = ML_DEFAULT_COMMISSION_RATE;
-          const commissionValue = price * commissionRate / 100;
-          if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
-          const rawLink = String(it.permalink || ("https://www.mercadolivre.com.br/p/" + itemId));
-          const offer = await generateAffiliateLink(rawLink);
-          if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
-          try {
-            await insertRow(tableId, {
-              productname: title,
-              price,
-              priceoriginal: priceOld || price,
-              pricediscountrate: disc,
-              shopname: "Mercado Livre",
-              offerlink: offer,
-              imageUrl: image,
-              sending: false,
-              commission_rate: commissionRate,
-              commission_value: commissionValue,
-              sales: 0,
-              rating: 0,
-            });
-            if (nameKey) existingNames.add(nameKey);
-            total++; kept++;
-          } catch (err) {
-            skip.insert++;
-            debug.push({ insertError: err.message || String(err), item: title });
-          }
-        }
-        debug.push({ keyword: kw, page, url: res.url, got: res.results.length, kept, skipped: skip });
-        if (res.results.length < ML_LIMIT_PER_PAGE) break; // sem mais resultados pra esta keyword
+    async function fetchProductItems(productId){
+      const url = "https://api.mercadolibre.com/products/" + encodeURIComponent(productId) + "/items?limit=5";
+      try {
+        const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
+        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
+        return { url, results: (data && data.results) || [] };
+      } catch (e) {
+        const httpCode = e && (e.httpCode || e.statusCode);
+        const msg = String((e && e.message) || e || "");
+        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
       }
     }
+
+    outerML: for (const categoryId of categoryIds) {
+      if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
+      if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
+
+      const hl = await fetchHighlights(categoryId);
+      if (hl.fetchErr) {
+        debug.push({ category: categoryId, step: "highlights", url: hl.url, fetchErr: hl.fetchErr, httpCode: hl.httpCode });
+        if (hl.accessBlocked) { mlAccessBlocked = true; continue; }
+        if (hl.rateLimited) { mlRateLimited = true; break outerML; }
+        continue;
+      }
+      debug.push({ category: categoryId, highlights: hl.productIds.length });
+
+      const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0, noPrice: 0 };
+      let kept = 0;
+
+      for (const productId of hl.productIds) {
+        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
+        if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
+        await mlPause(400, 900);
+
+        const det = await fetchProductItems(productId);
+        if (det.fetchErr) {
+          debug.push({ category: categoryId, productId, step: "products", fetchErr: det.fetchErr, httpCode: det.httpCode });
+          if (det.rateLimited) { mlRateLimited = true; break outerML; }
+          continue;
+        }
+
+        // Pega o primeiro item válido com preço
+        let chosen = null;
+        for (const it of det.results) {
+          if (it && Number(it.price || 0) > 0) { chosen = it; break; }
+        }
+        if (!chosen) { skip.missing++; continue; }
+
+        const itemId = String(chosen.item_id || chosen.id || "");
+        const title = String(chosen.title || chosen.name || productId);
+        const nameKey = normName(title);
+        if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
+
+        const price = Number(chosen.price || 0);
+        if (!price) { skip.noPrice++; continue; }
+        const priceOld = Number(chosen.original_price || 0) > price ? Number(chosen.original_price) : 0;
+        const disc = priceOld > 0 ? Math.round((1 - price / priceOld) * 100) : 0;
+        if (ML_MIN_DISCOUNT > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
+
+        const commissionRate = ML_DEFAULT_COMMISSION_RATE;
+        const commissionValue = price * commissionRate / 100;
+        if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
+
+        const image = String((chosen.pictures && chosen.pictures[0] && (chosen.pictures[0].url || chosen.pictures[0].secure_url)) || chosen.thumbnail || "")
+          .replace(/^http:/, "https:");
+        // Permalink do produto (catálogo); fallback no permalink do item se vier
+        const rawLink = String(chosen.permalink || ("https://www.mercadolivre.com.br/p/" + productId));
+
+        const offer = await generateAffiliateLink(rawLink);
+        if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
+
+        try {
+          await insertRow(tableId, {
+            productname: title,
+            price,
+            priceoriginal: priceOld || price,
+            pricediscountrate: disc,
+            shopname: "Mercado Livre",
+            offerlink: offer,
+            imageUrl: image,
+            sending: false,
+            commission_rate: commissionRate,
+            commission_value: commissionValue,
+            sales: 0,
+            rating: 0,
+          });
+          if (nameKey) existingNames.add(nameKey);
+          total++; kept++;
+        } catch (err) {
+          skip.insert++;
+          debug.push({ insertError: err.message || String(err), item: title });
+        }
+      }
+      debug.push({ category: categoryId, kept, skipped: skip });
+    }
     if (mlAccessBlocked && total === 0) {
-      erro = "Mercado Livre bloqueou a busca atual com 403. Removi termos genéricos como 'ofertas'; use termos específicos de produto/categoria e rode novamente.";
+      erro = "Mercado Livre retornou 403 ao buscar highlights. Verifique o access_token / categorias informadas.";
     } else if (mlRateLimited && total === 0) {
-      erro = "Mercado Livre retornou 429 (limite temporário de requisições). O workflow foi reduzido para poucas buscas por execução; aguarde o cooldown da API e rode novamente mais tarde.";
+      erro = "Mercado Livre retornou 429 (limite temporário). Aguarde alguns minutos e rode novamente.";
     }
   } else {
     throw new Error("Plataforma " + PLATAFORMA + " ainda não implementada no scrapper n8n.");
