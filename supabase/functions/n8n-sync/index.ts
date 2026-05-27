@@ -439,7 +439,7 @@ function buildScrapperWorkflow(job: any) {
   const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 10)));
   const mlKeywordsPerRun = Math.max(1, Math.min(10, Number(cfg.ml_keywords_per_run ?? 1)));
   const mlLimitPerPage = Math.max(10, Math.min(50, Number(cfg.ml_limit_per_page ?? 50)));
-  const mlDefaultKeyword = String(cfg.ml_default_keyword ?? "ofertas");
+  const mlDefaultKeyword = String(cfg.ml_default_keyword ?? "eletronicos");
   const mlMinDiscount = Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 20)));
   const minCommissionValue = Math.max(0, Number(cfg.min_commission_value ?? 0));
   const filterMode: string = String(cfg.filter_mode ?? "none"); // "sales" | "rating" | "none"
@@ -723,7 +723,10 @@ try {
     }
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
     if (!ML_TAG) throw new Error("Faltam credenciais ML (affiliate tag).");
-    let keywords = (TERMOS.length ? TERMOS : CATEGORIAS).filter(Boolean);
+    const blockedGenericKeywords = new Set(["oferta", "ofertas", "promocao", "promoção", "promocoes", "promoções"]);
+    let keywords = (TERMOS.length ? TERMOS : CATEGORIAS)
+      .filter(Boolean)
+      .filter((kw) => !blockedGenericKeywords.has(String(kw).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
     if (!keywords.length) keywords = [ML_DEFAULT_KEYWORD];
     for (let i = keywords.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -806,6 +809,7 @@ try {
     }
 
     let mlRateLimited = false;
+    let mlAccessBlocked = false;
 
     async function mlPause(minMs, maxMs){
       const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
@@ -832,7 +836,7 @@ try {
       } catch (e) {
         const httpCode = e && (e.httpCode || e.statusCode);
         const msg = String((e && e.message) || e || "");
-        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
+        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429"), accessBlocked: Number(httpCode) === 403 || msg.includes("403") };
       }
     }
 
@@ -846,6 +850,11 @@ try {
         const res = await searchItems(q, page);
         if (res.fetchErr) {
           debug.push({ keyword: kw, page, url: res.url, fetchErr: res.fetchErr, httpCode: res.httpCode });
+          if (res.accessBlocked) {
+            mlAccessBlocked = true;
+            debug.push({ stopped: "ml_access_blocked_403", keyword: kw, hint: "Troque termos genéricos como ofertas por buscas de produto/categoria específica." });
+            break;
+          }
           if (res.rateLimited) {
             mlRateLimited = true;
             debug.push({ stopped: "ml_rate_limit_429", keywords_per_run: ML_KEYWORDS_PER_RUN, pages_per_keyword: ML_PAGES });
@@ -901,7 +910,9 @@ try {
         if (res.results.length < ML_LIMIT_PER_PAGE) break; // sem mais resultados pra esta keyword
       }
     }
-    if (mlRateLimited && total === 0) {
+    if (mlAccessBlocked && total === 0) {
+      erro = "Mercado Livre bloqueou a busca atual com 403. Removi termos genéricos como 'ofertas'; use termos específicos de produto/categoria e rode novamente.";
+    } else if (mlRateLimited && total === 0) {
       erro = "Mercado Livre retornou 429 (limite temporário de requisições). O workflow foi reduzido para poucas buscas por execução; aguarde o cooldown da API e rode novamente mais tarde.";
     }
   } else {
