@@ -436,7 +436,8 @@ function buildScrapperWorkflow(job: any) {
   const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
   const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
   const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
-  const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 5)));
+  const mlPages = Math.max(1, Math.min(2, Number(cfg.ml_pages ?? 1)));
+  const mlKeywordsPerRun = Math.max(1, Math.min(3, Number(cfg.ml_keywords_per_run ?? 2)));
   const mlMinDiscount = Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 20)));
   const minCommissionValue = Math.max(0, Number(cfg.min_commission_value ?? 0));
   const filterMode: string = String(cfg.filter_mode ?? "none"); // "sales" | "rating" | "none"
@@ -460,6 +461,7 @@ const ML_COOKIE = ${JSON.stringify(mlCookie)};
 const ML_CSRF = ${JSON.stringify(mlCsrf)};
 const ML_TAG = ${JSON.stringify(mlTag)};
 const ML_PAGES = ${mlPages};
+const ML_KEYWORDS_PER_RUN = ${mlKeywordsPerRun};
 const ML_MIN_DISCOUNT = ${mlMinDiscount};
 const MIN_COMMISSION_VALUE = ${minCommissionValue};
 const FILTER_MODE = ${JSON.stringify(filterMode)};
@@ -723,6 +725,7 @@ try {
       const j = Math.floor(Math.random() * (i + 1));
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
     }
+    keywords = keywords.slice(0, ML_KEYWORDS_PER_RUN);
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
@@ -798,11 +801,19 @@ try {
       return "";
     }
 
+    let mlRateLimited = false;
+
+    async function mlPause(minMs, maxMs){
+      const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+
     // ===== Busca via API oficial: /products/search retorna catálogo (id, nome, imagem) =====
     async function searchCatalog(keyword, page){
       const offset = (page - 1) * 20;
       const url = "https://api.mercadolibre.com/products/search?status=active&site_id=MLB&limit=20&offset=" + offset + "&q=" + encodeURIComponent(String(keyword).trim());
       try {
+        await mlPause(1800, 4200);
         const resp = await http({
           method: "GET",
           url,
@@ -816,7 +827,9 @@ try {
         const data = typeof resp === "string" ? JSON.parse(resp) : resp;
         return { url, results: (data && data.results) || [], total: (data && data.paging && data.paging.total) || 0 };
       } catch (e) {
-        return { url, results: [], fetchErr: (e && e.message) || String(e), httpCode: e && (e.httpCode || e.statusCode) };
+        const httpCode = e && (e.httpCode || e.statusCode);
+        const msg = String((e && e.message) || e || "");
+        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
       }
     }
 
@@ -848,7 +861,15 @@ try {
         if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
         if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
         const res = await searchCatalog(q, page);
-        if (res.fetchErr) { debug.push({ keyword: kw, page, url: res.url, fetchErr: res.fetchErr, httpCode: res.httpCode }); continue; }
+        if (res.fetchErr) {
+          debug.push({ keyword: kw, page, url: res.url, fetchErr: res.fetchErr, httpCode: res.httpCode });
+          if (res.rateLimited) {
+            mlRateLimited = true;
+            debug.push({ stopped: "ml_rate_limit_429", action: "parou imediatamente para não piorar o bloqueio", keywords_per_run: ML_KEYWORDS_PER_RUN, pages_per_keyword: ML_PAGES });
+            break outerML;
+          }
+          continue;
+        }
         let kept = 0;
         const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0, noPrice: 0 };
         for (const it of res.results) {
@@ -900,6 +921,9 @@ try {
         debug.push({ keyword: kw, page, url: res.url, got: res.results.length, kept, skipped: skip });
         if (res.results.length === 0) break; // sem mais resultados pra esta keyword
       }
+    }
+    if (mlRateLimited && total === 0) {
+      erro = "Mercado Livre retornou 429 (limite temporário de requisições). O workflow foi reduzido para poucas buscas por execução; aguarde o cooldown da API e rode novamente mais tarde.";
     }
   } else {
     throw new Error("Plataforma " + PLATAFORMA + " ainda não implementada no scrapper n8n.");
