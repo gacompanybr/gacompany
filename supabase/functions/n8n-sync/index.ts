@@ -828,7 +828,8 @@ try {
         return { url, results: (data && data.results) || [], total: (data && data.paging && data.paging.total) || 0 };
       } catch (e) {
         const httpCode = e && (e.httpCode || e.statusCode);
-        return { url, results: [], fetchErr: (e && e.message) || String(e), httpCode, rateLimited: Number(httpCode) === 429 || /\b429\b/.test(String((e && e.message) || e || "")) };
+        const msg = String((e && e.message) || e || "");
+        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
       }
     }
 
