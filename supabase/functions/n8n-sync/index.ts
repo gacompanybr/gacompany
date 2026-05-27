@@ -848,26 +848,30 @@ try {
         const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
         const data = typeof resp === "string" ? JSON.parse(resp) : resp;
         const content = (data && (data.content || data.results)) || [];
-        const productIds = [];
+        const entries = [];
         for (const c of content) {
           if (!c) continue;
-          const id = String(c.id || c.product_id || "");
+          const id = String(c.id || c.product_id || "").toUpperCase();
           if (!id) continue;
-          const type = String(c.type || "").toUpperCase();
-          // Aceita PRODUCT/ITEM e quando type não vier; product_ids começam com MLB
-          if (type && type !== "PRODUCT" && type !== "ITEM") continue;
-          if (/^MLB\d+$/i.test(id)) productIds.push(id.toUpperCase());
+          let type = String(c.type || "").toUpperCase();
+          if (!type) {
+            if (/^MLBU\d+$/i.test(id)) type = "USER_PRODUCT";
+            else if (/^MLB\d+$/i.test(id)) type = "ITEM";
+          }
+          if (type === "ITEM" && /^MLB\d+$/i.test(id)) entries.push({ id, type });
+          else if (type === "USER_PRODUCT" && /^MLBU\d+$/i.test(id)) entries.push({ id, type });
+          else if (type === "PRODUCT" && /^MLB\d+$/i.test(id)) entries.push({ id, type: "USER_PRODUCT" });
         }
-        return { url, productIds };
+        return { url, entries };
       } catch (e) {
         const httpCode = e && (e.httpCode || e.statusCode);
         const msg = String((e && e.message) || e || "");
-        return { url, productIds: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429"), accessBlocked: Number(httpCode) === 403 || msg.includes("403") };
+        return { url, entries: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429"), accessBlocked: Number(httpCode) === 403 || msg.includes("403") };
       }
     }
 
     async function fetchProductItems(productId){
-      const url = "https://api.mercadolibre.com/products/" + encodeURIComponent(productId) + "/items?limit=5";
+      const url = "https://api.mercadolibre.com/products/" + encodeURIComponent(productId) + "/items?limit=3";
       try {
         const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
         const data = typeof resp === "string" ? JSON.parse(resp) : resp;
@@ -876,6 +880,19 @@ try {
         const httpCode = e && (e.httpCode || e.statusCode);
         const msg = String((e && e.message) || e || "");
         return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
+      }
+    }
+
+    async function fetchItemById(itemId){
+      const url = "https://api.mercadolibre.com/items/" + encodeURIComponent(itemId);
+      try {
+        const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
+        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
+        return { url, item: data || null };
+      } catch (e) {
+        const httpCode = e && (e.httpCode || e.statusCode);
+        const msg = String((e && e.message) || e || "");
+        return { url, item: null, fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
       }
     }
 
@@ -890,32 +907,47 @@ try {
         if (hl.rateLimited) { mlRateLimited = true; break outerML; }
         continue;
       }
-      debug.push({ category: categoryId, highlights: hl.productIds.length });
+      const itemCount = hl.entries.filter((e) => e.type === "ITEM").length;
+      const userProductCount = hl.entries.filter((e) => e.type === "USER_PRODUCT").length;
+      debug.push({ category: categoryId, highlights: hl.entries.length, items: itemCount, userProducts: userProductCount });
 
       const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0, noPrice: 0 };
       let kept = 0;
 
-      for (const productId of hl.productIds) {
+      for (const entry of hl.entries) {
         if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
         if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
         await mlPause(400, 900);
 
-        const det = await fetchProductItems(productId);
-        if (det.fetchErr) {
-          debug.push({ category: categoryId, productId, step: "products", fetchErr: det.fetchErr, httpCode: det.httpCode });
-          if (det.rateLimited) { mlRateLimited = true; break outerML; }
-          continue;
+        let chosen = null;
+        let fallbackPermalink = "";
+
+        if (entry.type === "ITEM") {
+          const det = await fetchItemById(entry.id);
+          if (det.fetchErr) {
+            debug.push({ category: categoryId, itemId: entry.id, step: "items", fetchErr: det.fetchErr, httpCode: det.httpCode });
+            if (det.rateLimited) { mlRateLimited = true; break outerML; }
+            continue;
+          }
+          if (det.item && Number(det.item.price || 0) > 0) chosen = det.item;
+          fallbackPermalink = "https://www.mercadolivre.com.br/" + entry.id;
+        } else {
+          const det = await fetchProductItems(entry.id);
+          if (det.fetchErr) {
+            debug.push({ category: categoryId, productId: entry.id, step: "products", fetchErr: det.fetchErr, httpCode: det.httpCode });
+            if (det.rateLimited) { mlRateLimited = true; break outerML; }
+            continue;
+          }
+          for (const it of det.results) {
+            if (it && Number(it.price || 0) > 0) { chosen = it; break; }
+          }
+          fallbackPermalink = "https://www.mercadolivre.com.br/p/" + entry.id;
         }
 
-        // Pega o primeiro item válido com preço
-        let chosen = null;
-        for (const it of det.results) {
-          if (it && Number(it.price || 0) > 0) { chosen = it; break; }
-        }
         if (!chosen) { skip.missing++; continue; }
 
         const itemId = String(chosen.item_id || chosen.id || "");
-        const title = String(chosen.title || chosen.name || productId);
+        const title = String(chosen.title || chosen.name || entry.id);
         const nameKey = normName(title);
         if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
 
@@ -931,8 +963,8 @@ try {
 
         const image = String((chosen.pictures && chosen.pictures[0] && (chosen.pictures[0].url || chosen.pictures[0].secure_url)) || chosen.thumbnail || "")
           .replace(/^http:/, "https:");
-        // Permalink do produto (catálogo); fallback no permalink do item se vier
-        const rawLink = String(chosen.permalink || ("https://www.mercadolivre.com.br/p/" + productId));
+        const rawLink = String(chosen.permalink || fallbackPermalink);
+
 
         const offer = await generateAffiliateLink(rawLink);
         if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
