@@ -228,6 +228,7 @@ function JobDialog({
   const [mlCookie, setMlCookie] = useState("");
   const [mlCsrf, setMlCsrf] = useState("");
   const [mlTag, setMlTag] = useState("");
+  const [mlToolId, setMlToolId] = useState("");
   const [mlPages, setMlPages] = useState(5);
   const [mlMinDiscount, setMlMinDiscount] = useState(20);
   const [mlDefaultCommissionRate, setMlDefaultCommissionRate] = useState(6);
