@@ -921,9 +921,6 @@ try {
         if (res.results.length === 0) break; // sem mais resultados pra esta keyword
       }
     }
-  } else {
-    throw new Error("Plataforma " + PLATAFORMA + " ainda não implementada no scrapper n8n.");
-  }
     if (mlRateLimited && total === 0) {
       erro = "Mercado Livre retornou 429 (limite temporário de requisições). O workflow foi reduzido para poucas buscas por execução; aguarde o cooldown da API e rode novamente mais tarde.";
     }
