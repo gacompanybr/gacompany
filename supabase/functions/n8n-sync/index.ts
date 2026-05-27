@@ -946,9 +946,8 @@ try {
 
         if (!chosen) { skip.missing++; continue; }
 
-
         const itemId = String(chosen.item_id || chosen.id || "");
-        const title = String(chosen.title || chosen.name || productId);
+        const title = String(chosen.title || chosen.name || entry.id);
         const nameKey = normName(title);
         if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
 
@@ -964,8 +963,8 @@ try {
 
         const image = String((chosen.pictures && chosen.pictures[0] && (chosen.pictures[0].url || chosen.pictures[0].secure_url)) || chosen.thumbnail || "")
           .replace(/^http:/, "https:");
-        // Permalink do produto (catálogo); fallback no permalink do item se vier
-        const rawLink = String(chosen.permalink || ("https://www.mercadolivre.com.br/p/" + productId));
+        const rawLink = String(chosen.permalink || fallbackPermalink);
+
 
         const offer = await generateAffiliateLink(rawLink);
         if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
