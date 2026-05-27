@@ -671,3 +671,91 @@ function DataTableViewer({ job, onClose }: { job: Job | null; onClose: () => voi
     </Dialog>
   );
 }
+
+function MlCookieAlert({ job }: { job: Job }) {
+  const [checking, setChecking] = useState(false);
+  const [localStatus, setLocalStatus] = useState<any>(job.config?.ml_cookie_status ?? null);
+  const status = localStatus;
+
+  async function recheck() {
+    setChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ml-health-check", {
+        body: {},
+        method: "POST" as any,
+        headers: {},
+      });
+      // chamamos manualmente via URL com job_id para checar só este
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ml-health-check?job_id=${job.id}`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+      });
+      const json = await resp.json();
+      const s = json?.results?.[0]?.status ?? null;
+      if (s) setLocalStatus(s);
+      if (s?.ok) toast.success("Cookie ML válido ✅");
+      else toast.error(`Cookie ML inválido: ${s?.error ?? "erro desconhecido"}`);
+      if (error) console.warn(error);
+      void data;
+    } catch (e: any) {
+      toast.error(`Falha ao verificar: ${e?.message ?? e}`);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  // Se nunca foi checado, mostra um botão discreto.
+  if (!status) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <span>Cookie ML ainda não verificado.</span>
+        <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={recheck} disabled={checking}>
+          {checking ? <Loader2 size={10} className="animate-spin" /> : "Verificar agora"}
+        </Button>
+      </div>
+    );
+  }
+
+  if (status.ok) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-400">
+        <span>✅ Cookie ML ativo · verificado {new Date(status.checked_at).toLocaleString("pt-BR")}</span>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={recheck} disabled={checking}>
+          {checking ? <Loader2 size={10} className="animate-spin" /> : "Re-checar"}
+        </Button>
+      </div>
+    );
+  }
+
+  // Cookie expirado / inválido — alerta forte com instruções.
+  const isExpired = status.error === "COOKIE_EXPIRED" || status.status_code === 401 || status.status_code === 403;
+  return (
+    <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-[12px] text-destructive space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <strong className="text-[13px]">
+          {isExpired ? "🚨 Cookie do Mercado Livre EXPIROU" : `🚨 Cookie ML inválido (${status.error ?? "erro"})`}
+        </strong>
+        <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={recheck} disabled={checking}>
+          {checking ? <Loader2 size={10} className="animate-spin" /> : "Re-checar"}
+        </Button>
+      </div>
+      <p className="text-[11px] opacity-90">
+        Os links de afiliado <strong>não serão gerados</strong> até você renovar.
+        Última verificação: {new Date(status.checked_at).toLocaleString("pt-BR")}
+        {status.status_code ? ` · HTTP ${status.status_code}` : ""}
+      </p>
+      <details className="text-[11px]">
+        <summary className="cursor-pointer font-medium">Como renovar (clique para ver)</summary>
+        <ol className="list-decimal pl-4 mt-1 space-y-1 opacity-90">
+          <li>Acesse <a className="underline" href="https://www.mercadolivre.com.br/afiliados/linkbuilder" target="_blank" rel="noreferrer">mercadolivre.com.br/afiliados/linkbuilder</a> e faça login na conta de afiliado.</li>
+          <li>Abra o DevTools (F12) → aba <strong>Network</strong> → gere um link qualquer.</li>
+          <li>Encontre a requisição <code>createLink</code> → aba <strong>Headers</strong>.</li>
+          <li>Copie o valor inteiro do header <code>cookie</code> e do header <code>x-csrf-token</code>.</li>
+          <li>Volte aqui, clique no ícone ⚙️ deste job e cole os dois valores nos campos <strong>Cookie</strong> e <strong>CSRF Token</strong>.</li>
+          <li>Salve e clique em "Re-checar" acima — deve ficar verde ✅.</li>
+        </ol>
+      </details>
+    </div>
+  );
+}
