@@ -417,8 +417,15 @@ function JobDialog({
                 <Input value={mlCsrf} onChange={(e) => setMlCsrf(e.target.value)} placeholder="lDfFCVvy-2ti1Fw_4ek0lbhnbdZQMb7wNY94" />
               </div>
               <div>
-                <Label>Affiliate tag</Label>
+                <Label>Affiliate ID (matt_word)</Label>
                 <Input value={mlTag} onChange={(e) => setMlTag(e.target.value)} placeholder="hp20251103211257" />
+              </div>
+              <div>
+                <Label>Tool ID (matt_tool) — opcional</Label>
+                <Input value={mlToolId} onChange={(e) => setMlToolId(e.target.value)} placeholder="88344921" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Só usado no log. O endpoint do ML já injeta o matt_tool no link encurtado.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
