@@ -691,8 +691,6 @@ function MlCookieAlert({ job }: { job: Job }) {
       if (s) setLocalStatus(s);
       if (s?.ok) toast.success("Cookie ML válido ✅");
       else toast.error(`Cookie ML inválido: ${s?.error ?? "erro desconhecido"}`);
-      if (error) console.warn(error);
-      void data;
     } catch (e: any) {
       toast.error(`Falha ao verificar: ${e?.message ?? e}`);
     } finally {
