@@ -252,7 +252,8 @@ function JobDialog({
     setShopeeSecret(editing?.config?.shopee_secret ?? "");
     setMlCookie(editing?.config?.ml_cookie ?? "");
     setMlCsrf(editing?.config?.ml_csrf_token ?? "");
-    setMlTag(editing?.config?.ml_affiliate_tag ?? "");
+    setMlTag(editing?.config?.ml_affiliate_id ?? editing?.config?.ml_affiliate_tag ?? "");
+    setMlToolId(editing?.config?.ml_tool_id ?? "");
     setMlPages(editing?.config?.ml_pages ?? 5);
     setMlMinDiscount(editing?.config?.ml_min_discount ?? 20);
     setMlDefaultCommissionRate(editing?.config?.ml_default_commission_rate ?? 6);
