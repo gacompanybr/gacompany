@@ -82,15 +82,8 @@ async function testCookie(cookie: string, csrf: string, tag: string): Promise<Co
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // Aceita: cron (via pg_net sem header) ou manual com Bearer SCRAPPER_API_SECRET.
-  const auth = req.headers.get("authorization") ?? "";
-  const isManual = auth.startsWith("Bearer ");
-  if (isManual && API_SECRET && auth !== `Bearer ${API_SECRET}`) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  // Aceita: cron (via pg_net sem header), anon key do frontend, ou Bearer SCRAPPER_API_SECRET.
+  // Sem auth estrito: a função só lê/atualiza scrapper_jobs do tipo mercado_livre.
 
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
   const url = new URL(req.url);
