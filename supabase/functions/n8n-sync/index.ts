@@ -161,7 +161,7 @@ let row = null;
 for (const candidate of candidates) {
   const link = String(candidate && candidate.offerlink || "").trim();
   const isMercadoLivre = /mercado/i.test(String(PLATAFORMA || ""));
-  if (isMercadoLivre && !/^https?:\/\/meli\.la\//i.test(link)) {
+  if (isMercadoLivre && !/^https?:\\/\\/meli\\.la\\//i.test(link)) {
     try {
       await http({
         method: "PATCH",
@@ -872,7 +872,7 @@ try {
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
           const rawLink = "https://www.mercadolivre.com.br/p/" + productId;
           const offer = await affiliateLink(rawLink);
-          if (!offer || !/^https?:\/\/meli\.la\//i.test(String(offer))) { skip.affiliate++; continue; }
+          if (!offer || !/^https?:\\/\\/meli\\.la\\//i.test(String(offer))) { skip.affiliate++; continue; }
           try {
             await insertRow(tableId, {
               productname: title,
