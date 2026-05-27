@@ -435,7 +435,8 @@ function buildScrapperWorkflow(job: any) {
   const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
   const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
   const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
-  const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
+  const mlAffiliateId = normalizeShopeeCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const mlToolId = normalizeShopeeCredential(cfg.ml_tool_id);
   const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 10)));
   const mlKeywordsPerRun = Math.max(1, Math.min(10, Number(cfg.ml_keywords_per_run ?? 1)));
   const mlLimitPerPage = Math.max(10, Math.min(50, Number(cfg.ml_limit_per_page ?? 50)));
