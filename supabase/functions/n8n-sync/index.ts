@@ -726,16 +726,17 @@ try {
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
     if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID).");
     if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (cookie/CSRF). Edite o job e cole as credenciais.");
-    const blockedGenericKeywords = new Set(["oferta", "ofertas", "promocao", "promoção", "promocoes", "promoções"]);
-    let keywords = (TERMOS.length ? TERMOS : CATEGORIAS)
-      .filter(Boolean)
-      .filter((kw) => !blockedGenericKeywords.has(String(kw).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
-    if (!keywords.length) keywords = [ML_DEFAULT_KEYWORD];
-    for (let i = keywords.length - 1; i > 0; i--) {
+    // Categorias padrão ML (Celulares, Eletrônicos, Informática, Eletrodomésticos, Moda)
+    const DEFAULT_ML_CATEGORIES = ["MLB1055","MLB1000","MLB1648","MLB1574","MLB1430"];
+    let categoryIds = (CATEGORIAS.length ? CATEGORIAS : (TERMOS.length ? TERMOS : DEFAULT_ML_CATEGORIES))
+      .map((c) => String(c).trim().toUpperCase())
+      .filter((c) => /^MLB\d+$/.test(c));
+    if (!categoryIds.length) categoryIds = DEFAULT_ML_CATEGORIES.slice();
+    for (let i = categoryIds.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
+      [categoryIds[i], categoryIds[j]] = [categoryIds[j], categoryIds[i]];
     }
-    keywords = keywords.slice(0, ML_KEYWORDS_PER_RUN);
+    categoryIds = categoryIds.slice(0, Math.max(1, ML_KEYWORDS_PER_RUN));
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
