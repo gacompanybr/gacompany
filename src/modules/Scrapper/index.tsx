@@ -296,7 +296,9 @@ function JobDialog({
     if (plataforma === "mercado_livre") {
       config.ml_cookie = mlCookie.trim();
       config.ml_csrf_token = mlCsrf.trim();
-      config.ml_affiliate_tag = mlTag.trim();
+      config.ml_affiliate_id = mlTag.trim();
+      config.ml_affiliate_tag = mlTag.trim(); // back-compat
+      config.ml_tool_id = mlToolId.trim();
       config.ml_pages = mlPages;
       config.ml_min_discount = mlMinDiscount;
       config.ml_default_commission_rate = mlDefaultCommissionRate;
