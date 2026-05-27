@@ -278,7 +278,7 @@ function JobDialog({
       return toast.error("Informe App ID e Secret da Shopee");
     }
     if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
-      return toast.error("Informe Cookie, CSRF token e Affiliate tag do Mercado Livre");
+      return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre");
     }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
