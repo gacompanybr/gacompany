@@ -903,8 +903,8 @@ try {
           const commissionValue = price * commissionRate / 100;
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
           const rawLink = String(it.permalink || ("https://www.mercadolivre.com.br/p/" + itemId));
-          const offer = await affiliateLink(rawLink);
-          if (!offer || !/^https?:\\/\\/meli\\.la\\//i.test(String(offer))) { skip.affiliate++; continue; }
+          const offer = await generateAffiliateLink(rawLink);
+          if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
           try {
             await insertRow(tableId, {
               productname: title,
