@@ -1,99 +1,169 @@
-# Robô de Mensagens — Integração total com n8n
+## Objetivo
 
-## Arquitetura final
+Refazer do zero a geração de affiliate link no workflow ML, usando **apenas** o endpoint interno do ML afiliados (cookie + CSRF), com retry, log e bloqueio do produto se o link falhar. Adicionar painel de status na UI pra ver se o cookie está vivo e atualizar quando vencer.
 
-```text
-Lovable UI (criar robô)
-   └─► robo_campanhas (Supabase)  ── campaign_type, marketplace, n8n_workflow_id, n8n_datatable_id...
-         └─► edge function `n8n-sync`
-               └─► API n8n da VPS  (cria workflow, ativa/pausa, lista data tables)
-                        └─► workflow roda no n8n (cron) → lê data table → envia via Evolution → marca sending=true
+## Decisão (você confirmou agora)
+
+- Voltamos pro endpoint interno `createLink` (cookie + CSRF) — abandono do template puro que tinha discutido antes.
+- Quatro env vars no nível do projeto: `ML_COOKIE`, `ML_CSRF`, `ML_AFFILIATE_ID` (matt_word), `ML_TOOL_ID` (matt_tool).
+- `ML_COOKIE` e `ML_CSRF` já existem como secrets. `ML_AFFILIATE_ID` e `ML_TOOL_ID` precisam ser adicionados.
+- Sai do `scrapper_jobs.config` o `ml_cookie` e `ml_csrf_token` por job — vira **global do projeto** (uma conta de afiliado para todos os jobs ML).
+
+## Mudanças
+
+### 1. Secrets
+
+Adicionar dois secrets novos via `add_secret`:
+- `ML_AFFILIATE_ID` — seu nome de afiliado (ex: `ADRIANA123`), vira `matt_word`.
+- `ML_TOOL_ID` — id da campanha (ex: `88344921`), vira `matt_tool`.
+
+Os existentes `ML_COOKIE` e `ML_CSRF` continuam, agora consumidos do ambiente da edge function ao invés do `config` do job.
+
+### 2. `supabase/functions/n8n-sync/index.ts` → `buildScrapperWorkflow`
+
+**Injetar do ambiente** (não mais do `cfg`):
+```ts
+const mlCookie  = Deno.env.get("ML_COOKIE")        ?? "";
+const mlCsrf    = Deno.env.get("ML_CSRF")          ?? "";
+const mlAffId   = Deno.env.get("ML_AFFILIATE_ID")  ?? "";
+const mlToolId  = Deno.env.get("ML_TOOL_ID")       ?? "";
+```
+e gravar essas 4 const dentro do `jsCode` (lugar dos `ML_COOKIE`/`ML_CSRF` atuais).
+
+**Substituir** todo o bloco `affiliateLink(...)` (linhas 756-809) por:
+
+```js
+async function generateAffiliateLink(permalink) {
+  if (!ML_COOKIE || !ML_CSRF || !ML_AFFILIATE_ID) {
+    debug.push({ affiliateErr: "MISSING_CREDENTIALS", ts: new Date().toISOString() });
+    return null;
+  }
+  if (!permalink || !/^https?:\/\//i.test(permalink)) {
+    debug.push({ affiliateErr: "INVALID_PERMALINK", permalink, ts: new Date().toISOString() });
+    return null;
+  }
+
+  const body = JSON.stringify({ urls: [permalink], tag: ML_AFFILIATE_ID });
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const resp = await http({
+        method: "POST",
+        url: "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
+        headers: {
+          "accept": "application/json, text/plain, */*",
+          "accept-language": "pt-BR,pt;q=0.9",
+          "content-type": "application/json",
+          "origin":  "https://www.mercadolivre.com.br",
+          "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
+          "user-agent": UA,
+          "cookie": ML_COOKIE,
+          "x-csrf-token": ML_CSRF,
+        },
+        body,
+        returnFullResponse: true,
+        ignoreHttpStatusErrors: true,
+      });
+      const status = resp.statusCode ?? resp.status ?? 0;
+      const raw = resp.body ?? resp;
+      const data = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : raw;
+
+      if (status === 401 || status === 403) {
+        debug.push({ affiliateErr: "COOKIE_EXPIRED", status, permalink, ts: new Date().toISOString() });
+        return null; // sem retry — não adianta
+      }
+
+      const shortUrl =
+        data?.urls?.[0]?.short_url ||
+        data?.urls?.[0]?.shortUrl  ||
+        data?.short_url || null;
+
+      if (shortUrl && /^https?:\/\/meli\.la\//i.test(shortUrl)) {
+        return shortUrl;
+      }
+      lastErr = { status, bodyPreview: typeof raw === "string" ? raw.slice(0, 200) : JSON.stringify(raw).slice(0, 200) };
+    } catch (e) {
+      lastErr = { exception: e?.message || String(e) };
+    }
+    if (attempt < 3) await new Promise(r => setTimeout(r, 2000));
+  }
+
+  debug.push({ affiliateErr: "RETRY_EXHAUSTED", permalink, lastErr, ts: new Date().toISOString() });
+  return null;
+}
 ```
 
-O **n8n é o motor**. Lovable só guarda config + dispara `n8n-sync` em 4 momentos: criar / atualizar / ativar / pausar robô.
-`robo-worker` (cron interno) **é removido** — não é mais necessário.
+E no call site (linha 888):
+```js
+const affiliate_link = await generateAffiliateLink(rawLink);
+if (!affiliate_link) { skip.affiliate++; continue; }
+```
 
-## 1. Migration no Supabase
+O insert no Data Table grava `offerlink: affiliate_link` (que sempre será `meli.la/...`), preservando schema atual. Adicionalmente, mantém compat de colunas extras (`product_id`, `permalink`, `created_at`) se o Data Table tiver — sem quebrar quem não tem.
 
-Adicionar em `robo_campanhas`:
-- `campaign_type` text default `'ecommerce'` — `'disparo'` | `'ecommerce'`
-- `marketplace` text — `'shopee'` | `'mercadolivre'` | `'amazon'` (só ecommerce)
-- `n8n_datatable_id` text — id da data table no n8n
-- `n8n_datatable_name` text — ex: `SHOPEE_ADRIANA` (para mostrar na UI)
-- `n8n_workflow_id` text — id retornado pelo n8n ao criar workflow
-- `planilha_url` text — CSV de contatos (só disparo)
-- `scrapper_job_id` uuid — link opcional ao scrapper que alimenta a data table
+### 3. UI Scrapper — remover por-job, mostrar status global
 
-## 2. Edge function nova: `n8n-sync`
+Em `src/modules/Scrapper/index.tsx`:
+- Remover os inputs `ml_cookie` / `ml_csrf_token` / `ml_affiliate_tag` do formulário (e do `config`).
+- Adicionar um card **"Conta de Afiliado ML (global)"** no topo da aba ML, mostrando:
+  - badge **Ativo** / **Expirado** (chamando uma edge function de health check, ver item 4).
+  - data da última verificação.
+  - botão **Atualizar cookie/CSRF** → abre dialog com 4 inputs (`ML_COOKIE`, `ML_CSRF`, `ML_AFFILIATE_ID`, `ML_TOOL_ID`) e chama `update_secret` via Lovable (na real, abre o painel de secrets — não dá pra escrever secret direto do front; descrição com instruções "Cole o cookie e o CSRF aqui" + ação que dispara `secrets--update_secret` no agente). Alternativa simples: botão que faz `window.open` pro painel de secrets do projeto.
+  - lista dos últimos N erros (`COOKIE_EXPIRED`, `RETRY_EXHAUSTED`) lidos de `scrapper_jobs.ultimo_erro` + um novo campo (ver 4).
 
-Usa `N8N_API_KEY` (já existe) e nova secret `N8N_BASE_URL` (ex: `https://n8n.gacompany.online/api/v1`).
+### 4. Health check + log
 
-Actions:
-- `list_datatables({ marketplace })` → GET `/data-tables` no n8n, filtra por prefixo (`SHOPEE_`, `ML_`, `AMZ_`) e devolve `[{ id, name }]`
-- `upsert_workflow({ roboId })` → lê robô do Supabase, monta JSON do workflow a partir de **template** (ecommerce ou disparo), faz POST/PUT em `/workflows`, salva `n8n_workflow_id`
-- `activate_workflow({ workflowId })` → POST `/workflows/:id/activate`
-- `deactivate_workflow({ workflowId })` → POST `/workflows/:id/deactivate`
-- `delete_workflow({ workflowId })` → DELETE `/workflows/:id`
+Nova edge function **`ml-affiliate-status`** (`verify_jwt = false`, protegida por `Authorization: Bearer SCRAPPER_API_SECRET`):
+- `GET /ml-affiliate-status?action=ping` → tenta um `createLink` com um permalink fixo (`https://www.mercadolivre.com.br/`) usando `ML_COOKIE`/`ML_CSRF` do ambiente. Retorna `{ ok: bool, status: number, checked_at: ISO }`.
+- `GET /ml-affiliate-status?action=recent_errors&limit=20` → lê uma nova tabela `ml_affiliate_logs` (ver migration).
 
-### Template ecommerce (gerado em código)
+Migration:
+```sql
+CREATE TABLE public.ml_affiliate_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id uuid,
+  kind text NOT NULL,           -- COOKIE_EXPIRED | RETRY_EXHAUSTED | INVALID_PERMALINK | OK
+  permalink text,
+  detail jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+GRANT SELECT ON public.ml_affiliate_logs TO authenticated;
+GRANT ALL    ON public.ml_affiliate_logs TO service_role;
+ALTER TABLE public.ml_affiliate_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins read ml_affiliate_logs"
+  ON public.ml_affiliate_logs FOR SELECT TO authenticated
+  USING (has_role(auth.uid(), 'admin'));
+```
 
-Nós:
-1. **Cron** — horários/dias do robô (random delay = `intervalo_min`–`intervalo_max`)
-2. **n8n Data Table — Get Rows** (`tableId` = `n8n_datatable_id`, filter `sending = false`, limit 1)
-3. **If** (achou linha) → continua, senão para
-4. **Loop sobre `destinos`** (grupos selecionados, vem como input do workflow via static data)
-5. **HTTP Request** → Evolution `/message/sendMedia/{instance}` com:
-   - `mediaMessage.media` = `{{ $json.imageUrl }}`
-   - `mediaMessage.caption` = template renderizado: nome, preço, desconto, `{{ $json.offerlink }}`
-6. **n8n Data Table — Update Row** (`sending = true`)
+O workflow do n8n, sempre que `generateAffiliateLink` retornar `null`, faz um POST extra em `scrapper-api?action=ml_affiliate_log` com `{ kind, permalink, detail }`. Adiciono essa action ao `scrapper-api/index.ts`.
 
-### Template disparo
+### 5. Limpeza
 
-Nós:
-1. **Cron**
-2. **HTTP Request** baixa `planilha_url` (CSV) → split em linhas
-3. **Filtra** linhas `enviado = false` (controle no Supabase via tabela `disparo_contatos` já existente)
-4. **Evolution** `/message/sendText/{instance}` com mensagem aleatória
-5. **HTTP Request** atualiza `disparo_contatos.status='enviado'` via REST do Supabase
+- Remover toda referência a `cfg.ml_cookie` / `cfg.ml_csrf_token` em `n8n-sync` e na UI.
+- Manter `ml_affiliate_tag` no `config` apenas se você quiser sobrescrever por job (default = `ML_AFFILIATE_ID` global). Posso manter ou tirar — diz qual.
 
-## 3. UI — `src/modules/Robo/index.tsx`
+## Fluxo final
 
-Na `RoboDialog`:
-- **Radio Tipo de campanha**: Disparo de contatos / Ecommerce em grupos
-- **Se ecommerce**:
-  - Select Marketplace (Shopee, Mercado Livre, Amazon)
-  - Botão "Carregar data tables do n8n" → chama `n8n-sync list_datatables` → select com tabelas filtradas
-  - Mantém seleção de grupos (carregar grupos via Evolution, já existe)
-  - Template de mensagem com placeholders: `{nome}`, `{preco}`, `{desconto}`, `{link}`, `{loja}`
-- **Se disparo**:
-  - Upload CSV (telefone, nome, variáveis) → salva em Supabase Storage → grava `planilha_url`
-  - Textarea mensagens (já existe)
-- **Salvar**: insert/update em `robo_campanhas` → chama `n8n-sync upsert_workflow`
-- **Toggle ativo/pausado**: chama `n8n-sync activate/deactivate`
-- **Excluir**: chama `n8n-sync delete_workflow` antes do delete do DB
+```text
+Cron n8n
+  └─► API oficial /sites/MLB/search (OAuth via mercadolivre_integracoes)
+        └─► { id, title, price, permalink, thumbnail }
+              └─► generateAffiliateLink(permalink)
+                    │  POST createLink (cookie+CSRF)  ─ retry 3x / 2s
+                    ├─► 401/403 → log COOKIE_EXPIRED, retorna null
+                    ├─► meli.la/xxxxx → upsert Data Table
+                    └─► null → skip + log + NÃO posta
+```
 
-## 4. Remover `robo-worker`
+## Riscos
 
-A cron do pg_cron e o worker viram dispensáveis. Mantemos só pra "modo legado", mas a UI nova usa 100% n8n.
+- Cookie do ML expira sozinho (sessão web). Você vai ter que atualizar `ML_COOKIE`/`ML_CSRF` periodicamente — o painel mostra quando vencer.
+- O endpoint `createLink` é interno e pode mudar a qualquer momento sem aviso.
+- Se você ativar 2FA na conta de afiliado, o cookie passa a ter vida ainda mais curta.
 
-## 5. Secret nova
+## Confirme antes de eu codar
 
-Preciso que você adicione: **`N8N_BASE_URL`** = a URL da API do seu n8n (ex: `https://n8n.gacompany.online/api/v1`). 
-A `N8N_API_KEY` já está configurada.
-
-## 6. Onde fazer cada coisa
-
-| Camada | Quem faz |
-|---|---|
-| Migration `robo_campanhas` | Lovable (eu) |
-| Edge function `n8n-sync` | Lovable (eu) |
-| UI `RoboDialog` reformada | Lovable (eu) |
-| Storage bucket para CSVs de disparo | Lovable (eu) |
-| Garantir API do n8n acessível com a key | Você na VPS (apenas confirmar URL) |
-| Data tables `SHOPEE_*` já criadas no n8n pelo scrapper | Você / Claude Code (já feito p/ Adriana) |
-
-## Ordem de execução
-
-1. Você me dá a `N8N_BASE_URL` (ex: `https://n8n.gacompany.online/api/v1`).
-2. Eu rodo a migration + crio `n8n-sync` + reformo UI + crio bucket de CSVs.
-3. Teste: criar robô Shopee da Adriana, escolher data table `SHOPEE_ADRIANA`, ativar → ver workflow aparecer ativo no n8n e disparar.
+1. **OK adicionar os secrets `ML_AFFILIATE_ID` e `ML_TOOL_ID`?** (`ML_TOOL_ID` na real só vai pro log, porque o `createLink` interno gera `meli.la/...` que já carrega o matt_tool dele — me confirma se ainda quer guardar mesmo assim.)
+2. **Conta de afiliado é única para todos os jobs** (global), certo? Ou alguns clientes têm conta de afiliado própria e precisa continuar por-job?
+3. **Criar a tabela `ml_affiliate_logs`** ou deixa só nos `debug` que já voltam no response do workflow?
