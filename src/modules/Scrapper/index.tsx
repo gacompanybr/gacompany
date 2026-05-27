@@ -228,6 +228,7 @@ function JobDialog({
   const [mlCookie, setMlCookie] = useState("");
   const [mlCsrf, setMlCsrf] = useState("");
   const [mlTag, setMlTag] = useState("");
+  const [mlToolId, setMlToolId] = useState("");
   const [mlPages, setMlPages] = useState(5);
   const [mlMinDiscount, setMlMinDiscount] = useState(20);
   const [mlDefaultCommissionRate, setMlDefaultCommissionRate] = useState(6);
@@ -251,7 +252,8 @@ function JobDialog({
     setShopeeSecret(editing?.config?.shopee_secret ?? "");
     setMlCookie(editing?.config?.ml_cookie ?? "");
     setMlCsrf(editing?.config?.ml_csrf_token ?? "");
-    setMlTag(editing?.config?.ml_affiliate_tag ?? "");
+    setMlTag(editing?.config?.ml_affiliate_id ?? editing?.config?.ml_affiliate_tag ?? "");
+    setMlToolId(editing?.config?.ml_tool_id ?? "");
     setMlPages(editing?.config?.ml_pages ?? 5);
     setMlMinDiscount(editing?.config?.ml_min_discount ?? 20);
     setMlDefaultCommissionRate(editing?.config?.ml_default_commission_rate ?? 6);
@@ -276,7 +278,7 @@ function JobDialog({
       return toast.error("Informe App ID e Secret da Shopee");
     }
     if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
-      return toast.error("Informe Cookie, CSRF token e Affiliate tag do Mercado Livre");
+      return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre");
     }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
@@ -294,7 +296,9 @@ function JobDialog({
     if (plataforma === "mercado_livre") {
       config.ml_cookie = mlCookie.trim();
       config.ml_csrf_token = mlCsrf.trim();
-      config.ml_affiliate_tag = mlTag.trim();
+      config.ml_affiliate_id = mlTag.trim();
+      config.ml_affiliate_tag = mlTag.trim(); // back-compat
+      config.ml_tool_id = mlToolId.trim();
       config.ml_pages = mlPages;
       config.ml_min_discount = mlMinDiscount;
       config.ml_default_commission_rate = mlDefaultCommissionRate;
@@ -413,8 +417,15 @@ function JobDialog({
                 <Input value={mlCsrf} onChange={(e) => setMlCsrf(e.target.value)} placeholder="lDfFCVvy-2ti1Fw_4ek0lbhnbdZQMb7wNY94" />
               </div>
               <div>
-                <Label>Affiliate tag</Label>
+                <Label>Affiliate ID (matt_word)</Label>
                 <Input value={mlTag} onChange={(e) => setMlTag(e.target.value)} placeholder="hp20251103211257" />
+              </div>
+              <div>
+                <Label>Tool ID (matt_tool) — opcional</Label>
+                <Input value={mlToolId} onChange={(e) => setMlToolId(e.target.value)} placeholder="88344921" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Só usado no log. O endpoint do ML já injeta o matt_tool no link encurtado.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>

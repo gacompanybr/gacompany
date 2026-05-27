@@ -435,7 +435,8 @@ function buildScrapperWorkflow(job: any) {
   const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
   const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
   const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
-  const mlTag = normalizeShopeeCredential(cfg.ml_affiliate_tag);
+  const mlAffiliateId = normalizeShopeeCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const mlToolId = normalizeShopeeCredential(cfg.ml_tool_id);
   const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 10)));
   const mlKeywordsPerRun = Math.max(1, Math.min(10, Number(cfg.ml_keywords_per_run ?? 1)));
   const mlLimitPerPage = Math.max(10, Math.min(50, Number(cfg.ml_limit_per_page ?? 50)));
@@ -461,7 +462,8 @@ const SHOPEE_APP_ID = ${JSON.stringify(shopeeAppId)};
 const SHOPEE_SECRET = ${JSON.stringify(shopeeSecret)};
 const ML_COOKIE = ${JSON.stringify(mlCookie)};
 const ML_CSRF = ${JSON.stringify(mlCsrf)};
-const ML_TAG = ${JSON.stringify(mlTag)};
+const ML_AFFILIATE_ID = ${JSON.stringify(mlAffiliateId)};
+const ML_TOOL_ID = ${JSON.stringify(mlToolId)};
 const ML_PAGES = ${mlPages};
 const ML_KEYWORDS_PER_RUN = ${mlKeywordsPerRun};
 const ML_LIMIT_PER_PAGE = ${mlLimitPerPage};
@@ -722,7 +724,8 @@ try {
       }
     }
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
-    if (!ML_TAG) throw new Error("Faltam credenciais ML (affiliate tag).");
+    if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID).");
+    if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (cookie/CSRF). Edite o job e cole as credenciais.");
     const blockedGenericKeywords = new Set(["oferta", "ofertas", "promocao", "promoção", "promocoes", "promoções"]);
     let keywords = (TERMOS.length ? TERMOS : CATEGORIAS)
       .filter(Boolean)
@@ -753,29 +756,24 @@ try {
     }
     if (!ML_ACCESS_TOKEN) throw new Error("Sem access_token ML. Reconecte a conta do Mercado Livre.");
 
-    function withAffiliateTag(rawLink){
-      try {
-        const url = new URL(String(rawLink || ""));
-        const tag = String(ML_TAG || "").trim();
-        if (!tag) return String(rawLink || "");
-        if (/^matt:/i.test(tag)) {
-          const parts = tag.split(":");
-          if (parts[1]) url.searchParams.set("matt_word", parts[1]);
-          if (parts[2]) url.searchParams.set("matt_tool", parts[2]);
-        } else {
-          url.searchParams.set("tag", tag.replace(/^tag:/i, ""));
-        }
-        return url.toString();
-      } catch (_) {
-        const sep = String(rawLink || "").includes("?") ? "&" : "?";
-        return String(rawLink || "") + sep + "tag=" + encodeURIComponent(String(ML_TAG || "").replace(/^tag:/i, ""));
-      }
-    }
+    let affiliateCookieExpired = false;
+    let affiliateSuccessLogged = false;
 
-    let affiliateModeLogged = false;
-    async function affiliateLink(rawLink){
-      const tag = String(ML_TAG || "").trim().replace(/^tag:/i, "");
-      if (tag && !/^matt:/i.test(String(ML_TAG || "")) && ML_COOKIE && ML_CSRF) {
+    async function generateAffiliateLink(permalink) {
+      if (!ML_COOKIE || !ML_CSRF || !ML_AFFILIATE_ID) {
+        debug.push({ affiliateErr: "MISSING_CREDENTIALS", permalink: String(permalink || "").slice(0, 180), ts: new Date().toISOString() });
+        return null;
+      }
+      const url = String(permalink || "");
+      if (!/^https?:\\/\\//i.test(url)) {
+        debug.push({ affiliateErr: "INVALID_PERMALINK", permalink: url.slice(0, 180), ts: new Date().toISOString() });
+        return null;
+      }
+
+      const payload = JSON.stringify({ urls: [url], tag: ML_AFFILIATE_ID });
+      let lastErr = null;
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const resp = await http({
             method: "POST",
@@ -790,23 +788,43 @@ try {
               "cookie": ML_COOKIE,
               "x-csrf-token": ML_CSRF,
             },
-            body: JSON.stringify({ urls: [String(rawLink || "")], tag }),
+            body: payload,
+            returnFullResponse: true,
+            ignoreHttpStatusErrors: true,
           });
-          let data = resp;
-          if (typeof resp === "string") { try { data = JSON.parse(resp); } catch (_) { data = null; } }
-          const shortUrl = data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl);
-          if (shortUrl && /^https?:\\/\\//i.test(String(shortUrl))) {
-            if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api", sample: shortUrl }); affiliateModeLogged = true; }
+          const status = (resp && (resp.statusCode || resp.status)) || 0;
+          const raw = (resp && resp.body !== undefined) ? resp.body : resp;
+          let data = raw;
+          if (typeof raw === "string") { try { data = JSON.parse(raw); } catch (_) { data = null; } }
+
+          if (status === 401 || status === 403) {
+            affiliateCookieExpired = true;
+            debug.push({ affiliateErr: "COOKIE_EXPIRED", status, permalink: url.slice(0, 180), ts: new Date().toISOString() });
+            return null;
+          }
+
+          const shortUrl =
+            (data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl)) ||
+            (data && data.short_url) || null;
+
+          if (shortUrl && /^https?:\\/\\/meli\\.la\\//i.test(String(shortUrl))) {
+            if (!affiliateSuccessLogged) {
+              debug.push({ affiliateOk: true, sample: shortUrl, ts: new Date().toISOString() });
+              affiliateSuccessLogged = true;
+            }
             return String(shortUrl);
           }
-          if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api_fallback", resp: typeof resp === "string" ? resp.slice(0, 300) : JSON.stringify(resp).slice(0, 300) }); affiliateModeLogged = true; }
+          lastErr = { status, attempt, bodyPreview: typeof raw === "string" ? raw.slice(0, 200) : JSON.stringify(raw || {}).slice(0, 200) };
         } catch (e) {
-          if (!affiliateModeLogged) { debug.push({ affiliateMode: "createLink_api_error", err: (e && e.message) || String(e) }); affiliateModeLogged = true; }
+          lastErr = { attempt, exception: (e && e.message) || String(e) };
         }
+        if (attempt < 3) await new Promise((res) => setTimeout(res, 2000));
       }
-      debug.push({ affiliateErr: "createLink_api_failed_no_meli_la", rawLink: String(rawLink || "").slice(0, 180) });
-      return "";
+
+      debug.push({ affiliateErr: "RETRY_EXHAUSTED", permalink: url.slice(0, 180), lastErr, ts: new Date().toISOString() });
+      return null;
     }
+
 
     let mlRateLimited = false;
     let mlAccessBlocked = false;
@@ -885,8 +903,8 @@ try {
           const commissionValue = price * commissionRate / 100;
           if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
           const rawLink = String(it.permalink || ("https://www.mercadolivre.com.br/p/" + itemId));
-          const offer = await affiliateLink(rawLink);
-          if (!offer || !/^https?:\\/\\/meli\\.la\\//i.test(String(offer))) { skip.affiliate++; continue; }
+          const offer = await generateAffiliateLink(rawLink);
+          if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
           try {
             await insertRow(tableId, {
               productname: title,
