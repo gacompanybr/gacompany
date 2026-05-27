@@ -680,12 +680,7 @@ function MlCookieAlert({ job }: { job: Job }) {
   async function recheck() {
     setChecking(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ml-health-check", {
-        body: {},
-        method: "POST" as any,
-        headers: {},
-      });
-      // chamamos manualmente via URL com job_id para checar só este
+      // chama a função de health check só para este job
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ml-health-check?job_id=${job.id}`;
       const resp = await fetch(url, {
         method: "POST",
