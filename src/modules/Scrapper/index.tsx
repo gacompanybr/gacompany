@@ -686,11 +686,15 @@ function MlCookieAlert({ job }: { job: Job }) {
         method: "POST",
         headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
       });
-      const json = await resp.json();
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        toast.error(`Falha HTTP ${resp.status}: ${json?.error ?? "sem detalhes"}`);
+        return;
+      }
       const s = json?.results?.[0]?.status ?? null;
       if (s) setLocalStatus(s);
       if (s?.ok) toast.success("Cookie ML válido ✅");
-      else toast.error(`Cookie ML inválido: ${s?.error ?? "erro desconhecido"}`);
+      else toast.error(`Cookie ML inválido: ${s?.error ?? `HTTP ${s?.status_code ?? "?"}`}`);
     } catch (e: any) {
       toast.error(`Falha ao verificar: ${e?.message ?? e}`);
     } finally {
