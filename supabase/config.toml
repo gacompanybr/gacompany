@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.ml-oauth-callback]
 verify_jwt = false
 
+[functions.ml-health-check]
+verify_jwt = false
+
 [functions.social-scheduler]
 verify_jwt = false
 
