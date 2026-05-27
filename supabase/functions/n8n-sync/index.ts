@@ -724,7 +724,7 @@ try {
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
     if (!ML_TAG) throw new Error("Faltam credenciais ML (affiliate tag).");
     let keywords = (TERMOS.length ? TERMOS : CATEGORIAS).filter(Boolean);
-    if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
+    if (!keywords.length) keywords = [ML_DEFAULT_KEYWORD];
     for (let i = keywords.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
