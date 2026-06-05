@@ -68,7 +68,7 @@ async function testCookie(cookie: string, csrf: string, tag: string): Promise<Co
     try { data = JSON.parse(raw); } catch { /* ignore */ }
 
     if (status_code === 401 || status_code === 403) {
-      return { ok: false, checked_at, status_code, error: "COOKIE_EXPIRED" };
+      return { ok: false, checked_at, status_code, error: `COOKIE_EXPIRED: ${raw.slice(0, 300)}` };
     }
     const short =
       data?.urls?.[0]?.short_url || data?.urls?.[0]?.shortUrl || data?.short_url || null;
