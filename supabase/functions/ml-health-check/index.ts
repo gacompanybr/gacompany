@@ -15,9 +15,11 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const API_SECRET = Deno.env.get("SCRAPPER_API_SECRET") ?? "";
 
-const TEST_PERMALINK = "https://www.mercadolivre.com.br/";
+// Permalink real de uma listagem — o endpoint createLink retorna 401 pra URLs
+// que não são produto/lista válida (ex.: a home), o que confunde com cookie expirado.
+const TEST_PERMALINK = "https://lista.mercadolivre.com.br/perfumes";
 const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
 type CookieStatus = {
   ok: boolean;
@@ -39,10 +41,20 @@ async function testCookie(cookie: string, csrf: string, tag: string): Promise<Co
         method: "POST",
         headers: {
           accept: "application/json, text/plain, */*",
-          "accept-language": "pt-BR,pt;q=0.9",
+          "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
           "content-type": "application/json",
+          downlink: "10",
+          ect: "4g",
           origin: "https://www.mercadolivre.com.br",
+          priority: "u=1, i",
           referer: "https://www.mercadolivre.com.br/afiliados/linkbuilder",
+          rtt: "50",
+          "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+          "sec-ch-ua-mobile": "?0",
+          "sec-ch-ua-platform": '"Windows"',
+          "sec-fetch-dest": "empty",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-site": "same-origin",
           "user-agent": UA,
           cookie,
           "x-csrf-token": csrf,
@@ -56,7 +68,7 @@ async function testCookie(cookie: string, csrf: string, tag: string): Promise<Co
     try { data = JSON.parse(raw); } catch { /* ignore */ }
 
     if (status_code === 401 || status_code === 403) {
-      return { ok: false, checked_at, status_code, error: "COOKIE_EXPIRED" };
+      return { ok: false, checked_at, status_code, error: `COOKIE_EXPIRED: ${raw.slice(0, 300)}` };
     }
     const short =
       data?.urls?.[0]?.short_url || data?.urls?.[0]?.shortUrl || data?.short_url || null;
