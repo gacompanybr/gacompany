@@ -44,7 +44,7 @@ const ClientesSection = () => {
                 <img
                   src={c.logo}
                   alt={`Logo ${c.name}`}
-                  className="max-h-full max-w-full object-contain grayscale opacity-60 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
+                  className="max-h-full max-w-full object-contain transition-all duration-300 [filter:brightness(0)_invert(1)] opacity-80 hover:opacity-100 hover:[filter:none]"
                   loading="lazy"
                 />
               ) : (
