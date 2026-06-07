@@ -1,25 +1,35 @@
-import farmaConde from "@/assets/clients/farma-conde.png";
-import lopes from "@/assets/clients/lopes.png";
-import lovitta from "@/assets/clients/lovitta.png";
-import vilaGym from "@/assets/clients/vila-gym.png";
-import rodsBurguer from "@/assets/clients/rods-burguer.png";
-import mcg from "@/assets/clients/mcg.png";
-import cacilia from "@/assets/clients/cacilia.png";
-import superCleaning from "@/assets/clients/super-cleaning.png";
-import oarco from "@/assets/clients/oarco.png";
-import garimpaAi from "@/assets/clients/garimpa-ai.png";
+import farmaConde from "@/assets/clients/transparent/farma-conde.png";
+import farmaCondeWhite from "@/assets/clients/white/farma-conde.png";
+import lopes from "@/assets/clients/transparent/lopes.png";
+import lopesWhite from "@/assets/clients/white/lopes.png";
+import lovitta from "@/assets/clients/transparent/lovitta.png";
+import lovittaWhite from "@/assets/clients/white/lovitta.png";
+import vilaGym from "@/assets/clients/transparent/vila-gym.png";
+import vilaGymWhite from "@/assets/clients/white/vila-gym.png";
+import rodsBurguer from "@/assets/clients/transparent/rods-burguer.png";
+import rodsBurguerWhite from "@/assets/clients/white/rods-burguer.png";
+import mcg from "@/assets/clients/transparent/mcg.png";
+import mcgWhite from "@/assets/clients/white/mcg.png";
+import cacilia from "@/assets/clients/transparent/cacilia.png";
+import caciliaWhite from "@/assets/clients/white/cacilia.png";
+import superCleaning from "@/assets/clients/transparent/super-cleaning.png";
+import superCleaningWhite from "@/assets/clients/white/super-cleaning.png";
+import oarco from "@/assets/clients/transparent/oarco.png";
+import oarcoWhite from "@/assets/clients/white/oarco.png";
+import garimpaAi from "@/assets/clients/transparent/garimpa-ai.png";
+import garimpaAiWhite from "@/assets/clients/white/garimpa-ai.png";
 
 const clients = [
-  { name: "Farma Conde", logo: farmaConde },
-  { name: "Oarco", logo: oarco },
-  { name: "Lopes Saúde e Odontologia", logo: lopes },
-  { name: "Lóvitta", logo: lovitta },
-  { name: "Vila Gym", logo: vilaGym },
-  { name: "Garimpa Aí", logo: garimpaAi },
-  { name: "Rod's Burguer", logo: rodsBurguer },
-  { name: "MCG", logo: mcg },
-  { name: "Cacilia Imobiliária", logo: cacilia },
-  { name: "Super Cleaning Inc.", logo: superCleaning },
+  { name: "Farma Conde", logo: farmaConde, logoWhite: farmaCondeWhite },
+  { name: "Oarco", logo: oarco, logoWhite: oarcoWhite },
+  { name: "Lopes Saúde e Odontologia", logo: lopes, logoWhite: lopesWhite },
+  { name: "Lóvitta", logo: lovitta, logoWhite: lovittaWhite },
+  { name: "Vila Gym", logo: vilaGym, logoWhite: vilaGymWhite },
+  { name: "Garimpa Aí", logo: garimpaAi, logoWhite: garimpaAiWhite },
+  { name: "Rod's Burguer", logo: rodsBurguer, logoWhite: rodsBurguerWhite },
+  { name: "MCG", logo: mcg, logoWhite: mcgWhite },
+  { name: "Cacilia Imobiliária", logo: cacilia, logoWhite: caciliaWhite },
+  { name: "Super Cleaning Inc.", logo: superCleaning, logoWhite: superCleaningWhite },
 ];
 
 const ClientesSection = () => {
@@ -37,16 +47,25 @@ const ClientesSection = () => {
           {clients.map((c) => (
             <div
               key={c.name}
-              className="flex items-center justify-center h-16 md:h-20"
+              className="group relative flex h-16 items-center justify-center md:h-20"
               title={c.name}
             >
               {c.logo ? (
-                <img
-                  src={c.logo}
-                  alt={`Logo ${c.name}`}
-                  className="max-h-full max-w-full object-contain transition-opacity duration-300 [filter:brightness(0)_invert(1)] opacity-80 hover:opacity-100"
-                  loading="lazy"
-                />
+                <>
+                  <img
+                    src={c.logoWhite}
+                    alt={`Logo ${c.name}`}
+                    className="max-h-full max-w-full object-contain opacity-85 transition-opacity duration-300 group-hover:opacity-0"
+                    loading="lazy"
+                  />
+                  <img
+                    src={c.logo}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 m-auto max-h-full max-w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                    loading="lazy"
+                  />
+                </>
               ) : (
                 <span className="font-heading font-bold text-base md:text-lg text-muted-foreground hover:text-foreground transition-colors">
                   {c.name}
