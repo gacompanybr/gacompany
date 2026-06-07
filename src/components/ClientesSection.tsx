@@ -1,13 +1,13 @@
-import farmaConde from "@/assets/clients/farma-conde.png";
-import lopes from "@/assets/clients/lopes.png";
-import lovitta from "@/assets/clients/lovitta.png";
-import vilaGym from "@/assets/clients/vila-gym.png";
-import rodsBurguer from "@/assets/clients/rods-burguer.png";
-import mcg from "@/assets/clients/mcg.png";
-import cacilia from "@/assets/clients/cacilia.png";
-import superCleaning from "@/assets/clients/super-cleaning.png";
-import oarco from "@/assets/clients/oarco.png";
-import garimpaAi from "@/assets/clients/garimpa-ai.png";
+import farmaConde from "@/assets/clients/transparent/farma-conde.png";
+import lopes from "@/assets/clients/transparent/lopes.png";
+import lovitta from "@/assets/clients/transparent/lovitta.png";
+import vilaGym from "@/assets/clients/transparent/vila-gym.png";
+import rodsBurguer from "@/assets/clients/transparent/rods-burguer.png";
+import mcg from "@/assets/clients/transparent/mcg.png";
+import cacilia from "@/assets/clients/transparent/cacilia.png";
+import superCleaning from "@/assets/clients/transparent/super-cleaning.png";
+import oarco from "@/assets/clients/transparent/oarco.png";
+import garimpaAi from "@/assets/clients/transparent/garimpa-ai.png";
 
 const clients = [
   { name: "Farma Conde", logo: farmaConde },
@@ -44,7 +44,7 @@ const ClientesSection = () => {
                 <img
                   src={c.logo}
                   alt={`Logo ${c.name}`}
-                  className="max-h-full max-w-full object-contain transition-opacity duration-300 [filter:brightness(0)_invert(1)] opacity-80 hover:opacity-100"
+                  className="max-h-full max-w-full object-contain opacity-80 transition-all duration-300 [filter:brightness(0)_invert(1)] hover:opacity-100 hover:[filter:none]"
                   loading="lazy"
                 />
               ) : (
