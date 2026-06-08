@@ -51,21 +51,13 @@ const ClientesSection = () => {
               title={c.name}
             >
               {c.logo ? (
-                <>
-                  <img
-                    src={c.logoWhite}
-                    alt={`Logo ${c.name}`}
-                    className="max-h-full max-w-full object-contain opacity-85 transition-opacity duration-300 group-hover:opacity-0"
-                    loading="lazy"
-                  />
-                  <img
-                    src={c.logo}
-                    alt=""
-                    aria-hidden="true"
-                    className="absolute inset-0 m-auto max-h-full max-w-full object-contain opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                    loading="lazy"
-                  />
-                </>
+                <img
+                  src={c.logo}
+                  alt={`Logo ${c.name}`}
+                  className="max-h-full max-w-full object-contain"
+                  loading="lazy"
+                />
+
               ) : (
                 <span className="font-heading font-bold text-base md:text-lg text-muted-foreground hover:text-foreground transition-colors">
                   {c.name}
