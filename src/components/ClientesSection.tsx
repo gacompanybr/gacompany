@@ -43,23 +43,22 @@ const ClientesSection = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-8 gap-y-10 items-center">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5 md:gap-6">
           {clients.map((c) => (
             <div
               key={c.name}
-              className="group relative flex h-16 items-center justify-center md:h-20"
               title={c.name}
+              className="group relative flex h-24 md:h-28 items-center justify-center rounded-xl bg-white/95 ring-1 ring-white/10 shadow-[0_4px_20px_-8px_rgba(0,0,0,0.6)] transition-all duration-300 hover:bg-white hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_hsl(var(--primary)/0.5)] hover:ring-primary/40"
             >
               {c.logo ? (
                 <img
                   src={c.logo}
                   alt={`Logo ${c.name}`}
-                  className="max-h-full max-w-full object-contain"
+                  className="max-h-[68%] max-w-[78%] object-contain transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
                 />
-
               ) : (
-                <span className="font-heading font-bold text-base md:text-lg text-muted-foreground hover:text-foreground transition-colors">
+                <span className="font-heading font-bold text-base md:text-lg text-foreground">
                   {c.name}
                 </span>
               )}
