@@ -8,6 +8,9 @@ import cacilia from "@/assets/clients/transparent/cacilia.png";
 import superCleaning from "@/assets/clients/transparent/super-cleaning.png";
 import oarco from "@/assets/clients/transparent/oarco.png";
 import garimpaAi from "@/assets/clients/transparent/garimpa-ai.png";
+import fisioCorpus from "@/assets/clients/transparent/fisio-corpus.png";
+import candlesMimos from "@/assets/clients/transparent/candles-mimos.png";
+import burgerOnTheGrill from "@/assets/clients/transparent/burger-on-the-grill.png";
 
 const clients = [
   { name: "Farma Conde", logo: farmaConde },
@@ -20,6 +23,9 @@ const clients = [
   { name: "MCG", logo: mcg },
   { name: "Cacilia Imobiliária", logo: cacilia },
   { name: "Super Cleaning Inc.", logo: superCleaning },
+  { name: "Academia Fisio Corpus", logo: fisioCorpus },
+  { name: "Candles & Mimos by Ari", logo: candlesMimos },
+  { name: "Burger on the Grill", logo: burgerOnTheGrill },
 ];
 
 const ClientesSection = () => {
