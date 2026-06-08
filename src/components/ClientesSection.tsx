@@ -1,35 +1,25 @@
 import farmaConde from "@/assets/clients/transparent/farma-conde.png";
-import farmaCondeWhite from "@/assets/clients/white/farma-conde.png";
 import lopes from "@/assets/clients/transparent/lopes.png";
-import lopesWhite from "@/assets/clients/white/lopes.png";
 import lovitta from "@/assets/clients/transparent/lovitta.png";
-import lovittaWhite from "@/assets/clients/white/lovitta.png";
 import vilaGym from "@/assets/clients/transparent/vila-gym.png";
-import vilaGymWhite from "@/assets/clients/white/vila-gym.png";
 import rodsBurguer from "@/assets/clients/transparent/rods-burguer.png";
-import rodsBurguerWhite from "@/assets/clients/white/rods-burguer.png";
 import mcg from "@/assets/clients/transparent/mcg.png";
-import mcgWhite from "@/assets/clients/white/mcg.png";
 import cacilia from "@/assets/clients/transparent/cacilia.png";
-import caciliaWhite from "@/assets/clients/white/cacilia.png";
 import superCleaning from "@/assets/clients/transparent/super-cleaning.png";
-import superCleaningWhite from "@/assets/clients/white/super-cleaning.png";
 import oarco from "@/assets/clients/transparent/oarco.png";
-import oarcoWhite from "@/assets/clients/white/oarco.png";
 import garimpaAi from "@/assets/clients/transparent/garimpa-ai.png";
-import garimpaAiWhite from "@/assets/clients/white/garimpa-ai.png";
 
 const clients = [
-  { name: "Farma Conde", logo: farmaConde, logoWhite: farmaCondeWhite },
-  { name: "Oarco", logo: oarco, logoWhite: oarcoWhite },
-  { name: "Lopes Saúde e Odontologia", logo: lopes, logoWhite: lopesWhite },
-  { name: "Lóvitta", logo: lovitta, logoWhite: lovittaWhite },
-  { name: "Vila Gym", logo: vilaGym, logoWhite: vilaGymWhite },
-  { name: "Garimpa Aí", logo: garimpaAi, logoWhite: garimpaAiWhite },
-  { name: "Rod's Burguer", logo: rodsBurguer, logoWhite: rodsBurguerWhite },
-  { name: "MCG", logo: mcg, logoWhite: mcgWhite },
-  { name: "Cacilia Imobiliária", logo: cacilia, logoWhite: caciliaWhite },
-  { name: "Super Cleaning Inc.", logo: superCleaning, logoWhite: superCleaningWhite },
+  { name: "Farma Conde", logo: farmaConde },
+  { name: "Oarco", logo: oarco },
+  { name: "Lopes Saúde e Odontologia", logo: lopes },
+  { name: "Lóvitta", logo: lovitta },
+  { name: "Vila Gym", logo: vilaGym },
+  { name: "Garimpa Aí", logo: garimpaAi },
+  { name: "Rod's Burguer", logo: rodsBurguer },
+  { name: "MCG", logo: mcg },
+  { name: "Cacilia Imobiliária", logo: cacilia },
+  { name: "Super Cleaning Inc.", logo: superCleaning },
 ];
 
 const ClientesSection = () => {
@@ -43,25 +33,19 @@ const ClientesSection = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-5 md:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6 md:gap-8">
           {clients.map((c) => (
             <div
               key={c.name}
               title={c.name}
-              className="group relative flex h-24 md:h-28 items-center justify-center rounded-xl bg-white/95 ring-1 ring-white/10 shadow-[0_4px_20px_-8px_rgba(0,0,0,0.6)] transition-all duration-300 hover:bg-white hover:-translate-y-1 hover:shadow-[0_10px_30px_-10px_hsl(var(--primary)/0.5)] hover:ring-primary/40"
+              className="group flex h-24 md:h-28 items-center justify-center transition-transform duration-300 hover:-translate-y-1"
             >
-              {c.logo ? (
-                <img
-                  src={c.logo}
-                  alt={`Logo ${c.name}`}
-                  className="max-h-[68%] max-w-[78%] object-contain transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                />
-              ) : (
-                <span className="font-heading font-bold text-base md:text-lg text-foreground">
-                  {c.name}
-                </span>
-              )}
+              <img
+                src={c.logo}
+                alt={`Logo ${c.name}`}
+                className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
             </div>
           ))}
         </div>
