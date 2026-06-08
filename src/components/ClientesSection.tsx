@@ -23,6 +23,8 @@ const clients = [
 ];
 
 const ClientesSection = () => {
+  const loop = [...clients, ...clients];
+
   return (
     <section id="clientes" className="py-20 lg:py-32 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
@@ -33,21 +35,31 @@ const ClientesSection = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6 md:gap-8">
-          {clients.map((c) => (
-            <div
-              key={c.name}
-              title={c.name}
-              className="group flex h-24 md:h-28 items-center justify-center transition-transform duration-300 hover:-translate-y-1"
-            >
-              <img
-                src={c.logo}
-                alt={`Logo ${c.name}`}
-                className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
-                loading="lazy"
-              />
-            </div>
-          ))}
+        <div
+          className="group relative overflow-hidden"
+          style={{
+            maskImage:
+              "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+          }}
+        >
+          <div className="flex w-max animate-marquee gap-12 md:gap-20 group-hover:[animation-play-state:paused]">
+            {loop.map((c, i) => (
+              <div
+                key={`${c.name}-${i}`}
+                title={c.name}
+                className="flex h-20 md:h-28 w-36 md:w-48 shrink-0 items-center justify-center"
+              >
+                <img
+                  src={c.logo}
+                  alt={`Logo ${c.name}`}
+                  className="max-h-full max-w-full object-contain"
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="text-center mt-12">
