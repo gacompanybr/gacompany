@@ -15,11 +15,12 @@ const FooterSection = () => {
             <a href="https://www.instagram.com/gacompanybr/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
               <Instagram size={18} />
             </a>
-            {[Linkedin, Mail].map((Icon, i) => (
-              <a key={i} href="#" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
-                <Icon size={18} />
-              </a>
-            ))}
+            <a href="https://www.linkedin.com/company/growassessoria/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
+              <Linkedin size={18} />
+            </a>
+            <a href="mailto:growsolucaodigital@gmail.com" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
+              <Mail size={18} />
+            </a>
             <a href="https://wa.me/5512988334006" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-green-400 hover:border-green-400/50 transition-colors">
               <MessageCircle size={18} />
             </a>
