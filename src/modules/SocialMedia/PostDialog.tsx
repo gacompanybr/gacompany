@@ -125,6 +125,12 @@ Responda EXATAMENTE neste formato JSON:
       if (!titulo.trim()) throw new Error("Título obrigatório");
       if (status === "agendado" && !data) throw new Error("Data de agendamento obrigatória");
       if (status === "agendado" && !imagem.trim()) throw new Error("Imagem obrigatória para agendar");
+      let dataAgendadaIso: string | null = null;
+      if (data) {
+        const parsed = new Date(data);
+        if (isNaN(parsed.getTime())) throw new Error("Data inválida. Use o seletor para escolher dia e horário.");
+        dataAgendadaIso = parsed.toISOString();
+      }
       const payload = {
         portfolio_id: portfolioId,
         titulo: titulo.trim(),
@@ -134,7 +140,7 @@ Responda EXATAMENTE neste formato JSON:
         plataformas: plataformas as any,
         tipo,
         status,
-        data_agendada: data ? new Date(data).toISOString() : null,
+        data_agendada: dataAgendadaIso,
         imagem_url: imagem.trim() || null,
       };
       if (editing) {
