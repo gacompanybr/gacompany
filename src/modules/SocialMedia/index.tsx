@@ -245,6 +245,26 @@ export default function SocialMediaModule({ portfolioId }: { portfolioId: string
                       {new Date(p.data_agendada).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </div>
                   )}
+                  {p.status === "falhou" && p.erro_msg && (
+                    <div className="mt-1 flex items-start gap-1 text-[10px] text-destructive bg-destructive/10 rounded p-1">
+                      <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                      <span className="break-words">{p.erro_msg}</span>
+                    </div>
+                  )}
+                  {(p.status === "agendado" || p.status === "falhou") && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full mt-2 h-7 gap-1.5"
+                      disabled={publishingId === p.id}
+                      onClick={(e) => { e.stopPropagation(); publicarAgora(p); }}
+                    >
+                      {publishingId === p.id
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <Send size={12} />}
+                      {p.status === "falhou" ? "Tentar novamente" : "Publicar agora"}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
