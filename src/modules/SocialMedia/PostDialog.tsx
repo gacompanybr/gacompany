@@ -227,11 +227,11 @@ Responda EXATAMENTE neste formato JSON:
           </div>
 
           <div>
-            <Label>Imagem *</Label>
+            <Label>{tipo === "reels" ? "Vídeo *" : tipo === "story" ? "Imagem ou vídeo *" : "Imagem *"}</Label>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={tipo === "reels" ? "video/mp4,video/quicktime" : tipo === "story" ? "image/*,video/mp4,video/quicktime" : "image/*"}
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -239,6 +239,7 @@ Responda EXATAMENTE neste formato JSON:
                 e.target.value = "";
               }}
             />
+
             {!imagem ? (
               <Button
                 type="button"
@@ -248,11 +249,15 @@ Responda EXATAMENTE neste formato JSON:
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                {uploading ? "Enviando..." : "Enviar imagem"}
+                {uploading ? "Enviando..." : tipo === "reels" ? "Enviar vídeo" : "Enviar arquivo"}
               </Button>
             ) : (
               <div className="relative border rounded-md overflow-hidden">
-                <img src={imagem} alt="" className="max-h-60 w-full object-contain bg-muted" />
+                {/\.(mp4|mov|m4v)(\?|$)/i.test(imagem) ? (
+                  <video src={imagem} controls className="max-h-60 w-full object-contain bg-muted" />
+                ) : (
+                  <img src={imagem} alt="" className="max-h-60 w-full object-contain bg-muted" />
+                )}
                 <Button
                   type="button"
                   size="icon"
