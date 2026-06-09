@@ -4,16 +4,19 @@ const testimonials = [
   {
     name: "Tadeu Miabara",
     role: "Vila GYM",
+    link: "https://vilagym.com.br/",
     text: "A GA Company entendeu exatamente o que precisávamos. Em 3 meses, triplicamos os leads qualificados.",
   },
   {
     name: "Bruno Lopes",
     role: "Lopes Odontologia",
+    link: "https://lopessaude.com.br/",
     text: "Profissionalismo e resultado. A equipe é extremamente dedicada e os relatórios são impecáveis.",
   },
   {
     name: "Adriana Bueno",
     role: "GarimpaAI",
+    link: "https://www.instagram.com/garimpaai.promo/",
     text: "Melhor investimento que fiz para minha empresa. O ROI das campanhas superou todas as expectativas.",
   },
 ];
@@ -40,7 +43,14 @@ const TestimonialsSection = () => {
               <p className="text-foreground mb-6 leading-relaxed">"{t.text}"</p>
               <div>
                 <p className="font-semibold text-foreground">{t.name}</p>
-                <p className="text-sm text-muted-foreground">{t.role}</p>
+                <a
+                  href={t.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {t.role}
+                </a>
               </div>
             </div>
           ))}
