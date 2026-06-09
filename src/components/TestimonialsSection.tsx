@@ -43,7 +43,14 @@ const TestimonialsSection = () => {
               <p className="text-foreground mb-6 leading-relaxed">"{t.text}"</p>
               <div>
                 <p className="font-semibold text-foreground">{t.name}</p>
-                <p className="text-sm text-muted-foreground">{t.role}</p>
+                <a
+                  href={t.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {t.role}
+                </a>
               </div>
             </div>
           ))}
