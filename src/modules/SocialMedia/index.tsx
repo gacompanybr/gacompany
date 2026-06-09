@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, Plus, Instagram, Facebook, Linkedin, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Instagram, Facebook, Linkedin, Music2, Send, Loader2, AlertCircle } from "lucide-react";
 import { PostDialog } from "./PostDialog";
 import { ConectarMetaCard } from "./ConectarMetaCard";
 import { PLATAFORMAS, STATUS_COLOR, type Plataforma, type PostStatus, type SocialPost } from "./types";
