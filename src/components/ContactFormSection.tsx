@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Send, Shield, Clock, CheckCircle, Phone, MessageCircle } from "lucide-react";
+import { Send, Shield, Clock, CheckCircle, Phone, MessageCircle, Mail } from "lucide-react";
 
 const ContactFormSection = () => {
   const [submitted, setSubmitted] = useState(false);
@@ -46,6 +46,9 @@ const ContactFormSection = () => {
                 </a>
                 <a href="tel:+5512988334006" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
                   <Phone size={20} /> (12) 98833-4006 — Ligar
+                </a>
+                <a href="mailto:growsolucaodigital@gmail.com" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
+                  <Mail size={20} /> growsolucaodigital@gmail.com
                 </a>
               </div>
             </div>
