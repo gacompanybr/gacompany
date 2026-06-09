@@ -227,11 +227,11 @@ Responda EXATAMENTE neste formato JSON:
           </div>
 
           <div>
-            <Label>Imagem *</Label>
+            <Label>{tipo === "reels" ? "Vídeo *" : tipo === "story" ? "Imagem ou vídeo *" : "Imagem *"}</Label>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={tipo === "reels" ? "video/mp4,video/quicktime" : tipo === "story" ? "image/*,video/mp4,video/quicktime" : "image/*"}
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -239,6 +239,7 @@ Responda EXATAMENTE neste formato JSON:
                 e.target.value = "";
               }}
             />
+
             {!imagem ? (
               <Button
                 type="button"
