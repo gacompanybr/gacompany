@@ -61,17 +61,22 @@ Deno.serve(async (req) => {
           integration_id: integ.id,
           caption,
           image_url: post.imagem_url,
+          tipo: post.tipo,
           targets,
         }),
       });
       const pubJson = await pubRes.json();
       if (!pubRes.ok) throw new Error(pubJson?.error ?? "Falha ao publicar");
 
-      await admin.from("social_posts").update({ status: "publicado" }).eq("id", post.id);
+      await admin.from("social_posts")
+        .update({ status: "publicado", erro_msg: null })
+        .eq("id", post.id);
       results.push({ id: post.id, ok: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      await admin.from("social_posts").update({ status: "falhou" }).eq("id", post.id);
+      await admin.from("social_posts")
+        .update({ status: "falhou", erro_msg: msg })
+        .eq("id", post.id);
       results.push({ id: post.id, ok: false, error: msg });
     }
   }

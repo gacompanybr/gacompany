@@ -14,6 +14,7 @@ export interface SocialPost {
   status: PostStatus;
   data_agendada: string | null;
   imagem_url: string | null;
+  erro_msg: string | null;
   created_at: string;
   updated_at: string;
 }

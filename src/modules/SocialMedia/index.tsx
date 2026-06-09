@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, Plus, Instagram, Facebook, Linkedin, Music2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Instagram, Facebook, Linkedin, Music2, Send, Loader2, AlertCircle } from "lucide-react";
 import { PostDialog } from "./PostDialog";
 import { ConectarMetaCard } from "./ConectarMetaCard";
 import { PLATAFORMAS, STATUS_COLOR, type Plataforma, type PostStatus, type SocialPost } from "./types";
@@ -16,6 +17,7 @@ const PLAT_ICON: Record<Plataforma, any> = {
 };
 
 export default function SocialMediaModule({ portfolioId }: { portfolioId: string }) {
+  const qc = useQueryClient();
   const [cursor, setCursor] = useState(() => {
     const d = new Date(); d.setDate(1); return d;
   });
@@ -24,6 +26,58 @@ export default function SocialMediaModule({ portfolioId }: { portfolioId: string
   const [editing, setEditing] = useState<SocialPost | null>(null);
   const [filtroPlat, setFiltroPlat] = useState<Plataforma[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<PostStatus | "all">("all");
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  async function publicarAgora(post: SocialPost) {
+    setPublishingId(post.id);
+    try {
+      const { data: integ, error: integErr } = await supabase
+        .from("social_media_integrations")
+        .select("id, fb_page_id, ig_business_id")
+        .eq("portfolio_id", portfolioId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (integErr) throw integErr;
+      if (!integ) throw new Error("Nenhuma integração Meta ativa para este portfólio");
+      if (!post.imagem_url) throw new Error("Post sem imagem");
+
+      const plats = post.plataformas ?? [];
+      const targets: string[] = [];
+      if (plats.includes("instagram")) targets.push("instagram");
+      if (plats.includes("facebook")) targets.push("facebook");
+      if (targets.length === 0) throw new Error("Selecione Instagram ou Facebook");
+
+      const caption = [post.legenda ?? post.conteudo ?? "", post.hashtags ?? ""]
+        .filter(Boolean).join("\n\n");
+
+      const { data, error } = await supabase.functions.invoke("social-publish", {
+        body: {
+          integration_id: integ.id,
+          caption,
+          image_url: post.imagem_url,
+          tipo: post.tipo,
+          targets,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      await supabase.from("social_posts")
+        .update({ status: "publicado", erro_msg: null })
+        .eq("id", post.id);
+      toast.success("Publicado!");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabase.from("social_posts")
+        .update({ status: "falhou", erro_msg: msg })
+        .eq("id", post.id);
+      toast.error(msg);
+    } finally {
+      setPublishingId(null);
+      qc.invalidateQueries({ queryKey: ["social-posts", portfolioId] });
+    }
+  }
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ["social-posts", portfolioId],
@@ -190,6 +244,26 @@ export default function SocialMediaModule({ portfolioId }: { portfolioId: string
                     <div className="text-[10px] text-muted-foreground mt-1">
                       {new Date(p.data_agendada).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </div>
+                  )}
+                  {p.status === "falhou" && p.erro_msg && (
+                    <div className="mt-1 flex items-start gap-1 text-[10px] text-destructive bg-destructive/10 rounded p-1">
+                      <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                      <span className="break-words">{p.erro_msg}</span>
+                    </div>
+                  )}
+                  {(p.status === "agendado" || p.status === "falhou") && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full mt-2 h-7 gap-1.5"
+                      disabled={publishingId === p.id}
+                      onClick={(e) => { e.stopPropagation(); publicarAgora(p); }}
+                    >
+                      {publishingId === p.id
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <Send size={12} />}
+                      {p.status === "falhou" ? "Tentar novamente" : "Publicar agora"}
+                    </Button>
                   )}
                 </div>
               ))}

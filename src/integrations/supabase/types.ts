@@ -1232,6 +1232,7 @@ export type Database = {
           conteudo: string
           created_at: string
           data_agendada: string | null
+          erro_msg: string | null
           hashtags: string | null
           id: string
           imagem_url: string | null
@@ -1248,6 +1249,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           data_agendada?: string | null
+          erro_msg?: string | null
           hashtags?: string | null
           id?: string
           imagem_url?: string | null
@@ -1264,6 +1266,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           data_agendada?: string | null
+          erro_msg?: string | null
           hashtags?: string | null
           id?: string
           imagem_url?: string | null
