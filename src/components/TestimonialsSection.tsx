@@ -2,18 +2,18 @@ import { Star } from "lucide-react";
 
 const testimonials = [
   {
-    name: "Ana Beatriz",
-    role: "Diretora de Marketing — ModaFit",
+    name: "Tadeu Miabara",
+    role: "Vila GYM",
     text: "A GA Company entendeu exatamente o que precisávamos. Em 3 meses, triplicamos os leads qualificados.",
   },
   {
-    name: "Rafael Torres",
-    role: "Fundador — Delivery Express",
+    name: "Bruno Lopes",
+    role: "Lopes Odontologia",
     text: "Profissionalismo e resultado. A equipe é extremamente dedicada e os relatórios são impecáveis.",
   },
   {
-    name: "Juliana Almeida",
-    role: "CEO — Beauty Clinic SP",
+    name: "Adriana",
+    role: "GarimpaAI",
     text: "Melhor investimento que fiz para minha empresa. O ROI das campanhas superou todas as expectativas.",
   },
 ];
