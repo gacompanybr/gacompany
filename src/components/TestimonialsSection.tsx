@@ -12,7 +12,7 @@ const testimonials = [
     text: "Profissionalismo e resultado. A equipe é extremamente dedicada e os relatórios são impecáveis.",
   },
   {
-    name: "Adriana",
+    name: "Adriana Bueno",
     role: "GarimpaAI",
     text: "Melhor investimento que fiz para minha empresa. O ROI das campanhas superou todas as expectativas.",
   },
