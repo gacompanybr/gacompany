@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Send, Shield, Clock, CheckCircle, Phone, MessageCircle } from "lucide-react";
+import { Send, Shield, Clock, CheckCircle, Phone, MessageCircle, Mail } from "lucide-react";
 
 const ContactFormSection = () => {
   const [submitted, setSubmitted] = useState(false);
