@@ -12,7 +12,10 @@ const FooterSection = () => {
           </div>
 
           <div className="flex items-center justify-center gap-4">
-            {[Instagram, Linkedin, Mail].map((Icon, i) => (
+            <a href="https://www.instagram.com/gacompanybr/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
+              <Instagram size={18} />
+            </a>
+            {[Linkedin, Mail].map((Icon, i) => (
               <a key={i} href="#" className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
                 <Icon size={18} />
               </a>
