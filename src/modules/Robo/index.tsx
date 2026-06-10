@@ -182,7 +182,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
                         {r.status}
                       </Badge>
                       <Badge variant="outline" className="text-[10px] gap-1">
-                        {r.campaign_type === "ecommerce" ? <><ShoppingBag size={10} /> {r.marketplace ?? "ecommerce"}</> : "disparo"}
+                        {r.campaign_type === "ecommerce" ? <><ShoppingBag size={10} /> {r.marketplace ?? "ecommerce"}</> : r.campaign_type === "beacons_promo" ? "Beacons promo" : "disparo"}
                       </Badge>
                       {r.campaign_type === "ecommerce" && (
                         <Badge variant="outline" className="text-[10px]">{dest.length} grupo(s)</Badge>
