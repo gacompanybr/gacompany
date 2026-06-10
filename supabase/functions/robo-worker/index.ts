@@ -86,17 +86,20 @@ Deno.serve(async (req) => {
         const dias = Array.isArray(r.dias_semana) ? r.dias_semana : [];
         if (!dias.includes(diaAtual)) continue;
 
-        const ini = toMin(String(r.horario_inicio));
-        const fim = toMin(String(r.horario_fim));
+        // Janela de horário: usa horarios_por_dia se houver, senão legado horario_inicio/fim
+        const hpd = r.horarios_por_dia && typeof r.horarios_por_dia === "object"
+          ? r.horarios_por_dia[diaAtual]
+          : null;
+        const ini = toMin(String(hpd?.inicio ?? r.horario_inicio));
+        const fim = toMin(String(hpd?.fim ?? r.horario_fim));
         if (minutosAgora < ini || minutosAgora > fim) continue;
 
         const proxima = r.proxima_execucao ? new Date(r.proxima_execucao).getTime() : 0;
         if (proxima > now.getTime()) continue;
 
         const destinos: string[] = Array.isArray(r.destinos) ? r.destinos : [];
-        const mensagens: string[] = Array.isArray(r.mensagens) ? r.mensagens : [];
-        if (destinos.length === 0 || mensagens.length === 0) {
-          results.push({ id: r.id, skip: "sem destinos ou mensagens" });
+        if (destinos.length === 0) {
+          results.push({ id: r.id, skip: "sem destinos" });
           continue;
         }
         if (!r.instancia_id) {
@@ -104,25 +107,58 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Escolhe mensagem aleatória
-        const msg = mensagens[Math.floor(Math.random() * mensagens.length)];
         let enviados = 0;
-        for (const to of destinos) {
-          try {
-            await sendText(r.instancia_id, to, msg);
-            enviados++;
-          } catch (e) {
-            console.error(`Falha envio robô ${r.id} → ${to}`, e);
+
+        if (r.campaign_type === "beacons_promo") {
+          const { data: promo } = await admin
+            .from("beacons_promocoes")
+            .select("link,image_url,texto,ativo")
+            .eq("portfolio_id", r.portfolio_id)
+            .maybeSingle();
+          if (!promo || !promo.ativo) {
+            results.push({ id: r.id, skip: "promo inativa ou não cadastrada" });
+            continue;
+          }
+          const caption = `${promo.texto ?? ""}${promo.link ? `\n\n👉 ${promo.link}` : ""}`.trim();
+          for (const to of destinos) {
+            try {
+              if (promo.image_url) {
+                await sendMedia(r.instancia_id, to, promo.image_url, caption);
+              } else {
+                await sendText(r.instancia_id, to, caption);
+              }
+              enviados++;
+            } catch (e) {
+              console.error(`Falha envio promo robô ${r.id} → ${to}`, e);
+            }
+          }
+        } else {
+          const mensagens: string[] = Array.isArray(r.mensagens) ? r.mensagens : [];
+          if (mensagens.length === 0) {
+            results.push({ id: r.id, skip: "sem mensagens" });
+            continue;
+          }
+          const msg = mensagens[Math.floor(Math.random() * mensagens.length)];
+          for (const to of destinos) {
+            try {
+              await sendText(r.instancia_id, to, msg);
+              enviados++;
+            } catch (e) {
+              console.error(`Falha envio robô ${r.id} → ${to}`, e);
+            }
           }
         }
 
         // Próxima execução: agora + intervalo aleatório
-        const nextMin = rand(r.intervalo_min_min ?? 30, r.intervalo_max_min ?? 90);
+        const intervaloMin = hpd?.intervalo ?? r.intervalo_min_min ?? 30;
+        const intervaloMax = hpd?.intervalo ?? r.intervalo_max_min ?? 90;
+        const nextMin = rand(intervaloMin, intervaloMax);
         const proximaExec = new Date(now.getTime() + nextMin * 60_000).toISOString();
 
         await admin.from("robo_campanhas").update({
           ultima_execucao: now.toISOString(),
           proxima_execucao: proximaExec,
+
           total_enviados: (r.total_enviados ?? 0) + enviados,
           ultimo_erro: enviados === 0 ? "Nenhuma mensagem enviada com sucesso" : null,
         }).eq("id", r.id);
