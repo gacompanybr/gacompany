@@ -147,6 +147,10 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
         </Button>
       </div>
 
+      <BeaconsPromocaoCard portfolioId={portfolioId} />
+
+
+
       {isLoading ? (
         <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
       ) : (data ?? []).length === 0 ? (
