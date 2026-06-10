@@ -101,25 +101,35 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
   async function toggle(r: Robo) {
     const ativar = r.status !== "ativo";
     if (ativar) {
-      if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
-      if (r.campaign_type === "ecommerce") {
+      if (r.campaign_type === "beacons_promo") {
         const dest = Array.isArray(r.destinos) ? r.destinos : [];
-        if (!r.n8n_datatable_id || dest.length === 0 || !r.instancia_id) {
-          return toast.error("Configure data table, grupos e instância antes de ativar.");
+        if (dest.length === 0 || !r.instancia_id) {
+          return toast.error("Configure grupos e instância antes de ativar.");
+        }
+      } else {
+        if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
+        if (r.campaign_type === "ecommerce") {
+          const dest = Array.isArray(r.destinos) ? r.destinos : [];
+          if (!r.n8n_datatable_id || dest.length === 0 || !r.instancia_id) {
+            return toast.error("Configure data table, grupos e instância antes de ativar.");
+          }
         }
       }
     }
-    const action = ativar ? "activate" : "deactivate";
-    const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
-      body: { action, workflowId: r.n8n_workflow_id },
-    });
-    if (fnErr) return toast.error(fnErr.message);
+    if (r.campaign_type !== "beacons_promo") {
+      const action = ativar ? "activate" : "deactivate";
+      const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
+        body: { action, workflowId: r.n8n_workflow_id },
+      });
+      if (fnErr) return toast.error(fnErr.message);
+    }
     const { error } = await supabase.from("robo_campanhas" as any)
       .update({ status: ativar ? "ativo" : "pausado" } as any).eq("id", r.id);
     if (error) return toast.error(error.message);
-    toast.success(ativar ? "Robô ativado no n8n!" : "Robô pausado");
+    toast.success(ativar ? "Robô ativado!" : "Robô pausado");
     qc.invalidateQueries({ queryKey: ["robo", portfolioId] });
   }
+
 
   async function remove(r: Robo) {
     if (!confirm("Excluir robô e apagar workflow do n8n?")) return;
@@ -172,7 +182,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
                         {r.status}
                       </Badge>
                       <Badge variant="outline" className="text-[10px] gap-1">
-                        {r.campaign_type === "ecommerce" ? <><ShoppingBag size={10} /> {r.marketplace ?? "ecommerce"}</> : "disparo"}
+                        {r.campaign_type === "ecommerce" ? <><ShoppingBag size={10} /> {r.marketplace ?? "ecommerce"}</> : r.campaign_type === "beacons_promo" ? "Beacons promo" : "disparo"}
                       </Badge>
                       {r.campaign_type === "ecommerce" && (
                         <Badge variant="outline" className="text-[10px]">{dest.length} grupo(s)</Badge>
@@ -313,6 +323,9 @@ function RoboDialog({
       if (!tableId) return toast.error("Selecione a data table do n8n");
       if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
       if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
+    } else if (campaignType === "beacons_promo") {
+      if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
+      if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
     } else {
       if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos");
     }
@@ -332,13 +345,10 @@ function RoboDialog({
       horarios_por_dia: horarios,
       dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
-    // mantém campos legados sincronizados com o menor intervalo configurado
     const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
     const minInt = intervalos.length ? Math.min(...intervalos) : 30;
     payload.intervalo_min_min = minInt;
     payload.intervalo_max_min = minInt;
-
-
 
     let roboId = editing?.id;
     if (editing) {
@@ -351,7 +361,14 @@ function RoboDialog({
       roboId = (inserted as any).id;
     }
 
-    // Cria/atualiza workflow no n8n
+    if (campaignType === "beacons_promo") {
+      setBusy(false);
+      toast.success("Robô de promoção salvo! Envia a promo ativa do card nos horários configurados.");
+      onOpenChange(false);
+      onSaved();
+      return;
+    }
+
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
       body: { action: "upsert_workflow", roboId },
     });
@@ -365,6 +382,7 @@ function RoboDialog({
     onSaved();
   }
 
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -374,7 +392,7 @@ function RoboDialog({
         <div className="space-y-4">
           <div>
             <Label>Tipo de campanha</Label>
-            <RadioGroup value={campaignType} onValueChange={setCampaignType} className="flex gap-4 mt-2">
+            <RadioGroup value={campaignType} onValueChange={setCampaignType} className="flex gap-4 mt-2 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer">
                 <RadioGroupItem value="ecommerce" id="ec" />
                 <span className="text-sm">Ecommerce em grupos</span>
@@ -383,7 +401,12 @@ function RoboDialog({
                 <RadioGroupItem value="disparo" id="ds" />
                 <span className="text-sm">Disparo de contatos</span>
               </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="beacons_promo" id="bp" />
+                <span className="text-sm">Beacons promoção do dia</span>
+              </label>
             </RadioGroup>
+
           </div>
 
           <div>
@@ -509,6 +532,74 @@ function RoboDialog({
               <Label>URL da planilha de contatos (CSV)</Label>
               <Input value={planilhaUrl} onChange={(e) => setPlanilhaUrl(e.target.value)} placeholder="https://..." />
             </div>
+          )}
+
+          {campaignType === "beacons_promo" && (
+            <>
+              <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                Esse robô envia a <strong>promoção ativa cadastrada no card "Promoção Beacons (do dia)"</strong> acima (imagem + texto + link) nos grupos e horários configurados. Atualize o card sempre que a promo mudar.
+              </div>
+
+              <div>
+                <Label>Agente WhatsApp</Label>
+                <Select value={agentId} onValueChange={async (v) => {
+                  setAgentId(v);
+                  const { data: conn } = await supabase
+                    .from("whatsapp_connections")
+                    .select("instance_name,status")
+                    .eq("portfolio_id", portfolioId)
+                    .maybeSingle();
+                  const a = (agents ?? []).find((x) => x.id === v);
+                  const live = conn?.instance_name ?? a?.instancia_id ?? "";
+                  setInstanciaId(live);
+                  if (conn && conn.status !== "connected") {
+                    toast.warning(`Instância está ${conn.status}. Conecte primeiro.`);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um agente" /></SelectTrigger>
+                  <SelectContent>
+                    {(agents ?? []).map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Grupos de destino</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={carregarGrupos}
+                    disabled={!agentId || loadingGrupos} className="gap-1">
+                    {loadingGrupos ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    Carregar grupos
+                  </Button>
+                </div>
+                {grupos.length === 0 && destinos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Clique em "Carregar grupos".</p>
+                ) : (
+                  <div className="border border-border rounded p-2 max-h-48 overflow-y-auto space-y-1">
+                    {grupos.length > 0 ? grupos.map((g) => (
+                      <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={destinos.includes(g.id)}
+                          onChange={() => setDestinos((cur) =>
+                            cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]
+                          )}
+                        />
+                        <span className="truncate">{g.nome}</span>
+                      </label>
+                    )) : destinos.map((d) => (
+                      <div key={d} className="text-xs text-muted-foreground truncate">Selecionado: {d}</div>
+                    ))}
+                  </div>
+                )}
+                {destinos.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">{destinos.length} grupo(s) selecionado(s)</p>
+                )}
+              </div>
+            </>
           )}
 
           <div className="space-y-2">
