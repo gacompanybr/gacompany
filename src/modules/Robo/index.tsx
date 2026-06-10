@@ -392,7 +392,7 @@ function RoboDialog({
         <div className="space-y-4">
           <div>
             <Label>Tipo de campanha</Label>
-            <RadioGroup value={campaignType} onValueChange={setCampaignType} className="flex gap-4 mt-2">
+            <RadioGroup value={campaignType} onValueChange={setCampaignType} className="flex gap-4 mt-2 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer">
                 <RadioGroupItem value="ecommerce" id="ec" />
                 <span className="text-sm">Ecommerce em grupos</span>
@@ -401,7 +401,12 @@ function RoboDialog({
                 <RadioGroupItem value="disparo" id="ds" />
                 <span className="text-sm">Disparo de contatos</span>
               </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <RadioGroupItem value="beacons_promo" id="bp" />
+                <span className="text-sm">Beacons promoção do dia</span>
+              </label>
             </RadioGroup>
+
           </div>
 
           <div>
