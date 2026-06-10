@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Zap, Trash2, Play, Pause, RefreshCw, Settings, ShoppingBag } from "lucide-react";
+import { BeaconsPromocaoCard } from "./BeaconsPromocaoCard";
 
 
 
@@ -145,6 +146,10 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
           <Plus size={14} /> Novo robô
         </Button>
       </div>
+
+      <BeaconsPromocaoCard portfolioId={portfolioId} />
+
+
 
       {isLoading ? (
         <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>

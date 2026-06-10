@@ -61,6 +61,47 @@ export type Database = {
           },
         ]
       }
+      beacons_promocoes: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          image_url: string | null
+          link: string | null
+          portfolio_id: string
+          texto: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          link?: string | null
+          portfolio_id: string
+          texto?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          link?: string | null
+          portfolio_id?: string
+          texto?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beacons_promocoes_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: true
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_keywords: {
         Row: {
           ad_group_id: string | null
