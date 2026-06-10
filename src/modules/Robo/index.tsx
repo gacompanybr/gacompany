@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Zap, Trash2, Play, Pause, RefreshCw, Settings, ShoppingBag } from "lucide-react";
+import { BeaconsPromocaoCard } from "./BeaconsPromocaoCard";
 
 
 
