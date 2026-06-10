@@ -534,6 +534,74 @@ function RoboDialog({
             </div>
           )}
 
+          {campaignType === "beacons_promo" && (
+            <>
+              <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                Esse robô envia a <strong>promoção ativa cadastrada no card "Promoção Beacons (do dia)"</strong> acima (imagem + texto + link) nos grupos e horários configurados. Atualize o card sempre que a promo mudar.
+              </div>
+
+              <div>
+                <Label>Agente WhatsApp</Label>
+                <Select value={agentId} onValueChange={async (v) => {
+                  setAgentId(v);
+                  const { data: conn } = await supabase
+                    .from("whatsapp_connections")
+                    .select("instance_name,status")
+                    .eq("portfolio_id", portfolioId)
+                    .maybeSingle();
+                  const a = (agents ?? []).find((x) => x.id === v);
+                  const live = conn?.instance_name ?? a?.instancia_id ?? "";
+                  setInstanciaId(live);
+                  if (conn && conn.status !== "connected") {
+                    toast.warning(`Instância está ${conn.status}. Conecte primeiro.`);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um agente" /></SelectTrigger>
+                  <SelectContent>
+                    {(agents ?? []).map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Grupos de destino</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={carregarGrupos}
+                    disabled={!agentId || loadingGrupos} className="gap-1">
+                    {loadingGrupos ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    Carregar grupos
+                  </Button>
+                </div>
+                {grupos.length === 0 && destinos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Clique em "Carregar grupos".</p>
+                ) : (
+                  <div className="border border-border rounded p-2 max-h-48 overflow-y-auto space-y-1">
+                    {grupos.length > 0 ? grupos.map((g) => (
+                      <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={destinos.includes(g.id)}
+                          onChange={() => setDestinos((cur) =>
+                            cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]
+                          )}
+                        />
+                        <span className="truncate">{g.nome}</span>
+                      </label>
+                    )) : destinos.map((d) => (
+                      <div key={d} className="text-xs text-muted-foreground truncate">Selecionado: {d}</div>
+                    ))}
+                  </div>
+                )}
+                {destinos.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">{destinos.length} grupo(s) selecionado(s)</p>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="space-y-2">
             <Label>Cronograma por dia da semana</Label>
             <p className="text-xs text-muted-foreground">
