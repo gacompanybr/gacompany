@@ -42,6 +42,24 @@ async function sendText(instance: string, to: string, text: string) {
   return txt;
 }
 
+async function sendMedia(instance: string, to: string, imageUrl: string, caption: string) {
+  const r = await fetch(`${EVO_URL}/message/sendMedia/${instance}`, {
+    method: "POST",
+    headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      number: to,
+      mediatype: "image",
+      media: imageUrl,
+      caption,
+      fileName: "promo.jpg",
+    }),
+  });
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`Evolution ${r.status}: ${txt}`);
+  return txt;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
