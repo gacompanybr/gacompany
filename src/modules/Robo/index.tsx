@@ -101,25 +101,35 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
   async function toggle(r: Robo) {
     const ativar = r.status !== "ativo";
     if (ativar) {
-      if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
-      if (r.campaign_type === "ecommerce") {
+      if (r.campaign_type === "beacons_promo") {
         const dest = Array.isArray(r.destinos) ? r.destinos : [];
-        if (!r.n8n_datatable_id || dest.length === 0 || !r.instancia_id) {
-          return toast.error("Configure data table, grupos e instância antes de ativar.");
+        if (dest.length === 0 || !r.instancia_id) {
+          return toast.error("Configure grupos e instância antes de ativar.");
+        }
+      } else {
+        if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
+        if (r.campaign_type === "ecommerce") {
+          const dest = Array.isArray(r.destinos) ? r.destinos : [];
+          if (!r.n8n_datatable_id || dest.length === 0 || !r.instancia_id) {
+            return toast.error("Configure data table, grupos e instância antes de ativar.");
+          }
         }
       }
     }
-    const action = ativar ? "activate" : "deactivate";
-    const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
-      body: { action, workflowId: r.n8n_workflow_id },
-    });
-    if (fnErr) return toast.error(fnErr.message);
+    if (r.campaign_type !== "beacons_promo") {
+      const action = ativar ? "activate" : "deactivate";
+      const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
+        body: { action, workflowId: r.n8n_workflow_id },
+      });
+      if (fnErr) return toast.error(fnErr.message);
+    }
     const { error } = await supabase.from("robo_campanhas" as any)
       .update({ status: ativar ? "ativo" : "pausado" } as any).eq("id", r.id);
     if (error) return toast.error(error.message);
-    toast.success(ativar ? "Robô ativado no n8n!" : "Robô pausado");
+    toast.success(ativar ? "Robô ativado!" : "Robô pausado");
     qc.invalidateQueries({ queryKey: ["robo", portfolioId] });
   }
+
 
   async function remove(r: Robo) {
     if (!confirm("Excluir robô e apagar workflow do n8n?")) return;
