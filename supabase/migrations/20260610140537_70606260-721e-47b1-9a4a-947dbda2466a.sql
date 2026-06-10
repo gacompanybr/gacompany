@@ -1,0 +1,2 @@
+ALTER TABLE public.robo_campanhas DROP CONSTRAINT robo_campanhas_campaign_type_check;
+ALTER TABLE public.robo_campanhas ADD CONSTRAINT robo_campanhas_campaign_type_check CHECK (campaign_type = ANY (ARRAY['disparo'::text, 'ecommerce'::text, 'beacons_promo'::text]));
