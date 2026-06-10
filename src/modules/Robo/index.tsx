@@ -323,6 +323,9 @@ function RoboDialog({
       if (!tableId) return toast.error("Selecione a data table do n8n");
       if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
       if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
+    } else if (campaignType === "beacons_promo") {
+      if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
+      if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
     } else {
       if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos");
     }
@@ -342,13 +345,10 @@ function RoboDialog({
       horarios_por_dia: horarios,
       dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
-    // mantém campos legados sincronizados com o menor intervalo configurado
     const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
     const minInt = intervalos.length ? Math.min(...intervalos) : 30;
     payload.intervalo_min_min = minInt;
     payload.intervalo_max_min = minInt;
-
-
 
     let roboId = editing?.id;
     if (editing) {
@@ -361,7 +361,14 @@ function RoboDialog({
       roboId = (inserted as any).id;
     }
 
-    // Cria/atualiza workflow no n8n
+    if (campaignType === "beacons_promo") {
+      setBusy(false);
+      toast.success("Robô de promoção salvo! Envia a promo ativa do card nos horários configurados.");
+      onOpenChange(false);
+      onSaved();
+      return;
+    }
+
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
       body: { action: "upsert_workflow", roboId },
     });
@@ -374,6 +381,7 @@ function RoboDialog({
     onOpenChange(false);
     onSaved();
   }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
