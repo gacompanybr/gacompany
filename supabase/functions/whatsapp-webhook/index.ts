@@ -90,23 +90,15 @@ function dentroDoHorario(agent: any): boolean {
 async function sendText(instance: string, to: string, text: string) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
-  const payloads = [
-    { number: to, textMessage: { text }, delay: 0, linkPreview: false },
-    { number: to, text, delay: 0, linkPreview: false },
-  ];
-
-  for (const body of payloads) {
-    const r = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    const responseText = await r.text();
-    console.log("sendText attempt", JSON.stringify({ instance, to, status: r.status, ok: r.ok, bodyKeys: Object.keys(body), response: responseText.slice(0, 300) }));
-    if (r.ok) return true;
-  }
-
-  return false;
+  const body = { number: to, text, delay: 0, linkPreview: false };
+  const r = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const responseText = await r.text();
+  console.log("sendText", JSON.stringify({ instance, to, status: r.status, ok: r.ok, response: responseText.slice(0, 300) }));
+  return r.ok;
 }
 
 Deno.serve(async (req) => {
