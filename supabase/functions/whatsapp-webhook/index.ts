@@ -90,15 +90,165 @@ function dentroDoHorario(agent: any): boolean {
 async function sendText(instance: string, to: string, text: string) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
-  const body = { number: to, text, delay: 0, linkPreview: false };
-  const r = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  const responseText = await r.text();
-  console.log("sendText", JSON.stringify({ instance, to, status: r.status, ok: r.ok, response: responseText.slice(0, 300) }));
-  return r.ok;
+  const payloads = [
+    { number: to, text, delay: 0, linkPreview: false },
+    { number: to, options: { delay: 0, presence: "composing", linkPreview: false }, textMessage: { text } },
+  ];
+
+  for (const body of payloads) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    const responseText = await r.text();
+    console.log("sendText", JSON.stringify({ instance, to, status: r.status, ok: r.ok, response: responseText.slice(0, 300) }));
+    if (r.ok) return true;
+  }
+
+  return false;
+}
+
+async function processPayload(payload: any) {
+  const event = payload.event ?? payload.eventName;
+  const eventName = String(event ?? "").toLowerCase();
+  if (eventName.includes("connection")) return;
+  if (event && !eventName.includes("messages.upsert") && !eventName.includes("messages_upsert")) return;
+
+  const data = payload.data ?? payload;
+  const messages = Array.isArray(data.messages) ? data.messages : [data];
+
+  for (const msg of messages) {
+    if (!msg || msg.key?.fromMe || msg.fromMe || msg.messageStubType) continue;
+
+    const instance = normalizeInstance(payload, msg);
+    const remoteJid = getRemoteJid(msg);
+    if (!remoteJid) continue;
+
+    // Ignorar grupos (terminam em @g.us)
+    if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) {
+      console.log("ignorando grupo/broadcast", remoteJid);
+      continue;
+    }
+
+    const text = getMessageText(msg);
+    if (!text || !text.trim()) continue;
+
+    const phone = remoteJid.split("@")[0];
+    const pushName: string | null = msg.pushName ?? null;
+
+    // Resolver portfolio_id pela instância
+    const { data: conn } = await admin
+      .from("whatsapp_connections")
+      .select("portfolio_id")
+      .eq("instance_name", instance)
+      .maybeSingle();
+
+    let portfolioId = conn?.portfolio_id;
+    if (!portfolioId) {
+      const { data: ag } = await admin
+        .from("whatsapp_agents")
+        .select("portfolio_id")
+        .eq("instancia_id", instance)
+        .maybeSingle();
+      portfolioId = ag?.portfolio_id;
+    }
+    if (!portfolioId) {
+      console.log("sem portfolio para instancia", instance);
+      continue;
+    }
+
+    const { data: agent } = await admin
+      .from("whatsapp_agents")
+      .select("*")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (!agent) {
+      console.log("sem agent para portfolio", portfolioId);
+      continue;
+    }
+
+    // Salvar mensagem do usuário
+    await admin.from("whatsapp_conversas").insert({
+      portfolio_id: portfolioId,
+      instance_name: instance,
+      contato_telefone: phone,
+      contato_nome: pushName,
+      role: "user",
+      mensagem: text,
+    });
+
+    // Fora do horário → mensagem padrão (se houver)
+    if (!dentroDoHorario(agent)) {
+      if (agent.fora_horario_msg) {
+        const sent = await sendText(instance, phone, agent.fora_horario_msg);
+        await admin.from("whatsapp_conversas").insert({
+          portfolio_id: portfolioId,
+          instance_name: instance,
+          contato_telefone: phone,
+          contato_nome: pushName,
+          role: "assistant",
+          mensagem: sent ? agent.fora_horario_msg : `[FALHA AO ENVIAR] ${agent.fora_horario_msg}`,
+        });
+      }
+      continue;
+    }
+
+    // Carregar últimas 20 mensagens (memória)
+    const { data: history } = await admin
+      .from("whatsapp_conversas")
+      .select("role, mensagem")
+      .eq("portfolio_id", portfolioId)
+      .eq("contato_telefone", phone)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    const recent = (history ?? []).reverse();
+
+    const modelMap: Record<string, string> = {
+      gemini: "google/gemini-2.5-flash",
+      openai: "openai/gpt-5-mini",
+    };
+    const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
+
+    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: buildSystemPrompt(agent) },
+          ...recent.map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.mensagem,
+          })),
+        ],
+        temperature: agent.temperatura ?? 0.7,
+        max_tokens: Math.min(Number(agent.max_tokens ?? 220), 260),
+      }),
+    });
+
+    if (!aiResp.ok) {
+      console.error("AI gateway error", aiResp.status, await aiResp.text());
+      continue;
+    }
+    const aiJson = await aiResp.json();
+    const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
+    if (!reply) continue;
+
+    const sent = await sendText(instance, phone, reply);
+    await admin.from("whatsapp_conversas").insert({
+      portfolio_id: portfolioId,
+      instance_name: instance,
+      contato_telefone: phone,
+      contato_nome: pushName,
+      role: "assistant",
+      mensagem: sent ? reply : `[FALHA AO ENVIAR] ${reply}`,
+    });
+  }
 }
 
 Deno.serve(async (req) => {
@@ -113,140 +263,7 @@ Deno.serve(async (req) => {
       return json({ ignored: "event", event });
     }
 
-    const data = payload.data ?? payload;
-    const messages = Array.isArray(data.messages) ? data.messages : [data];
-
-    for (const msg of messages) {
-      if (!msg || msg.key?.fromMe || msg.fromMe || msg.messageStubType) continue;
-
-      const instance = normalizeInstance(payload, msg);
-      const remoteJid = getRemoteJid(msg);
-      if (!remoteJid) continue;
-
-      // Ignorar grupos (terminam em @g.us)
-      if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) {
-        console.log("ignorando grupo/broadcast", remoteJid);
-        continue;
-      }
-
-      const text = getMessageText(msg);
-      if (!text || !text.trim()) continue;
-
-      const phone = remoteJid.split("@")[0];
-      const pushName: string | null = msg.pushName ?? null;
-
-      // Resolver portfolio_id pela instância
-      const { data: conn } = await admin
-        .from("whatsapp_connections")
-        .select("portfolio_id")
-        .eq("instance_name", instance)
-        .maybeSingle();
-
-      let portfolioId = conn?.portfolio_id;
-      if (!portfolioId) {
-        const { data: ag } = await admin
-          .from("whatsapp_agents")
-          .select("portfolio_id")
-          .eq("instancia_id", instance)
-          .maybeSingle();
-        portfolioId = ag?.portfolio_id;
-      }
-      if (!portfolioId) {
-        console.log("sem portfolio para instancia", instance);
-        continue;
-      }
-
-      const { data: agent } = await admin
-        .from("whatsapp_agents")
-        .select("*")
-        .eq("portfolio_id", portfolioId)
-        .maybeSingle();
-      if (!agent) {
-        console.log("sem agent para portfolio", portfolioId);
-        continue;
-      }
-
-      // Salvar mensagem do usuário
-      await admin.from("whatsapp_conversas").insert({
-        portfolio_id: portfolioId,
-        instance_name: instance,
-        contato_telefone: phone,
-        contato_nome: pushName,
-        role: "user",
-        mensagem: text,
-      });
-
-      // Fora do horário → mensagem padrão (se houver)
-      if (!dentroDoHorario(agent)) {
-        if (agent.fora_horario_msg) {
-          const sent = await sendText(instance, phone, agent.fora_horario_msg);
-          await admin.from("whatsapp_conversas").insert({
-            portfolio_id: portfolioId,
-            instance_name: instance,
-            contato_telefone: phone,
-            contato_nome: pushName,
-            role: "assistant",
-            mensagem: sent ? agent.fora_horario_msg : `[FALHA AO ENVIAR] ${agent.fora_horario_msg}`,
-          });
-        }
-        continue;
-      }
-
-      // Carregar últimas 20 mensagens (memória)
-      const { data: history } = await admin
-        .from("whatsapp_conversas")
-        .select("role, mensagem")
-        .eq("portfolio_id", portfolioId)
-        .eq("contato_telefone", phone)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      const recent = (history ?? []).reverse();
-
-      const modelMap: Record<string, string> = {
-        gemini: "google/gemini-2.5-flash",
-        openai: "openai/gpt-5-mini",
-      };
-      const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
-
-      const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: buildSystemPrompt(agent) },
-            ...recent.map((m) => ({
-              role: m.role === "assistant" ? "assistant" : "user",
-              content: m.mensagem,
-            })),
-          ],
-          temperature: agent.temperatura ?? 0.7,
-          max_tokens: Math.min(Number(agent.max_tokens ?? 320), 360),
-        }),
-      });
-
-      if (!aiResp.ok) {
-        console.error("AI gateway error", aiResp.status, await aiResp.text());
-        continue;
-      }
-      const aiJson = await aiResp.json();
-      const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
-      if (!reply) continue;
-
-      const sent = await sendText(instance, phone, reply);
-      await admin.from("whatsapp_conversas").insert({
-        portfolio_id: portfolioId,
-        instance_name: instance,
-        contato_telefone: phone,
-        contato_nome: pushName,
-        role: "assistant",
-        mensagem: sent ? reply : `[FALHA AO ENVIAR] ${reply}`,
-      });
-    }
+    EdgeRuntime.waitUntil(processPayload(payload).catch((e) => console.error("whatsapp async error", e)));
 
     return json({ ok: true });
   } catch (e) {
