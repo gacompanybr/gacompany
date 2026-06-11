@@ -42,6 +42,33 @@ function extractQr(body: any): string | null {
 
 async function wait(ms: number) { await new Promise((r) => setTimeout(r, ms)); }
 
+async function ensureWebhook(instanceName: string) {
+  const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+  const setWebhook = await evo(`/webhook/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: false,
+        byEvents: false,
+        base64: false,
+        webhookBase64: false,
+        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+      },
+      enabled: true,
+      url: webhookUrl,
+      webhookByEvents: false,
+      webhookBase64: false,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+    }),
+  });
+  console.log("webhook ensure status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
+  return setWebhook;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -114,25 +141,7 @@ Deno.serve(async (req) => {
         raw = firstQr.raw;
       }
 
-      // Registrar webhook para auto-resposta (MESSAGES_UPSERT)
-      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
-      const setWebhook = await evo(`/webhook/set/${instanceName}`, {
-        method: "POST",
-        body: JSON.stringify({
-          webhook: {
-            enabled: true,
-            url: webhookUrl,
-            byEvents: false,
-            base64: false,
-            events: ["MESSAGES_UPSERT"],
-          },
-          // formato alternativo aceito por algumas versões
-          enabled: true,
-          url: webhookUrl,
-          events: ["MESSAGES_UPSERT"],
-        }),
-      });
-      console.log("webhook set status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
+      await ensureWebhook(instanceName);
 
 
       // Upsert na tabela
@@ -142,12 +151,17 @@ Deno.serve(async (req) => {
         status: "connecting",
       }, { onConflict: "portfolio_id" });
 
+      await admin.from("whatsapp_agents")
+        .update({ instancia_id: instanceName })
+        .eq("portfolio_id", portfolioId);
+
       if (!qrCode) return json({ error: "QR não retornado pela Evolution.", raw });
       return json({ instanceName, qr: qrCode });
     }
 
     if (action === "status") {
       if (!existing?.instance_name) return json({ state: "disconnected" });
+      await ensureWebhook(existing.instance_name);
       const s = await evo(`/instance/connectionState/${existing.instance_name}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
       if (state === "open") {
@@ -158,8 +172,26 @@ Deno.serve(async (req) => {
         await admin.from("whatsapp_connections")
           .update({ status: "connected", phone })
           .eq("portfolio_id", portfolioId);
+      } else {
+        await admin.from("whatsapp_connections")
+          .update({ status: state === "close" ? "disconnected" : state })
+          .eq("portfolio_id", portfolioId);
       }
       return json({ state });
+    }
+
+    if (action === "repair") {
+      if (!existing?.instance_name) return json({ ok: false, state: "disconnected" });
+      await ensureWebhook(existing.instance_name);
+      const s = await evo(`/instance/connectionState/${existing.instance_name}`);
+      const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
+      await admin.from("whatsapp_connections")
+        .update({ status: state === "open" ? "connected" : state === "close" ? "disconnected" : state })
+        .eq("portfolio_id", portfolioId);
+      await admin.from("whatsapp_agents")
+        .update({ instancia_id: existing.instance_name })
+        .eq("portfolio_id", portfolioId);
+      return json({ ok: state === "open", state, instanceName: existing.instance_name });
     }
 
     if (action === "disconnect") {
@@ -169,6 +201,9 @@ Deno.serve(async (req) => {
       }
       await admin.from("whatsapp_connections")
         .update({ status: "disconnected", phone: null })
+        .eq("portfolio_id", portfolioId);
+      await admin.from("whatsapp_agents")
+        .update({ instancia_id: null })
         .eq("portfolio_id", portfolioId);
       return json({ ok: true });
     }
