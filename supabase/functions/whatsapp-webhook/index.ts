@@ -88,12 +88,17 @@ function dentroDoHorario(agent: any): boolean {
 }
 
 async function sendText(instance: string, to: string, text: string) {
-  const r = await fetch(`${EVO_URL}/message/sendText/${instance}`, {
+  const url = `${EVO_URL}/message/sendText/${instance}`;
+  const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
+  const body = { number: to, text, delay: 0, linkPreview: false };
+  const r = await fetch(url, {
     method: "POST",
-    headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ number: to, text }),
+    headers,
+    body: JSON.stringify(body),
   });
-  if (!r.ok) console.error("sendText failed", r.status, await r.text());
+  const responseText = await r.text();
+  console.log("sendText", JSON.stringify({ instance, to, status: r.status, ok: r.ok, response: responseText.slice(0, 300) }));
+  return r.ok;
 }
 
 Deno.serve(async (req) => {
@@ -174,14 +179,14 @@ Deno.serve(async (req) => {
       // Fora do horário → mensagem padrão (se houver)
       if (!dentroDoHorario(agent)) {
         if (agent.fora_horario_msg) {
-          await sendText(instance, phone, agent.fora_horario_msg);
+          const sent = await sendText(instance, phone, agent.fora_horario_msg);
           await admin.from("whatsapp_conversas").insert({
             portfolio_id: portfolioId,
             instance_name: instance,
             contato_telefone: phone,
             contato_nome: pushName,
             role: "assistant",
-            mensagem: agent.fora_horario_msg,
+            mensagem: sent ? agent.fora_horario_msg : `[FALHA AO ENVIAR] ${agent.fora_horario_msg}`,
           });
         }
         continue;
@@ -232,14 +237,14 @@ Deno.serve(async (req) => {
       const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
       if (!reply) continue;
 
-      await sendText(instance, phone, reply);
+      const sent = await sendText(instance, phone, reply);
       await admin.from("whatsapp_conversas").insert({
         portfolio_id: portfolioId,
         instance_name: instance,
         contato_telefone: phone,
         contato_nome: pushName,
         role: "assistant",
-        mensagem: reply,
+        mensagem: sent ? reply : `[FALHA AO ENVIAR] ${reply}`,
       });
     }
 
