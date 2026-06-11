@@ -114,6 +114,27 @@ Deno.serve(async (req) => {
         raw = firstQr.raw;
       }
 
+      // Registrar webhook para auto-resposta (MESSAGES_UPSERT)
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+      const setWebhook = await evo(`/webhook/set/${instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({
+          webhook: {
+            enabled: true,
+            url: webhookUrl,
+            byEvents: false,
+            base64: false,
+            events: ["MESSAGES_UPSERT"],
+          },
+          // formato alternativo aceito por algumas versões
+          enabled: true,
+          url: webhookUrl,
+          events: ["MESSAGES_UPSERT"],
+        }),
+      });
+      console.log("webhook set status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
+
+
       // Upsert na tabela
       await admin.from("whatsapp_connections").upsert({
         portfolio_id: portfolioId,

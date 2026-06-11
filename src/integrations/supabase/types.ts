@@ -1605,6 +1605,47 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_conversas: {
+        Row: {
+          contato_nome: string | null
+          contato_telefone: string
+          created_at: string
+          id: string
+          instance_name: string
+          mensagem: string
+          portfolio_id: string
+          role: string
+        }
+        Insert: {
+          contato_nome?: string | null
+          contato_telefone: string
+          created_at?: string
+          id?: string
+          instance_name: string
+          mensagem: string
+          portfolio_id: string
+          role: string
+        }
+        Update: {
+          contato_nome?: string | null
+          contato_telefone?: string
+          created_at?: string
+          id?: string
+          instance_name?: string
+          mensagem?: string
+          portfolio_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversas_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       meta_integracoes_public: {
