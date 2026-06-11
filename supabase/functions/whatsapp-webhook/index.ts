@@ -15,6 +15,33 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+function asText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function normalizeInstance(payload: any, msg: any): string {
+  const raw = payload.instance ?? payload.instanceName ?? payload.data?.instance ?? msg.instance ?? msg.instanceName ?? "";
+  if (typeof raw === "string") return raw;
+  return raw?.instanceName ?? raw?.name ?? "";
+}
+
+function getRemoteJid(msg: any): string {
+  return asText(msg.key?.remoteJid) || asText(msg.remoteJid) || asText(msg.chatId) || asText(msg.from) || asText(msg.sender);
+}
+
+function getMessageText(msg: any): string {
+  return (
+    asText(msg.message?.conversation) ||
+    asText(msg.message?.extendedTextMessage?.text) ||
+    asText(msg.message?.imageMessage?.caption) ||
+    asText(msg.message?.videoMessage?.caption) ||
+    asText(msg.message?.documentMessage?.caption) ||
+    asText(msg.text) ||
+    asText(msg.body) ||
+    asText(msg.message?.text)
+  ).trim();
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -75,18 +102,20 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     const event = payload.event ?? payload.eventName;
-    if (event && !String(event).toLowerCase().includes("messages.upsert") && !String(event).toLowerCase().includes("messages_upsert")) {
+    const eventName = String(event ?? "").toLowerCase();
+    if (eventName.includes("connection")) return json({ ignored: "connection", state: payload.data?.state });
+    if (event && !eventName.includes("messages.upsert") && !eventName.includes("messages_upsert")) {
       return json({ ignored: "event", event });
     }
 
-    const instance = payload.instance ?? payload.instanceName ?? payload.data?.instance;
     const data = payload.data ?? payload;
     const messages = Array.isArray(data.messages) ? data.messages : [data];
 
     for (const msg of messages) {
-      if (!msg || msg.key?.fromMe) continue;
+      if (!msg || msg.key?.fromMe || msg.fromMe || msg.messageStubType) continue;
 
-      const remoteJid: string = msg.key?.remoteJid ?? "";
+      const instance = normalizeInstance(payload, msg);
+      const remoteJid = getRemoteJid(msg);
       if (!remoteJid) continue;
 
       // Ignorar grupos (terminam em @g.us)
@@ -95,12 +124,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const text: string =
-        msg.message?.conversation ??
-        msg.message?.extendedTextMessage?.text ??
-        msg.message?.imageMessage?.caption ??
-        msg.message?.videoMessage?.caption ??
-        "";
+      const text = getMessageText(msg);
       if (!text || !text.trim()) continue;
 
       const phone = remoteJid.split("@")[0];
@@ -196,7 +220,7 @@ Deno.serve(async (req) => {
             })),
           ],
           temperature: agent.temperatura ?? 0.7,
-          max_tokens: agent.max_tokens ?? 500,
+          max_tokens: Math.min(Number(agent.max_tokens ?? 320), 360),
         }),
       });
 
