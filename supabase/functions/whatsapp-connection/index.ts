@@ -239,6 +239,9 @@ Deno.serve(async (req) => {
       const openInstance = await findOpenInstanceForPortfolio(portfolioId, existing?.instance_name);
       const instanceName = openInstance?.name ?? existing?.instance_name;
       if (!instanceName) return json({ ok: false, state: "disconnected" });
+      const restarted = await evo(`/instance/restart/${instanceName}`, { method: "POST" });
+      console.log("repair restart", JSON.stringify({ instanceName, status: restarted.status, body: restarted.body }).slice(0, 500));
+      await wait(2500);
       await ensureWebhook(instanceName);
       const s = await evo(`/instance/connectionState/${instanceName}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
@@ -248,7 +251,7 @@ Deno.serve(async (req) => {
       await admin.from("whatsapp_agents")
         .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
-      return json({ ok: state === "open", state, instanceName });
+      return json({ ok: state === "open", state, instanceName, restarted: { status: restarted.status, ok: restarted.ok } });
     }
 
     if (action === "diagnose-delivery") {
