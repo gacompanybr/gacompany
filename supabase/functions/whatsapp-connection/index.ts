@@ -149,12 +149,12 @@ Deno.serve(async (req) => {
     if (action === "connect") {
       const shortId = String(portfolioId).replace(/-/g, "").slice(0, 8);
 
-      // Apaga instância anterior (se houver) para evitar sessão zumbi presa em count:0
-      if (existing?.instance_name) {
-        await evo(`/instance/logout/${existing.instance_name}`, { method: "DELETE" });
-        await evo(`/instance/delete/${existing.instance_name}`, { method: "DELETE" });
-        await wait(600);
-      }
+      // Apaga todas as instâncias anteriores deste portfólio para evitar sessão zumbi/orfã.
+      const oldInstances = await listInstancesForPortfolio(portfolioId);
+      const namesToDelete = new Set(oldInstances.map((item) => item.name));
+      if (existing?.instance_name) namesToDelete.add(existing.instance_name);
+      for (const name of namesToDelete) await deleteInstance(name);
+      if (namesToDelete.size) await wait(1200);
 
       // Nome novo a cada conexão garante QR limpo
       const instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
@@ -276,10 +276,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "disconnect") {
-      if (existing?.instance_name) {
-        await evo(`/instance/logout/${existing.instance_name}`, { method: "DELETE" });
-        await evo(`/instance/delete/${existing.instance_name}`, { method: "DELETE" });
-      }
+      const instances = await listInstancesForPortfolio(portfolioId);
+      const namesToDelete = new Set(instances.map((item) => item.name));
+      if (existing?.instance_name) namesToDelete.add(existing.instance_name);
+      for (const name of namesToDelete) await deleteInstance(name);
       await admin.from("whatsapp_connections")
         .update({ status: "disconnected", phone: null })
         .eq("portfolio_id", portfolioId);
