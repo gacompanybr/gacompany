@@ -73,6 +73,23 @@ async function ensureWebhook(instanceName: string) {
   return setWebhook;
 }
 
+async function ensureSettings(instanceName: string) {
+  const settings = await evo(`/settings/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      rejectCall: false,
+      msgCall: "",
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: false,
+    }),
+  });
+  console.log("settings ensure status:", settings.status, JSON.stringify(settings.body).slice(0, 300));
+  return settings;
+}
+
 function cleanInstanceName(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/[^a-zA-Z0-9_-]/g, "") : "";
 }
@@ -242,6 +259,7 @@ Deno.serve(async (req) => {
       const restarted = await evo(`/instance/restart/${instanceName}`, { method: "POST" });
       console.log("repair restart", JSON.stringify({ instanceName, status: restarted.status, body: restarted.body }).slice(0, 500));
       await wait(2500);
+      await ensureSettings(instanceName);
       await ensureWebhook(instanceName);
       const s = await evo(`/instance/connectionState/${instanceName}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
