@@ -315,7 +315,8 @@ Deno.serve(async (req) => {
     }
 
     // Aponta Evolution para o webhook do n8n (URL de produção)
-    const webhookUrl = `${N8N_BASE_URL}/webhook/${webhookPath}`;
+    const N8N_HOST = N8N_BASE_URL.replace(/\/api\/v\d+$/, "");
+    const webhookUrl = `${N8N_HOST}/webhook/${webhookPath}`;
     const wh = await ensureEvolutionWebhook(instanceName, webhookUrl);
 
     await admin.from("whatsapp_agents").update({
