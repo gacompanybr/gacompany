@@ -91,22 +91,29 @@ async function sendText(instance: string, to: string, text: string) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
   const payloads = [
-    { number: to, text, delay: 0, linkPreview: false },
-    { number: to, options: { delay: 0, presence: "composing", linkPreview: false }, textMessage: { text } },
+    { number: to, text },
+    { number: `${to}@s.whatsapp.net`, text },
+    { number: to, options: { delay: 1200, presence: "composing", linkPreview: false }, textMessage: { text } },
   ];
 
-  for (const body of payloads) {
+  let acceptedPending = false;
+  for (const [index, body] of payloads.entries()) {
     const r = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
     const responseText = await r.text();
-    console.log("sendText", JSON.stringify({ instance, to, status: r.status, ok: r.ok, response: responseText.slice(0, 300) }));
-    if (r.ok) return true;
+    let responseJson: any = null;
+    try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
+    const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
+    const isPending = deliveryStatus === "PENDING";
+    console.log("sendText", JSON.stringify({ instance, to, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
+    if (r.ok && !isPending) return true;
+    if (r.ok && isPending) acceptedPending = true;
   }
 
-  return false;
+  return acceptedPending;
 }
 
 async function processPayload(payload: any) {
