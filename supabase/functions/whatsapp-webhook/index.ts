@@ -149,6 +149,7 @@ async function processPayload(payload: any) {
     if (!text || !text.trim()) continue;
 
     const phone = remoteJid.split("@")[0];
+    const sendTargets = getSendTargets(msg, remoteJid);
     const pushName: string | null = msg.pushName ?? null;
 
     // Resolver portfolio_id pela instância
@@ -195,7 +196,7 @@ async function processPayload(payload: any) {
     // Fora do horário → mensagem padrão (se houver)
     if (!dentroDoHorario(agent)) {
       if (agent.fora_horario_msg) {
-        const sent = await sendText(instance, phone, agent.fora_horario_msg);
+        const sent = await sendText(instance, sendTargets, agent.fora_horario_msg);
         await admin.from("whatsapp_conversas").insert({
           portfolio_id: portfolioId,
           instance_name: instance,
@@ -253,7 +254,7 @@ async function processPayload(payload: any) {
     const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
     if (!reply) continue;
 
-    const sent = await sendText(instance, phone, reply);
+    const sent = await sendText(instance, sendTargets, reply);
     await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,
       instance_name: instance,
