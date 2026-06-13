@@ -56,7 +56,7 @@ async function ensureWebhook(instanceName: string) {
         base64: false,
         webhookBase64: false,
         webhook_base64: false,
-        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+        events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGE_UPDATE", "CONNECTION_UPDATE"],
       },
       enabled: true,
       url: webhookUrl,
@@ -66,7 +66,7 @@ async function ensureWebhook(instanceName: string) {
       webhook_base64: false,
       byEvents: false,
       base64: false,
-      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+      events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGE_UPDATE", "CONNECTION_UPDATE"],
     }),
   });
   console.log("webhook ensure status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
