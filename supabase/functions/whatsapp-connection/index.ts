@@ -271,6 +271,7 @@ Deno.serve(async (req) => {
         : null;
 
       let sendCheck: any = null;
+      let statusCheck: any = null;
       if (targetPhone && typeof testText === "string" && testText.trim()) {
         sendCheck = await evo(`/message/sendText/${instanceName}`, {
           method: "POST",
@@ -279,6 +280,14 @@ Deno.serve(async (req) => {
             text: testText.trim(),
           }),
         });
+        const sentId = sendCheck.body?.key?.id;
+        if (sentId) {
+          await wait(2500);
+          statusCheck = await evo(`/chat/findStatusMessage/${instanceName}`, {
+            method: "POST",
+            body: JSON.stringify({ where: { id: sentId } }),
+          });
+        }
       }
 
       return json({
@@ -288,6 +297,7 @@ Deno.serve(async (req) => {
         instanceInfo: { status: info.status, body: info.body },
         whatsappNumbers: whatsappNumbers ? { status: whatsappNumbers.status, body: whatsappNumbers.body } : null,
         sendCheck: sendCheck ? { status: sendCheck.status, body: sendCheck.body } : null,
+        statusCheck: statusCheck ? { status: statusCheck.status, body: statusCheck.body } : null,
       });
     }
 
