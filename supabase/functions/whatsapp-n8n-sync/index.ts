@@ -171,7 +171,6 @@ return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushNa
         method: "POST",
         url: `=${evoUrl}/message/sendText/{{ $('Filtrar mensagem').item.json.instance }}`,
         ...evoCred,
-        sendHeaders: !EVOLUTION_N8N_CREDENTIAL_ID,
         sendBody: true,
         specifyBody: "json",
         jsonBody: `={{ JSON.stringify({
