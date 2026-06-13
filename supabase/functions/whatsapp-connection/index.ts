@@ -100,7 +100,7 @@ function cleanPhoneNumber(value: unknown): string {
 
 function extractOwnerPhone(body: any): string | null {
   const arr = Array.isArray(body) ? body : [body];
-  const owner = arr[0]?.instance?.owner ?? arr[0]?.owner ?? arr[0]?.instance?.profileName ?? null;
+  const owner = arr[0]?.instance?.owner ?? arr[0]?.ownerJid ?? arr[0]?.owner ?? arr[0]?.number ?? null;
   return owner && String(owner).includes("@") ? String(owner).split("@")[0] : null;
 }
 
@@ -237,10 +237,9 @@ Deno.serve(async (req) => {
       const s = await evo(`/instance/connectionState/${existing.instance_name}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
       if (state === "open") {
+        await ensureSettings(existing.instance_name);
         const info = await evo(`/instance/fetchInstances?instanceName=${existing.instance_name}`);
-        const arr = Array.isArray(info.body) ? info.body : [info.body];
-        const owner = arr[0]?.instance?.owner ?? arr[0]?.owner ?? null;
-        const phone = owner ? String(owner).split("@")[0] : null;
+        const phone = extractOwnerPhone(info.body);
         await admin.from("whatsapp_connections")
           .update({ status: "connected", phone })
           .eq("portfolio_id", portfolioId);
@@ -281,6 +280,10 @@ Deno.serve(async (req) => {
 
       const connection = await evo(`/instance/connectionState/${instanceName}`);
       const info = await evo(`/instance/fetchInstances?instanceName=${instanceName}`);
+      const ownerPhone = cleanPhoneNumber(extractOwnerPhone(info.body));
+      if (targetPhone && ownerPhone && targetPhone === ownerPhone) {
+        return json({ ok: false, instanceName, error: "Recusei enviar teste para o número dono da instância.", ownerPhone }, 400);
+      }
       const whatsappNumbers = targetPhone
         ? await evo(`/chat/whatsappNumbers/${instanceName}`, {
           method: "POST",
