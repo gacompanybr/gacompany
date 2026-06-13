@@ -30,14 +30,36 @@ function getRemoteJid(msg: any): string {
 }
 
 function getSendTargets(msg: any, remoteJid: string): string[] {
-  const candidates = [
-    asText(msg.key?.remoteJidAlt),
+  const key = msg.key ?? {};
+  const lidTargets = [
+    asText(key.previousRemoteJid),
+    asText(msg.previousRemoteJid),
+    asText(msg.data?.key?.previousRemoteJid),
+    asText(key.remoteJid).includes("@lid") ? asText(key.remoteJid) : "",
+    remoteJid.includes("@lid") ? remoteJid : "",
+  ].filter((value) => value.includes("@lid"));
+  const jidTargets = [
+    asText(key.senderPn),
+    asText(key.participantPn),
+    asText(key.remoteJidAlt),
     asText(msg.remoteJidAlt),
+    asText(msg.data?.key?.senderPn),
     asText(msg.data?.key?.remoteJidAlt),
-    remoteJid,
-    remoteJid.split("@")[0],
+    !remoteJid.includes("@lid") ? remoteJid : "",
+  ].filter(Boolean);
+  const candidates = [
+    ...lidTargets,
+    ...jidTargets,
+    ...jidTargets.filter((value) => value.includes("@s.whatsapp.net")).map((value) => value.split("@")[0]),
   ].filter(Boolean);
   return Array.from(new Set(candidates));
+}
+
+function getContactPhone(msg: any, remoteJid: string): string {
+  const key = msg.key ?? {};
+  const candidates = [asText(key.senderPn), asText(key.remoteJidAlt), asText(msg.remoteJidAlt), remoteJid]
+    .filter((value) => value && !value.includes("@lid"));
+  return (candidates[0] ?? remoteJid).split("@")[0];
 }
 
 function getMessageText(msg: any): string {
@@ -102,9 +124,8 @@ async function sendText(instance: string, targets: string[], text: string) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
 
-  let acceptedPending = false;
   for (const [index, target] of targets.entries()) {
-    const body = { number: target, text };
+    const body = { number: target, text, delay: 1200, linkPreview: false };
     const r = await fetch(url, {
       method: "POST",
       headers,
@@ -114,13 +135,11 @@ async function sendText(instance: string, targets: string[], text: string) {
     let responseJson: any = null;
     try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
     const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
-    const isPending = deliveryStatus === "PENDING";
     console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-    if (r.ok && !isPending) return true;
-    if (r.ok && isPending) acceptedPending = true;
+    if (r.ok) return true;
   }
 
-  return acceptedPending;
+  return false;
 }
 
 async function processPayload(payload: any) {
@@ -148,9 +167,17 @@ async function processPayload(payload: any) {
     const text = getMessageText(msg);
     if (!text || !text.trim()) continue;
 
-    const phone = remoteJid.split("@")[0];
+    const phone = getContactPhone(msg, remoteJid);
     const sendTargets = getSendTargets(msg, remoteJid);
     const pushName: string | null = msg.pushName ?? null;
+    console.log("messageTargetContext", JSON.stringify({
+      instance,
+      remoteJid,
+      senderPn: asText(msg.key?.senderPn),
+      previousRemoteJid: asText(msg.key?.previousRemoteJid),
+      remoteJidAlt: asText(msg.key?.remoteJidAlt) || asText(msg.remoteJidAlt),
+      sendTargets,
+    }));
 
     // Resolver portfolio_id pela instância
     const { data: conn } = await admin
