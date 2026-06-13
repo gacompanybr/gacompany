@@ -233,7 +233,6 @@ Deno.serve(async (req) => {
 
     if (action === "status") {
       if (!existing?.instance_name) return json({ state: "disconnected" });
-      await ensureWebhook(existing.instance_name);
       const s = await evo(`/instance/connectionState/${existing.instance_name}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
       if (state === "open") {
@@ -243,6 +242,17 @@ Deno.serve(async (req) => {
         await admin.from("whatsapp_connections")
           .update({ status: "connected", phone })
           .eq("portfolio_id", portfolioId);
+        // Provisiona workflow n8n e aponta webhook da Evolution pra lá
+        try {
+          const syncResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-n8n-sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: authHeader },
+            body: JSON.stringify({ portfolioId }),
+          });
+          console.log("n8n-sync on open status:", syncResp.status);
+        } catch (err) {
+          console.error("n8n-sync trigger error", err);
+        }
       } else {
         await admin.from("whatsapp_connections")
           .update({ status: state === "close" ? "disconnected" : state })
