@@ -73,6 +73,23 @@ async function ensureWebhook(instanceName: string) {
   return setWebhook;
 }
 
+async function ensureSettings(instanceName: string) {
+  const settings = await evo(`/settings/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      rejectCall: false,
+      msgCall: "",
+      groupsIgnore: true,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: false,
+    }),
+  });
+  console.log("settings ensure status:", settings.status, JSON.stringify(settings.body).slice(0, 300));
+  return settings;
+}
+
 function cleanInstanceName(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/[^a-zA-Z0-9_-]/g, "") : "";
 }
@@ -239,6 +256,10 @@ Deno.serve(async (req) => {
       const openInstance = await findOpenInstanceForPortfolio(portfolioId, existing?.instance_name);
       const instanceName = openInstance?.name ?? existing?.instance_name;
       if (!instanceName) return json({ ok: false, state: "disconnected" });
+      const restarted = await evo(`/instance/restart/${instanceName}`, { method: "POST" });
+      console.log("repair restart", JSON.stringify({ instanceName, status: restarted.status, body: restarted.body }).slice(0, 500));
+      await wait(2500);
+      await ensureSettings(instanceName);
       await ensureWebhook(instanceName);
       const s = await evo(`/instance/connectionState/${instanceName}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
@@ -248,7 +269,7 @@ Deno.serve(async (req) => {
       await admin.from("whatsapp_agents")
         .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
-      return json({ ok: state === "open", state, instanceName });
+      return json({ ok: state === "open", state, instanceName, restarted: { status: restarted.status, ok: restarted.ok } });
     }
 
     if (action === "diagnose-delivery") {
@@ -268,16 +289,28 @@ Deno.serve(async (req) => {
         : null;
 
       let sendCheck: any = null;
+      let statusCheck: any = null;
+      let messageCheck: any = null;
       if (targetPhone && typeof testText === "string" && testText.trim()) {
         sendCheck = await evo(`/message/sendText/${instanceName}`, {
           method: "POST",
           body: JSON.stringify({
-            number: `${targetPhone}@s.whatsapp.net`,
+            number: targetPhone,
             text: testText.trim(),
-            delay: 1200,
-            linkPreview: false,
           }),
         });
+        const sentId = sendCheck.body?.key?.id;
+        if (sentId) {
+          await wait(2500);
+          statusCheck = await evo(`/chat/findStatusMessage/${instanceName}`, {
+            method: "POST",
+            body: JSON.stringify({ where: { id: sentId } }),
+          });
+          messageCheck = await evo(`/chat/findMessages/${instanceName}`, {
+            method: "POST",
+            body: JSON.stringify({ where: { key: { id: sentId } } }),
+          });
+        }
       }
 
       return json({
@@ -287,6 +320,8 @@ Deno.serve(async (req) => {
         instanceInfo: { status: info.status, body: info.body },
         whatsappNumbers: whatsappNumbers ? { status: whatsappNumbers.status, body: whatsappNumbers.body } : null,
         sendCheck: sendCheck ? { status: sendCheck.status, body: sendCheck.body } : null,
+        statusCheck: statusCheck ? { status: statusCheck.status, body: statusCheck.body } : null,
+        messageCheck: messageCheck ? { status: messageCheck.status, body: messageCheck.body } : null,
       });
     }
 
