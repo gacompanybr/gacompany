@@ -275,9 +275,8 @@ Deno.serve(async (req) => {
         sendCheck = await evo(`/message/sendText/${instanceName}`, {
           method: "POST",
           body: JSON.stringify({
-            number: `${targetPhone}@s.whatsapp.net`,
+            number: targetPhone,
             text: testText.trim(),
-            delay: 1200,
             linkPreview: false,
           }),
         });
