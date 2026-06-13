@@ -129,7 +129,7 @@ async function sendText(instance: string, targets: string[], text: string) {
   let hadAcceptedPending = false;
 
   for (const [index, target] of targets.entries()) {
-    const body = { number: target, text, delay: 1200, linkPreview: false };
+    const body = { number: target, text, linkPreview: false };
     const r = await fetch(url, {
       method: "POST",
       headers,
