@@ -83,6 +83,27 @@ function extractOwnerPhone(body: any): string | null {
   return owner && String(owner).includes("@") ? String(owner).split("@")[0] : null;
 }
 
+function getInstanceName(row: any): string {
+  return String(row?.instance?.instanceName ?? row?.instanceName ?? row?.name ?? "");
+}
+
+function getInstanceState(row: any): string {
+  return String(row?.instance?.state ?? row?.state ?? row?.connectionStatus ?? "unknown");
+}
+
+async function findOpenInstanceForPortfolio(portfolioId: string, preferred?: string | null) {
+  const shortId = String(portfolioId).replace(/-/g, "").slice(0, 8);
+  const prefix = `port_${shortId}_`;
+  const list = await evo("/instance/fetchInstances");
+  const rows = Array.isArray(list.body) ? list.body : [list.body];
+  const matches = rows
+    .map((row: any) => ({ row, name: getInstanceName(row), state: getInstanceState(row) }))
+    .filter((item) => item.name.startsWith(prefix));
+  return matches.find((item) => item.name === preferred && item.state === "open")
+    ?? matches.find((item) => item.state === "open")
+    ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -195,17 +216,19 @@ Deno.serve(async (req) => {
     }
 
     if (action === "repair") {
-      if (!existing?.instance_name) return json({ ok: false, state: "disconnected" });
-      await ensureWebhook(existing.instance_name);
-      const s = await evo(`/instance/connectionState/${existing.instance_name}`);
-      const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
+      const openInstance = await findOpenInstanceForPortfolio(portfolioId, existing?.instance_name);
+      const instanceName = openInstance?.name ?? existing?.instance_name;
+      if (!instanceName) return json({ ok: false, state: "disconnected" });
+      await ensureWebhook(instanceName);
+      const s = await evo(`/instance/connectionState/${instanceName}`);
+      const state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
       await admin.from("whatsapp_connections")
-        .update({ status: state === "open" ? "connected" : state === "close" ? "disconnected" : state })
+        .update({ instance_name: instanceName, status: state === "open" ? "connected" : state === "close" ? "disconnected" : state })
         .eq("portfolio_id", portfolioId);
       await admin.from("whatsapp_agents")
-        .update({ instancia_id: existing.instance_name })
+        .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
-      return json({ ok: state === "open", state, instanceName: existing.instance_name });
+      return json({ ok: state === "open", state, instanceName });
     }
 
     if (action === "adopt-instance") {
