@@ -277,7 +277,6 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             number: targetPhone,
             text: testText.trim(),
-            linkPreview: false,
           }),
         });
       }
