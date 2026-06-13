@@ -51,15 +51,19 @@ async function ensureWebhook(instanceName: string) {
         enabled: true,
         url: webhookUrl,
         webhookByEvents: false,
+        webhook_by_events: false,
         byEvents: false,
         base64: false,
         webhookBase64: false,
+        webhook_base64: false,
         events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
       },
       enabled: true,
       url: webhookUrl,
       webhookByEvents: false,
+      webhook_by_events: false,
       webhookBase64: false,
+      webhook_base64: false,
       byEvents: false,
       base64: false,
       events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
@@ -67,6 +71,16 @@ async function ensureWebhook(instanceName: string) {
   });
   console.log("webhook ensure status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
   return setWebhook;
+}
+
+function cleanInstanceName(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/[^a-zA-Z0-9_-]/g, "") : "";
+}
+
+function extractOwnerPhone(body: any): string | null {
+  const arr = Array.isArray(body) ? body : [body];
+  const owner = arr[0]?.instance?.owner ?? arr[0]?.owner ?? arr[0]?.instance?.profileName ?? null;
+  return owner && String(owner).includes("@") ? String(owner).split("@")[0] : null;
 }
 
 Deno.serve(async (req) => {
@@ -83,7 +97,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, portfolioId } = await req.json();
+    const { action, portfolioId, instanceName: requestedInstanceName } = await req.json();
     if (!action || !portfolioId) return json({ error: "action e portfolioId obrigatórios" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -192,6 +206,34 @@ Deno.serve(async (req) => {
         .update({ instancia_id: existing.instance_name })
         .eq("portfolio_id", portfolioId);
       return json({ ok: state === "open", state, instanceName: existing.instance_name });
+    }
+
+    if (action === "adopt-instance") {
+      const instanceName = cleanInstanceName(requestedInstanceName);
+      if (!instanceName) return json({ error: "instanceName obrigatório" }, 400);
+
+      await ensureWebhook(instanceName);
+      const s = await evo(`/instance/connectionState/${instanceName}`);
+      const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
+      const info = await evo(`/instance/fetchInstances?instanceName=${instanceName}`);
+      const phone = extractOwnerPhone(info.body);
+      const connected = state === "open";
+
+      if (!connected) {
+        return json({ ok: false, state, instanceName, error: "Instância não está conectada" }, 409);
+      }
+
+      await admin.from("whatsapp_connections").upsert({
+        portfolio_id: portfolioId,
+        instance_name: instanceName,
+        status: "connected",
+        phone,
+      }, { onConflict: "portfolio_id" });
+      await admin.from("whatsapp_agents")
+        .update({ instancia_id: instanceName })
+        .eq("portfolio_id", portfolioId);
+
+      return json({ ok: true, state, instanceName, phone });
     }
 
     if (action === "disconnect") {
