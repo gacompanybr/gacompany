@@ -101,26 +101,6 @@ const instance = body.instance || body.instanceName || raw.instance || '';
 return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushName || '' } }];
 `.trim();
 
-  // Envia pela Evolution via Code node, sem credenciais do n8n, para eliminar "Credentials not found".
-  const sendCode = `
-const ai = $input.first().json;
-const original = $('Filtrar mensagem').item.json;
-const reply = ai?.choices?.[0]?.message?.content || 'Desculpe, não consegui responder agora.';
-const response = await fetch(${JSON.stringify(`${evoUrl}/message/sendText`)} + '/' + encodeURIComponent(original.instance), {
-  method: 'POST',
-  headers: {
-    apikey: ${JSON.stringify(EVO_KEY)},
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ number: original.phone, text: reply }),
-});
-const responseText = await response.text();
-let responseBody = responseText;
-try { responseBody = JSON.parse(responseText); } catch (e) {}
-if (!response.ok) throw new Error('Evolution sendText ' + response.status + ': ' + responseText);
-return [{ json: { ok: true, status: response.status, number: original.phone, response: responseBody } }];
-`.trim();
-
   const nodes: any[] = [
     {
       parameters: {
@@ -176,14 +156,30 @@ return [{ json: { ok: true, status: response.status, number: original.phone, res
       position: [720, 300],
     },
     {
-      parameters: { jsCode: sendCode },
-      id: "node-send-code",
+      parameters: {
+        method: "POST",
+        authentication: "none",
+        url: `=${evoUrl}/message/sendText/{{ encodeURIComponent($('Filtrar mensagem').item.json.instance) }}`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "apikey", value: EVO_KEY },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        specifyBody: "json",
+        jsonBody: `={{ JSON.stringify({ number: $('Filtrar mensagem').item.json.phone, text: ($json.choices && $json.choices[0] && $json.choices[0].message && $json.choices[0].message.content) || 'Desculpe, não consegui responder agora.' }) }}`,
+        options: {},
+      },
+      id: "node-send",
       name: "Enviar WhatsApp",
-      type: "n8n-nodes-base.code",
-      typeVersion: 2,
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4.2,
       position: [960, 300],
     },
   ];
+
 
   const connections = {
     "Evolution Webhook": { main: [[{ node: "Filtrar mensagem", type: "main", index: 0 }]] },
