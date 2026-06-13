@@ -102,18 +102,16 @@ const instance = body.instance || body.instanceName || raw.instance || '';
 return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushName || '' } }];
 `.trim();
 
-  const evoCred = EVOLUTION_N8N_CREDENTIAL_ID
-    ? {
-        credentials: {
-          httpHeaderAuth: { id: EVOLUTION_N8N_CREDENTIAL_ID, name: "Evolution API" },
-        },
-        authentication: "genericCredentialType",
-        genericAuthType: "httpHeaderAuth",
-      }
-    : {
-        sendHeaders: true,
-        headerParameters: { parameters: [{ name: "apikey", value: EVO_KEY }] },
-      };
+  // Sempre injeta o header apikey diretamente — evita problemas com credentials no n8n
+  const evoCred = {
+    sendHeaders: true,
+    headerParameters: {
+      parameters: [
+        { name: "apikey", value: EVO_KEY },
+        { name: "Content-Type", value: "application/json" },
+      ],
+    },
+  };
 
   const nodes: any[] = [
     {
