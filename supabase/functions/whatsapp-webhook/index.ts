@@ -47,10 +47,13 @@ function getSendTargets(msg: any, remoteJid: string): string[] {
     asText(msg.data?.key?.remoteJidAlt),
     !remoteJid.includes("@lid") ? remoteJid : "",
   ].filter(Boolean);
+  const phoneTargets = jidTargets
+    .filter((value) => value.includes("@s.whatsapp.net"))
+    .map((value) => value.split("@")[0]);
   const candidates = [
+    ...phoneTargets,
     ...lidTargets,
     ...jidTargets,
-    ...jidTargets.filter((value) => value.includes("@s.whatsapp.net")).map((value) => value.split("@")[0]),
   ].filter(Boolean);
   return Array.from(new Set(candidates));
 }
@@ -123,6 +126,7 @@ function dentroDoHorario(agent: any): boolean {
 async function sendText(instance: string, targets: string[], text: string) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
+  let hadAcceptedPending = false;
 
   for (const [index, target] of targets.entries()) {
     const body = { number: target, text, delay: 1200, linkPreview: false };
@@ -136,10 +140,14 @@ async function sendText(instance: string, targets: string[], text: string) {
     try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
     const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
     console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-    if (r.ok) return true;
+    if (r.ok && deliveryStatus !== "PENDING") return true;
+    if (r.ok && deliveryStatus === "PENDING") {
+      hadAcceptedPending = true;
+      continue;
+    }
   }
 
-  return false;
+  return hadAcceptedPending;
 }
 
 async function processPayload(payload: any) {
