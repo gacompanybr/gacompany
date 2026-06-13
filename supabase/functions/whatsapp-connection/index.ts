@@ -51,15 +51,19 @@ async function ensureWebhook(instanceName: string) {
         enabled: true,
         url: webhookUrl,
         webhookByEvents: false,
+        webhook_by_events: false,
         byEvents: false,
         base64: false,
         webhookBase64: false,
+        webhook_base64: false,
         events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
       },
       enabled: true,
       url: webhookUrl,
       webhookByEvents: false,
+      webhook_by_events: false,
       webhookBase64: false,
+      webhook_base64: false,
       byEvents: false,
       base64: false,
       events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
@@ -67,6 +71,37 @@ async function ensureWebhook(instanceName: string) {
   });
   console.log("webhook ensure status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
   return setWebhook;
+}
+
+function cleanInstanceName(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/[^a-zA-Z0-9_-]/g, "") : "";
+}
+
+function extractOwnerPhone(body: any): string | null {
+  const arr = Array.isArray(body) ? body : [body];
+  const owner = arr[0]?.instance?.owner ?? arr[0]?.owner ?? arr[0]?.instance?.profileName ?? null;
+  return owner && String(owner).includes("@") ? String(owner).split("@")[0] : null;
+}
+
+function getInstanceName(row: any): string {
+  return String(row?.instance?.instanceName ?? row?.instanceName ?? row?.name ?? "");
+}
+
+function getInstanceState(row: any): string {
+  return String(row?.instance?.state ?? row?.state ?? row?.connectionStatus ?? "unknown");
+}
+
+async function findOpenInstanceForPortfolio(portfolioId: string, preferred?: string | null) {
+  const shortId = String(portfolioId).replace(/-/g, "").slice(0, 8);
+  const prefix = `port_${shortId}_`;
+  const list = await evo("/instance/fetchInstances");
+  const rows = Array.isArray(list.body) ? list.body : [list.body];
+  const matches = rows
+    .map((row: any) => ({ row, name: getInstanceName(row), state: getInstanceState(row) }))
+    .filter((item) => item.name.startsWith(prefix));
+  return matches.find((item) => item.name === preferred && item.state === "open")
+    ?? matches.find((item) => item.state === "open")
+    ?? null;
 }
 
 Deno.serve(async (req) => {
@@ -83,7 +118,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, portfolioId } = await req.json();
+    const { action, portfolioId, instanceName: requestedInstanceName } = await req.json();
     if (!action || !portfolioId) return json({ error: "action e portfolioId obrigatórios" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -181,17 +216,47 @@ Deno.serve(async (req) => {
     }
 
     if (action === "repair") {
-      if (!existing?.instance_name) return json({ ok: false, state: "disconnected" });
-      await ensureWebhook(existing.instance_name);
-      const s = await evo(`/instance/connectionState/${existing.instance_name}`);
-      const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
+      const openInstance = await findOpenInstanceForPortfolio(portfolioId, existing?.instance_name);
+      const instanceName = openInstance?.name ?? existing?.instance_name;
+      if (!instanceName) return json({ ok: false, state: "disconnected" });
+      await ensureWebhook(instanceName);
+      const s = await evo(`/instance/connectionState/${instanceName}`);
+      const state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
       await admin.from("whatsapp_connections")
-        .update({ status: state === "open" ? "connected" : state === "close" ? "disconnected" : state })
+        .update({ instance_name: instanceName, status: state === "open" ? "connected" : state === "close" ? "disconnected" : state })
         .eq("portfolio_id", portfolioId);
       await admin.from("whatsapp_agents")
-        .update({ instancia_id: existing.instance_name })
+        .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
-      return json({ ok: state === "open", state, instanceName: existing.instance_name });
+      return json({ ok: state === "open", state, instanceName });
+    }
+
+    if (action === "adopt-instance") {
+      const instanceName = cleanInstanceName(requestedInstanceName);
+      if (!instanceName) return json({ error: "instanceName obrigatório" }, 400);
+
+      await ensureWebhook(instanceName);
+      const s = await evo(`/instance/connectionState/${instanceName}`);
+      const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
+      const info = await evo(`/instance/fetchInstances?instanceName=${instanceName}`);
+      const phone = extractOwnerPhone(info.body);
+      const connected = state === "open";
+
+      if (!connected) {
+        return json({ ok: false, state, instanceName, error: "Instância não está conectada" }, 409);
+      }
+
+      await admin.from("whatsapp_connections").upsert({
+        portfolio_id: portfolioId,
+        instance_name: instanceName,
+        status: "connected",
+        phone,
+      }, { onConflict: "portfolio_id" });
+      await admin.from("whatsapp_agents")
+        .update({ instancia_id: instanceName })
+        .eq("portfolio_id", portfolioId);
+
+      return json({ ok: true, state, instanceName, phone });
     }
 
     if (action === "disconnect") {

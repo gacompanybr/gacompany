@@ -34,6 +34,7 @@ export function ConectarTab({
 }: { agent: WhatsappAgent; onRefresh: () => void }) {
   const qc = useQueryClient();
   const [generating, setGenerating] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
@@ -104,6 +105,26 @@ export function ConectarTab({
     toast.success("instance_name copiado");
   }
 
+  async function handleRepair() {
+    setRepairing(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-connection", {
+      body: { action: "repair", portfolioId },
+    });
+    setRepairing(false);
+
+    if (error || (data as any)?.error) {
+      return toast.error((data as any)?.error ?? error?.message ?? "Falha ao reparar conexão");
+    }
+
+    await refetch();
+    onRefresh();
+    if ((data as any)?.ok) {
+      toast.success("Webhook reparado. Envie uma nova mensagem de outro número para testar.");
+    } else {
+      toast.error(`Instância não está aberta: ${(data as any)?.state ?? "desconhecido"}`);
+    }
+  }
+
   // ===== Conectado =====
   if (conn?.status === "connected") {
     return (
@@ -124,7 +145,13 @@ export function ConectarTab({
         <p className="text-xs text-muted-foreground border-t border-border pt-3">
           Use este <strong>instance_name</strong> no campo <code>instancia_id</code> das campanhas do Robô para este cliente.
         </p>
-        <Button onClick={handleDisconnect} variant="outline">Desconectar</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={handleRepair} variant="default" disabled={repairing} className="gap-2">
+            {repairing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+            Reparar resposta
+          </Button>
+          <Button onClick={handleDisconnect} variant="outline">Desconectar</Button>
+        </div>
       </Card>
     );
   }
