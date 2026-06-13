@@ -281,13 +281,13 @@ Deno.serve(async (req) => {
     let workflowId = agent.n8n_workflow_id as string | null;
     let exists = false;
     if (workflowId) {
-      const check = await n8n(`/api/v1/workflows/${workflowId}`);
+      const check = await n8n(`/workflows/${workflowId}`);
       exists = check.ok;
       if (!exists) workflowId = null;
     }
 
     if (workflowId) {
-      const upd = await n8n(`/api/v1/workflows/${workflowId}`, {
+      const upd = await n8n(`/workflows/${workflowId}`, {
         method: "PUT",
         body: JSON.stringify(wf),
       });
@@ -296,7 +296,7 @@ Deno.serve(async (req) => {
         return json({ error: "Falha ao atualizar workflow n8n", detail: upd.body }, 502);
       }
     } else {
-      const create = await n8n(`/api/v1/workflows`, {
+      const create = await n8n(`/workflows`, {
         method: "POST",
         body: JSON.stringify(wf),
       });
@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
     }
 
     // Ativa
-    const activate = await n8n(`/api/v1/workflows/${workflowId}/activate`, { method: "POST" });
+    const activate = await n8n(`/workflows/${workflowId}/activate`, { method: "POST" });
     if (!activate.ok) {
       console.warn("n8n activate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
     }
