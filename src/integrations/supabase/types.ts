@@ -1512,6 +1512,8 @@ export type Database = {
           max_tokens: number
           mensagem_boas_vindas: string | null
           modelo_ia: string
+          n8n_webhook_path: string | null
+          n8n_workflow_id: string | null
           nome: string
           nome_atendente: string
           portfolio_id: string
@@ -1534,6 +1536,8 @@ export type Database = {
           max_tokens?: number
           mensagem_boas_vindas?: string | null
           modelo_ia?: string
+          n8n_webhook_path?: string | null
+          n8n_workflow_id?: string | null
           nome: string
           nome_atendente?: string
           portfolio_id: string
@@ -1556,6 +1560,8 @@ export type Database = {
           max_tokens?: number
           mensagem_boas_vindas?: string | null
           modelo_ia?: string
+          n8n_webhook_path?: string | null
+          n8n_workflow_id?: string | null
           nome?: string
           nome_atendente?: string
           portfolio_id?: string
