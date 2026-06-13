@@ -93,7 +93,7 @@ async function sendText(instance: string, to: string, text: string) {
   const payloads = [
     { number: to, text },
     { number: `${to}@s.whatsapp.net`, text },
-    { number: to, options: { delay: 1200, presence: "composing", linkPreview: false }, textMessage: { text } },
+    { number: to, text, options: { delay: 1200, presence: "composing", linkPreview: false } },
   ];
 
   let acceptedPending = false;
