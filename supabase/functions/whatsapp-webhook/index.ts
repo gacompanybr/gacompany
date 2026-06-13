@@ -146,6 +146,10 @@ async function processPayload(payload: any) {
   const event = payload.event ?? payload.eventName;
   const eventName = String(event ?? "").toLowerCase();
   if (eventName.includes("connection")) return;
+  if (eventName.includes("message") && eventName.includes("update")) {
+    console.log("messageUpdate", JSON.stringify(payload).slice(0, 1000));
+    return;
+  }
   if (event && !eventName.includes("messages.upsert") && !eventName.includes("messages_upsert")) return;
 
   const data = payload.data ?? payload;
@@ -301,6 +305,10 @@ Deno.serve(async (req) => {
     const event = payload.event ?? payload.eventName;
     const eventName = String(event ?? "").toLowerCase();
     if (eventName.includes("connection")) return json({ ignored: "connection", state: payload.data?.state });
+    if (eventName.includes("message") && eventName.includes("update")) {
+      EdgeRuntime.waitUntil(processPayload(payload).catch((e) => console.error("whatsapp async error", e)));
+      return json({ ok: true, event });
+    }
     if (event && !eventName.includes("messages.upsert") && !eventName.includes("messages_upsert")) {
       return json({ ignored: "event", event });
     }
