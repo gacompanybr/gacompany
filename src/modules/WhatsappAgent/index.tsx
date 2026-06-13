@@ -76,6 +76,16 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
     if (error) return toast.error(error.message);
     toast.success("Configurações salvas!");
     qc.invalidateQueries({ queryKey: ["whatsapp-agent", portfolioId] });
+    // Sincroniza workflow n8n com a nova configuração (best-effort)
+    try {
+      const { error: syncErr } = await supabase.functions.invoke("whatsapp-n8n-sync", {
+        body: { portfolioId },
+      });
+      if (syncErr) console.warn("n8n sync:", syncErr);
+      else toast.success("Workflow do n8n atualizado");
+    } catch (e) {
+      console.warn("n8n sync exception:", e);
+    }
   }
 
   if (isLoading || !local) {
