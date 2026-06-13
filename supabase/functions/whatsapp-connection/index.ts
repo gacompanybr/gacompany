@@ -104,6 +104,22 @@ async function findOpenInstanceForPortfolio(portfolioId: string, preferred?: str
     ?? null;
 }
 
+async function listInstancesForPortfolio(portfolioId: string) {
+  const shortId = String(portfolioId).replace(/-/g, "").slice(0, 8);
+  const prefix = `port_${shortId}_`;
+  const list = await evo("/instance/fetchInstances");
+  const rows = Array.isArray(list.body) ? list.body : [list.body];
+  return rows
+    .map((row: any) => ({ row, name: getInstanceName(row), state: getInstanceState(row) }))
+    .filter((item) => item.name.startsWith(prefix));
+}
+
+async function deleteInstance(name: string) {
+  const logout = await evo(`/instance/logout/${name}`, { method: "DELETE" });
+  const deleted = await evo(`/instance/delete/${name}`, { method: "DELETE" });
+  console.log("delete instance", JSON.stringify({ name, logout: logout.status, deleted: deleted.status }));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
