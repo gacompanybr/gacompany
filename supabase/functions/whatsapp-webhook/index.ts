@@ -29,6 +29,17 @@ function getRemoteJid(msg: any): string {
   return asText(msg.key?.remoteJid) || asText(msg.remoteJid) || asText(msg.chatId) || asText(msg.from) || asText(msg.sender);
 }
 
+function getSendTargets(msg: any, remoteJid: string): string[] {
+  const candidates = [
+    asText(msg.key?.remoteJidAlt),
+    asText(msg.remoteJidAlt),
+    asText(msg.data?.key?.remoteJidAlt),
+    remoteJid,
+    remoteJid.split("@")[0],
+  ].filter(Boolean);
+  return Array.from(new Set(candidates));
+}
+
 function getMessageText(msg: any): string {
   return (
     asText(msg.message?.conversation) ||
@@ -87,17 +98,13 @@ function dentroDoHorario(agent: any): boolean {
   }
 }
 
-async function sendText(instance: string, to: string, text: string) {
+async function sendText(instance: string, targets: string[], text: string) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
-  const payloads = [
-    { number: to, text },
-    { number: `${to}@s.whatsapp.net`, text },
-    { number: to, text, options: { delay: 1200, presence: "composing", linkPreview: false } },
-  ];
 
   let acceptedPending = false;
-  for (const [index, body] of payloads.entries()) {
+  for (const [index, target] of targets.entries()) {
+    const body = { number: target, text };
     const r = await fetch(url, {
       method: "POST",
       headers,
@@ -108,7 +115,7 @@ async function sendText(instance: string, to: string, text: string) {
     try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
     const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
     const isPending = deliveryStatus === "PENDING";
-    console.log("sendText", JSON.stringify({ instance, to, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
+    console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
     if (r.ok && !isPending) return true;
     if (r.ok && isPending) acceptedPending = true;
   }
