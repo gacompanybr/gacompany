@@ -56,7 +56,7 @@ async function ensureWebhook(instanceName: string) {
         base64: false,
         webhookBase64: false,
         webhook_base64: false,
-        events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+        events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGE_UPDATE", "CONNECTION_UPDATE"],
       },
       enabled: true,
       url: webhookUrl,
@@ -66,7 +66,7 @@ async function ensureWebhook(instanceName: string) {
       webhook_base64: false,
       byEvents: false,
       base64: false,
-      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+      events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "MESSAGE_UPDATE", "CONNECTION_UPDATE"],
     }),
   });
   console.log("webhook ensure status:", setWebhook.status, JSON.stringify(setWebhook.body).slice(0, 300));
@@ -75,6 +75,10 @@ async function ensureWebhook(instanceName: string) {
 
 function cleanInstanceName(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/[^a-zA-Z0-9_-]/g, "") : "";
+}
+
+function cleanPhoneNumber(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\D/g, "") : "";
 }
 
 function extractOwnerPhone(body: any): string | null {
@@ -134,7 +138,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, portfolioId, instanceName: requestedInstanceName } = await req.json();
+    const { action, portfolioId, instanceName: requestedInstanceName, phone, testText } = await req.json();
     if (!action || !portfolioId) return json({ error: "action e portfolioId obrigatórios" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -245,6 +249,45 @@ Deno.serve(async (req) => {
         .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
       return json({ ok: state === "open", state, instanceName });
+    }
+
+    if (action === "diagnose-delivery") {
+      const instanceName = cleanInstanceName(requestedInstanceName) || existing?.instance_name;
+      if (!instanceName) return json({ ok: false, state: "disconnected", error: "Sem instância conectada" }, 409);
+
+      const targetPhone = cleanPhoneNumber(phone);
+      await ensureWebhook(instanceName);
+
+      const connection = await evo(`/instance/connectionState/${instanceName}`);
+      const info = await evo(`/instance/fetchInstances?instanceName=${instanceName}`);
+      const whatsappNumbers = targetPhone
+        ? await evo(`/chat/whatsappNumbers/${instanceName}`, {
+          method: "POST",
+          body: JSON.stringify({ numbers: [targetPhone] }),
+        })
+        : null;
+
+      let sendCheck: any = null;
+      if (targetPhone && typeof testText === "string" && testText.trim()) {
+        sendCheck = await evo(`/message/sendText/${instanceName}`, {
+          method: "POST",
+          body: JSON.stringify({
+            number: `${targetPhone}@s.whatsapp.net`,
+            text: testText.trim(),
+            delay: 1200,
+            linkPreview: false,
+          }),
+        });
+      }
+
+      return json({
+        ok: true,
+        instanceName,
+        connection: { status: connection.status, body: connection.body },
+        instanceInfo: { status: info.status, body: info.body },
+        whatsappNumbers: whatsappNumbers ? { status: whatsappNumbers.status, body: whatsappNumbers.body } : null,
+        sendCheck: sendCheck ? { status: sendCheck.status, body: sendCheck.body } : null,
+      });
     }
 
     if (action === "adopt-instance") {
