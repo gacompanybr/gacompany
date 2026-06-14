@@ -84,21 +84,74 @@ function buildWorkflow(opts: {
   const filterCode = `
 const raw = $input.first().json;
 const body = raw.body || raw;
-const event = body.event || '';
-if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') return [];
+const eventName = String(body.event || body.eventName || '').toLowerCase();
+if (eventName.includes('connection')) return [];
+if (eventName.includes('message') && eventName.includes('update')) return [];
+if (eventName && !eventName.includes('messages.upsert') && !eventName.includes('messages_upsert')) return [];
+
+const asText = (value) => typeof value === 'string' ? value : '';
 const data = body.data || {};
-const key = data.key || {};
-if (key.fromMe) return [];
-const jid = key.remoteJid || '';
+const msg = Array.isArray(data.messages) ? data.messages[0] : data;
+const key = msg.key || {};
+if (!msg || key.fromMe || msg.fromMe || msg.messageStubType) return [];
+
+const jid = asText(key.remoteJid) || asText(msg.remoteJid) || asText(msg.chatId) || asText(msg.from) || asText(msg.sender);
 if (!jid || jid.endsWith('@g.us') || jid.includes('@broadcast')) return [];
-const text = data.message?.conversation
-  || data.message?.extendedTextMessage?.text
-  || data.message?.imageMessage?.caption
-  || '';
-if (!text || !text.trim()) return [];
-const phone = jid.split('@')[0];
-const instance = body.instance || body.instanceName || raw.instance || '';
-return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushName || '' } }];
+
+const text = (asText(msg.message?.conversation)
+  || asText(msg.message?.extendedTextMessage?.text)
+  || asText(msg.message?.imageMessage?.caption)
+  || asText(msg.message?.videoMessage?.caption)
+  || asText(msg.message?.documentMessage?.caption)
+  || asText(msg.text)
+  || asText(msg.body)
+  || asText(msg.message?.text)).trim();
+if (!text) return [];
+
+const lidTargets = [
+  asText(key.previousRemoteJid),
+  asText(msg.previousRemoteJid),
+  asText(msg.data?.key?.previousRemoteJid),
+  asText(key.remoteJid).includes('@lid') ? asText(key.remoteJid) : '',
+  jid.includes('@lid') ? jid : '',
+].filter((value) => value.includes('@lid'));
+const jidTargets = [
+  asText(key.senderPn),
+  asText(key.participantPn),
+  asText(key.remoteJidAlt),
+  asText(msg.remoteJidAlt),
+  asText(msg.data?.key?.senderPn),
+  asText(msg.data?.key?.remoteJidAlt),
+  !jid.includes('@lid') ? jid : '',
+].filter(Boolean);
+const phoneTargets = jidTargets
+  .filter((value) => value.includes('@s.whatsapp.net'))
+  .map((value) => value.split('@')[0]);
+const numericTargets = jidTargets
+  .filter((value) => /^\\d{10,15}$/.test(value));
+const sendTargets = Array.from(new Set([...phoneTargets, ...numericTargets, ...lidTargets, ...jidTargets]));
+const phone = (phoneTargets[0] || numericTargets[0] || jid).split('@')[0];
+const instanceRaw = body.instance || body.instanceName || data.instance || msg.instance || msg.instanceName || raw.instance || '';
+const instance = typeof instanceRaw === 'string' ? instanceRaw : (instanceRaw?.instanceName || instanceRaw?.name || '');
+return [{ json: { phone, jid, text, instance, pushName: msg.pushName || '', sendTargets } }];
+`.trim();
+
+  const prepareSendCode = `
+const ai = $input.first().json;
+const source = $('Filtrar mensagem').item.json;
+const reply = (ai.choices && ai.choices[0] && ai.choices[0].message && ai.choices[0].message.content)
+  || 'Desculpe, não consegui responder agora.';
+const normalizeTarget = (value) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('@s.whatsapp.net')) return trimmed.split('@')[0];
+  return trimmed;
+};
+const targets = Array.isArray(source.sendTargets) && source.sendTargets.length ? source.sendTargets : [source.phone];
+return Array.from(new Set(targets.map(normalizeTarget).filter(Boolean))).map((number) => ({
+  json: { instance: source.instance, number, text: reply }
+}));
 `.trim();
 
   const nodes: any[] = [
@@ -156,10 +209,18 @@ return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushNa
       position: [720, 300],
     },
     {
+      parameters: { jsCode: prepareSendCode },
+      id: "node-prepare-send",
+      name: "Preparar envio",
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [960, 300],
+    },
+    {
       parameters: {
         method: "POST",
         authentication: "none",
-        url: `=${evoUrl}/message/sendText/{{ encodeURIComponent($('Filtrar mensagem').item.json.instance) }}`,
+        url: `=${evoUrl}/message/sendText/{{ encodeURIComponent($json.instance) }}`,
         sendHeaders: true,
         headerParameters: {
           parameters: [
@@ -169,14 +230,14 @@ return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushNa
         },
         sendBody: true,
         specifyBody: "json",
-        jsonBody: `={{ JSON.stringify({ number: $('Filtrar mensagem').item.json.phone, text: ($json.choices && $json.choices[0] && $json.choices[0].message && $json.choices[0].message.content) || 'Desculpe, não consegui responder agora.' }) }}`,
+        jsonBody: `={{ JSON.stringify({ number: $json.number, text: $json.text, delay: 1200, linkPreview: false }) }}`,
         options: {},
       },
       id: "node-send",
       name: "Enviar WhatsApp",
       type: "n8n-nodes-base.httpRequest",
       typeVersion: 4.2,
-      position: [960, 300],
+      position: [1200, 300],
     },
   ];
 
@@ -184,7 +245,8 @@ return [{ json: { phone, jid, text: text.trim(), instance, pushName: data.pushNa
   const connections = {
     "Evolution Webhook": { main: [[{ node: "Filtrar mensagem", type: "main", index: 0 }]] },
     "Filtrar mensagem": { main: [[{ node: "Lovable AI", type: "main", index: 0 }]] },
-    "Lovable AI": { main: [[{ node: "Enviar WhatsApp", type: "main", index: 0 }]] },
+    "Lovable AI": { main: [[{ node: "Preparar envio", type: "main", index: 0 }]] },
+    "Preparar envio": { main: [[{ node: "Enviar WhatsApp", type: "main", index: 0 }]] },
   };
 
   return {
