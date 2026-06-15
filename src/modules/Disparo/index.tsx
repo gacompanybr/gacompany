@@ -270,8 +270,46 @@ function NovaCampanhaDialog({
               Use <code>{"{nome}"}</code> para personalizar. Quanto mais variações, menor o risco de ban.
             </p>
           </div>
+          <div className="space-y-2">
+            <Label>Contatos (planilha XLSX, XLS ou CSV)</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+              >
+                <Upload size={14} /> Importar planilha
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              />
+              {fileName && (
+                <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                  <FileSpreadsheet size={12} />
+                  <span className="truncate max-w-[180px]">{fileName}</span>
+                  <Badge variant="outline" className="text-[10px]">{contatos.length}</Badge>
+                  <button type="button" onClick={clearFile} className="ml-1 hover:text-destructive">
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A planilha deve ter colunas <code>telefone</code> (ou celular/whatsapp/phone) e opcionalmente <code>nome</code>.
+            </p>
+          </div>
           <div>
-            <Label>Link da planilha de contatos</Label>
+            <Label>Ou link de planilha (opcional)</Label>
             <Input value={planilha} onChange={(e) => setPlanilha(e.target.value)} placeholder="https://docs.google.com/..." />
           </div>
           <div className="grid grid-cols-2 gap-3">
