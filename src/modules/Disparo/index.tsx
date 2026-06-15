@@ -136,24 +136,115 @@ function NovaCampanhaDialog({
   const [dMin, setDMin] = useState(8);
   const [dMax, setDMax] = useState(20);
   const [busy, setBusy] = useState(false);
+  const [contatos, setContatos] = useState<{ nome: string | null; telefone: string }[]>([]);
+  const [fileName, setFileName] = useState<string>("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function normalizeTel(raw: any): string {
+    const onlyDigits = String(raw ?? "").replace(/\D/g, "");
+    return onlyDigits;
+  }
+
+  async function handleFile(file: File) {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      if (!sheet) return toast.error("Planilha vazia");
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
+      if (!rows.length) return toast.error("Nenhuma linha encontrada");
+
+      const findKey = (row: Record<string, any>, candidates: string[]) => {
+        const keys = Object.keys(row);
+        for (const cand of candidates) {
+          const hit = keys.find((k) => k.toLowerCase().trim() === cand);
+          if (hit) return hit;
+        }
+        // fallback fuzzy includes
+        for (const cand of candidates) {
+          const hit = keys.find((k) => k.toLowerCase().includes(cand));
+          if (hit) return hit;
+        }
+        return null;
+      };
+
+      const first = rows[0];
+      const telKey = findKey(first, ["telefone", "celular", "whatsapp", "phone", "numero", "número", "fone"]);
+      const nomeKey = findKey(first, ["nome", "name", "contato"]);
+
+      if (!telKey) {
+        return toast.error("Não encontrei coluna de telefone (telefone/celular/whatsapp/phone).");
+      }
+
+      const parsed = rows
+        .map((r) => ({
+          nome: nomeKey ? String(r[nomeKey] ?? "").trim() || null : null,
+          telefone: normalizeTel(r[telKey]),
+        }))
+        .filter((c) => c.telefone.length >= 8);
+
+      if (!parsed.length) return toast.error("Nenhum telefone válido encontrado.");
+      setContatos(parsed);
+      setFileName(file.name);
+      toast.success(`${parsed.length} contato(s) carregado(s)`);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Falha ao ler arquivo");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function clearFile() {
+    setContatos([]);
+    setFileName("");
+  }
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome");
     const msgs = mensagens.split("\n---\n").map((m) => m.trim()).filter(Boolean);
     if (msgs.length < 2) return toast.error("Inclua ao menos 2 variações separadas por linha com ---");
     setBusy(true);
-    const { error } = await supabase.from("disparo_campanhas").insert({
-      portfolio_id: portfolioId,
-      nome: nome.trim(),
-      mensagens: msgs,
-      planilha_url: planilha.trim() || null,
-      delay_min_seg: dMin,
-      delay_max_seg: dMax,
-    });
+    const { data: created, error } = await supabase
+      .from("disparo_campanhas")
+      .insert({
+        portfolio_id: portfolioId,
+        nome: nome.trim(),
+        mensagens: msgs,
+        planilha_url: planilha.trim() || (fileName ? `arquivo:${fileName}` : null),
+        delay_min_seg: dMin,
+        delay_max_seg: dMax,
+        total_contatos: contatos.length,
+      })
+      .select("id")
+      .single();
+    if (error || !created) {
+      setBusy(false);
+      return toast.error(error?.message || "Falha ao criar campanha");
+    }
+
+    if (contatos.length) {
+      const payload = contatos.map((c) => ({
+        campanha_id: created.id,
+        nome: c.nome,
+        telefone: c.telefone,
+      }));
+      // Insere em lotes para evitar request gigante
+      const CHUNK = 500;
+      for (let i = 0; i < payload.length; i += CHUNK) {
+        const slice = payload.slice(i, i + CHUNK);
+        const { error: cErr } = await supabase.from("disparo_contatos").insert(slice);
+        if (cErr) {
+          setBusy(false);
+          return toast.error(`Contatos: ${cErr.message}`);
+        }
+      }
+    }
+
     setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Campanha criada!");
+    toast.success(`Campanha criada${contatos.length ? ` com ${contatos.length} contatos` : ""}!`);
     setNome(""); setMensagens(""); setPlanilha(""); setDMin(8); setDMax(20);
+    clearFile();
     onOpenChange(false);
     onCreated();
   }
