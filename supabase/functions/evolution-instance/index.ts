@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, agentId } = await req.json();
+    const { action, agentId, number, message } = await req.json();
     if (!action || !agentId) return json({ error: "action e agentId obrigatórios" }, 400);
 
     // Buscar agente + checar acesso
@@ -188,6 +188,22 @@ Deno.serve(async (req) => {
         nome: x.subject ?? x.name ?? x.id,
       })).filter((x: any) => x.id);
       return json({ groups });
+    }
+
+    if (action === "send_test") {
+      if (!number || !message) return json({ error: "number e message obrigatórios" }, 400);
+      // normaliza número: tira tudo que não for dígito
+      const digits = String(number).replace(/\D/g, "");
+      if (digits.length < 10) return json({ error: "Número inválido" }, 400);
+      const r = await evo(`/message/sendText/${instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({
+          number: digits,
+          text: String(message),
+        }),
+      });
+      if (!r.ok) return json({ error: "Falha ao enviar", detail: r.body }, r.status || 500);
+      return json({ ok: true, result: r.body });
     }
 
     return json({ error: "action inválido" }, 400);
