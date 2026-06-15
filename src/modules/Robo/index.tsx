@@ -159,6 +159,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
       </div>
 
       <BeaconsPromocaoCard portfolioId={portfolioId} />
+      <DisparoTesteCard portfolioId={portfolioId} />
 
 
 
