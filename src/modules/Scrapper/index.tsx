@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Search, Trash2, ExternalLink, Play, Pause, Settings, Eye } from "lucide-react";
 import { ConectarMercadoLivreScrapper } from "./ConectarMercadoLivre";
+import { GoogleMapsTab } from "./GoogleMapsTab";
 
 type Job = {
   id: string;
@@ -62,10 +63,14 @@ export default function ScrapperModule({ portfolioId }: { portfolioId: string })
       <Tabs defaultValue="ecommerce">
         <TabsList>
           <TabsTrigger value="ecommerce">E-commerce</TabsTrigger>
+          <TabsTrigger value="google_maps">Google Maps</TabsTrigger>
           <TabsTrigger value="outros">Outros</TabsTrigger>
         </TabsList>
         <TabsContent value="ecommerce" className="mt-4">
           <JobList portfolioId={portfolioId} categoria="ecommerce" />
+        </TabsContent>
+        <TabsContent value="google_maps" className="mt-4">
+          <GoogleMapsTab />
         </TabsContent>
         <TabsContent value="outros" className="mt-4">
           <JobList portfolioId={portfolioId} categoria="outros" />
