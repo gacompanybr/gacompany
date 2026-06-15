@@ -222,6 +222,21 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // Gate manual: só responde se o agente estiver explicitamente ativo
+    if (agent.status !== "active") {
+      console.log("agente inativo, ignorando mensagem", { portfolioId, status: agent.status });
+      // Ainda salva a mensagem do usuário para histórico
+      await admin.from("whatsapp_conversas").insert({
+        portfolio_id: portfolioId,
+        instance_name: instance,
+        contato_telefone: phone,
+        contato_nome: pushName,
+        role: "user",
+        mensagem: text,
+      });
+      continue;
+    }
+
     // Salvar mensagem do usuário
     await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,

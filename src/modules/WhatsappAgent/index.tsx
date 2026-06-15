@@ -4,7 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Power, PowerOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { ConfigTab } from "./ConfigTab";
 import { FaqsTab } from "./FaqsTab";
 import { ConectarTab } from "./ConectarTab";
@@ -96,8 +98,48 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
     );
   }
 
+  async function toggleActive() {
+    if (!local) return;
+    const next = local.status === "active" ? "inactive" : "active";
+    const { error } = await supabase
+      .from("whatsapp_agents")
+      .update({ status: next })
+      .eq("id", local.id);
+    if (error) return toast.error(error.message);
+    setLocal({ ...local, status: next });
+    qc.invalidateQueries({ queryKey: ["whatsapp-agent", portfolioId] });
+    toast.success(next === "active" ? "Agente de IA ATIVADO" : "Agente de IA DESATIVADO");
+  }
+
   return (
     <div className="p-4 lg:p-6 pb-24 max-w-4xl mx-auto">
+      <Card className="p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          {local.status === "active" ? (
+            <Badge className="bg-green-500/15 text-green-400 border border-green-500/30">
+              <Power size={12} className="mr-1" /> IA ATIVA
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">
+              <PowerOff size={12} className="mr-1" /> IA DESATIVADA
+            </Badge>
+          )}
+          <p className="text-xs text-muted-foreground hidden sm:block">
+            {local.status === "active"
+              ? "O agente responde automaticamente às mensagens recebidas."
+              : "Mesmo com WhatsApp conectado, o agente NÃO responde até você ativar."}
+          </p>
+        </div>
+        <Button
+          onClick={toggleActive}
+          variant={local.status === "active" ? "outline" : "default"}
+          className="gap-2"
+        >
+          {local.status === "active" ? <PowerOff size={14} /> : <Power size={14} />}
+          {local.status === "active" ? "Desativar IA" : "Ativar IA"}
+        </Button>
+      </Card>
+
       <Tabs defaultValue="config">
         <TabsList className="grid grid-cols-4 w-full mb-4">
           <TabsTrigger value="config">Configurações</TabsTrigger>
