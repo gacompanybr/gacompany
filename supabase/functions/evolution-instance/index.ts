@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, agentId } = await req.json();
+    const { action, agentId, number, message } = await req.json();
     if (!action || !agentId) return json({ error: "action e agentId obrigatórios" }, 400);
 
     // Buscar agente + checar acesso
