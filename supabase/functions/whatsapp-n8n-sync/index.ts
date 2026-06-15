@@ -220,6 +220,47 @@ return Array.from(new Set(targets.map(normalizeTarget).filter(Boolean))).map((nu
       parameters: {
         method: "POST",
         authentication: "none",
+        url: `=${evoUrl}/chat/whatsappNumbers/{{ encodeURIComponent($json.instance) }}`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "apikey", value: EVO_KEY },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        specifyBody: "json",
+        jsonBody: `={{ JSON.stringify({ numbers: [String($json.number).replace(/\\D/g,'')] }) }}`,
+        options: {},
+      },
+      id: "node-resolve",
+      name: "Resolver JID",
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4.2,
+      position: [1100, 300],
+    },
+    {
+      parameters: {
+        jsCode: `
+const prev = $('Preparar envio').item.json;
+const resp = $input.first().json;
+const arr = Array.isArray(resp) ? resp : (resp.body || resp.data || []);
+const hit = arr.find((r) => r && (r.exists === true || r.exists === 'true')) || arr[0];
+let number = String(prev.number).replace(/\\D/g,'');
+if (hit && hit.jid) number = String(hit.jid).split('@')[0];
+return [{ json: { instance: prev.instance, number, text: prev.text } }];
+`.trim(),
+      },
+      id: "node-pick-jid",
+      name: "Usar JID resolvido",
+      type: "n8n-nodes-base.code",
+      typeVersion: 2,
+      position: [1260, 300],
+    },
+    {
+      parameters: {
+        method: "POST",
+        authentication: "none",
         url: `=${evoUrl}/message/sendText/{{ encodeURIComponent($json.instance) }}`,
         sendHeaders: true,
         headerParameters: {
@@ -237,7 +278,7 @@ return Array.from(new Set(targets.map(normalizeTarget).filter(Boolean))).map((nu
       name: "Enviar WhatsApp",
       type: "n8n-nodes-base.httpRequest",
       typeVersion: 4.2,
-      position: [1200, 300],
+      position: [1420, 300],
     },
   ];
 
@@ -246,8 +287,11 @@ return Array.from(new Set(targets.map(normalizeTarget).filter(Boolean))).map((nu
     "Evolution Webhook": { main: [[{ node: "Filtrar mensagem", type: "main", index: 0 }]] },
     "Filtrar mensagem": { main: [[{ node: "Lovable AI", type: "main", index: 0 }]] },
     "Lovable AI": { main: [[{ node: "Preparar envio", type: "main", index: 0 }]] },
-    "Preparar envio": { main: [[{ node: "Enviar WhatsApp", type: "main", index: 0 }]] },
+    "Preparar envio": { main: [[{ node: "Resolver JID", type: "main", index: 0 }]] },
+    "Resolver JID": { main: [[{ node: "Usar JID resolvido", type: "main", index: 0 }]] },
+    "Usar JID resolvido": { main: [[{ node: "Enviar WhatsApp", type: "main", index: 0 }]] },
   };
+
 
   return {
     name,
