@@ -6,6 +6,57 @@ const EVO_URL = Deno.env.get("EVOLUTION_API_URL")!;
 const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const N8N_BASE_URL = (Deno.env.get("N8N_BASE_URL") || "").replace(/\/+$/, "");
+const N8N_API_KEY = Deno.env.get("N8N_API_KEY") || "";
+
+async function n8nApi(path: string, init: RequestInit = {}) {
+  if (!N8N_BASE_URL || !N8N_API_KEY) return null;
+  try {
+    const r = await fetch(`${N8N_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "X-N8N-API-KEY": N8N_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+    const text = await r.text();
+    let body: any = text;
+    try { body = JSON.parse(text); } catch { /* keep text */ }
+    return { ok: r.ok, status: r.status, body };
+  } catch (e) {
+    console.error("n8n api error", e);
+    return null;
+  }
+}
+
+async function deleteN8nWorkflow(id: string) {
+  if (!id) return;
+  await n8nApi(`/workflows/${id}/deactivate`, { method: "POST" });
+  const del = await n8nApi(`/workflows/${id}`, { method: "DELETE" });
+  console.log("n8n workflow deleted", id, del?.status);
+}
+
+// Remove TODOS os workflows do n8n criados pelo sistema que não estão mais
+// associados a nenhum agent (n8n_workflow_id na tabela whatsapp_agents).
+async function cleanupOrphanN8nWorkflows(admin: ReturnType<typeof createClient>) {
+  if (!N8N_BASE_URL || !N8N_API_KEY) return;
+  const list = await n8nApi("/workflows?limit=250");
+  if (!list?.ok) return;
+  const items = Array.isArray(list.body?.data) ? list.body.data : (Array.isArray(list.body) ? list.body : []);
+  const candidates = items.filter((w: any) => String(w?.name || "").startsWith("WhatsApp Agent —"));
+  if (!candidates.length) return;
+  const { data: agents } = await admin.from("whatsapp_agents").select("n8n_workflow_id");
+  const inUse = new Set((agents || []).map((a: any) => String(a.n8n_workflow_id || "")).filter(Boolean));
+  for (const w of candidates) {
+    const id = String(w.id);
+    if (!inUse.has(id)) {
+      await deleteN8nWorkflow(id);
+    }
+  }
+}
+
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -177,6 +228,19 @@ Deno.serve(async (req) => {
       for (const name of namesToDelete) await deleteInstance(name);
       if (namesToDelete.size) await wait(1200);
 
+      // Apaga workflows antigos do n8n referenciados pelo agente (evita duplicatas)
+      const { data: agentRow } = await admin
+        .from("whatsapp_agents").select("n8n_workflow_id").eq("portfolio_id", portfolioId).maybeSingle();
+      if (agentRow?.n8n_workflow_id) {
+        await deleteN8nWorkflow(agentRow.n8n_workflow_id);
+        await admin.from("whatsapp_agents")
+          .update({ n8n_workflow_id: null, n8n_webhook_path: null })
+          .eq("portfolio_id", portfolioId);
+      }
+      // Limpeza global de workflows órfãos do n8n
+      await cleanupOrphanN8nWorkflows(admin);
+
+
       // Nome novo a cada conexão garante QR limpo
       const instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
 
@@ -237,22 +301,14 @@ Deno.serve(async (req) => {
       const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
       if (state === "open") {
         await ensureSettings(existing.instance_name);
+        // Garante que o webhook da Evolution aponta para o webhook LOCAL
+        // (que tem memória de 24h e respeita o toggle Ativar/Desativar IA).
+        await ensureWebhook(existing.instance_name);
         const info = await evo(`/instance/fetchInstances?instanceName=${existing.instance_name}`);
         const phone = extractOwnerPhone(info.body);
         await admin.from("whatsapp_connections")
           .update({ status: "connected", phone })
           .eq("portfolio_id", portfolioId);
-        // Provisiona workflow n8n e aponta webhook da Evolution pra lá
-        try {
-          const syncResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-n8n-sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: authHeader },
-            body: JSON.stringify({ portfolioId }),
-          });
-          console.log("n8n-sync on open status:", syncResp.status);
-        } catch (err) {
-          console.error("n8n-sync trigger error", err);
-        }
       } else {
         await admin.from("whatsapp_connections")
           .update({ status: state === "close" ? "disconnected" : state })
@@ -371,11 +427,21 @@ Deno.serve(async (req) => {
       const namesToDelete = new Set(instances.map((item) => item.name));
       if (existing?.instance_name) namesToDelete.add(existing.instance_name);
       for (const name of namesToDelete) await deleteInstance(name);
+
+      // Apaga o workflow do n8n associado, se existir
+      const { data: agentRow } = await admin
+        .from("whatsapp_agents").select("n8n_workflow_id").eq("portfolio_id", portfolioId).maybeSingle();
+      if (agentRow?.n8n_workflow_id) {
+        await deleteN8nWorkflow(agentRow.n8n_workflow_id);
+      }
+      // Limpeza global de workflows órfãos do n8n
+      await cleanupOrphanN8nWorkflows(admin);
+
       await admin.from("whatsapp_connections")
         .update({ status: "disconnected", phone: null })
         .eq("portfolio_id", portfolioId);
       await admin.from("whatsapp_agents")
-        .update({ instancia_id: null })
+        .update({ instancia_id: null, n8n_workflow_id: null, n8n_webhook_path: null, status: "inactive" })
         .eq("portfolio_id", portfolioId);
       return json({ ok: true });
     }

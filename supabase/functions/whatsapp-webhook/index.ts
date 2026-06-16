@@ -100,11 +100,13 @@ function buildSystemPrompt(agent: any): string {
   return [
     `Você é ${agent.nome_atendente}, atendente via WhatsApp.`,
     `Tom de voz: ${tom}.`,
-    agent.instrucoes_base ? `Instruções: ${agent.instrucoes_base}` : "",
+    agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
-    "\nResponda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp.",
+    "\nMEMÓRIA: As mensagens anteriores desta conversa (últimas 24h) estão no histórico abaixo. SEMPRE leia e use esse histórico para lembrar o que o cliente já disse — nome, pedidos, dúvidas, contexto. Se a pessoa perguntar 'lembra do que eu te falei?', responda baseado no que está no histórico.",
+    "Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA.",
   ].filter(Boolean).join("\n");
 }
+
 
 function dentroDoHorario(agent: any): boolean {
   try {
@@ -263,14 +265,16 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Carregar últimas 20 mensagens (memória)
+    // Memória: últimas 24h da conversa com esse contato (até 60 mensagens)
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: history } = await admin
       .from("whatsapp_conversas")
       .select("role, mensagem")
       .eq("portfolio_id", portfolioId)
       .eq("contato_telefone", phone)
+      .gte("created_at", since24h)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(60);
 
     const recent = (history ?? []).reverse();
 
@@ -296,7 +300,7 @@ async function processPayload(payload: any) {
           })),
         ],
         temperature: agent.temperatura ?? 0.7,
-        max_tokens: Math.min(Number(agent.max_tokens ?? 220), 260),
+        max_tokens: Math.min(Number(agent.max_tokens ?? 400), 600),
       }),
     });
 
