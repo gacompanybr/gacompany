@@ -39,13 +39,9 @@ function renderMessage(template: string, ctx: { nome?: string; telefone: string;
 }
 
 function normalizePhone(raw: string): string {
-  const digits = String(raw ?? "").replace(/\D/g, "");
-  if (!digits) return "";
-  // Já tem DDI (11+ dígitos começando com código de país conhecido) — devolve como está
-  if (digits.length >= 12) return digits;
-  // 10 ou 11 dígitos → assume Brasil, adiciona 55
-  if (digits.length === 10 || digits.length === 11) return "55" + digits;
-  return digits;
+  // Apenas remove caracteres não numéricos. Não adiciona DDI automaticamente —
+  // o número deve vir já formatado corretamente na planilha.
+  return String(raw ?? "").replace(/\D/g, "");
 }
 
 async function evoSendOnce(instance: string, phone: string, text: string) {
