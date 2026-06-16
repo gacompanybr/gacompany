@@ -405,10 +405,14 @@ Deno.serve(async (req) => {
       if (!workflowId) return json({ error: "Workflow criado sem id", detail: create.body }, 502);
     }
 
-    // Ativa
-    const activate = await n8n(`/workflows/${workflowId}/activate`, { method: "POST" });
+    // Ativa ou desativa conforme o status do agente (controle manual da IA)
+    const shouldBeActive = agent.status === "active";
+    const activate = await n8n(
+      `/workflows/${workflowId}/${shouldBeActive ? "activate" : "deactivate"}`,
+      { method: "POST" },
+    );
     if (!activate.ok) {
-      console.warn("n8n activate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
+      console.warn("n8n activate/deactivate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
     }
 
     // Aponta Evolution para o webhook do n8n (URL de produção)
