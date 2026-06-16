@@ -228,6 +228,19 @@ Deno.serve(async (req) => {
       for (const name of namesToDelete) await deleteInstance(name);
       if (namesToDelete.size) await wait(1200);
 
+      // Apaga workflows antigos do n8n referenciados pelo agente (evita duplicatas)
+      const { data: agentRow } = await admin
+        .from("whatsapp_agents").select("n8n_workflow_id").eq("portfolio_id", portfolioId).maybeSingle();
+      if (agentRow?.n8n_workflow_id) {
+        await deleteN8nWorkflow(agentRow.n8n_workflow_id);
+        await admin.from("whatsapp_agents")
+          .update({ n8n_workflow_id: null, n8n_webhook_path: null })
+          .eq("portfolio_id", portfolioId);
+      }
+      // Limpeza global de workflows órfãos do n8n
+      await cleanupOrphanN8nWorkflows(admin);
+
+
       // Nome novo a cada conexão garante QR limpo
       const instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
 
