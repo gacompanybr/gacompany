@@ -24,9 +24,18 @@ const TITLES: Record<AdminTab, string> = {
   config: "Configurações",
 };
 
+const ADMIN_TAB_KEY = "ga:admin:tab";
+
 export default function Admin() {
-  const [tab, setTab] = useState<AdminTab>("dashboard");
+  const [tab, setTab] = useState<AdminTab>(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem(ADMIN_TAB_KEY) : null;
+    return (saved as AdminTab) || "dashboard";
+  });
   const { user, signOut } = useAuth();
+
+  useEffect(() => {
+    try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch {}
+  }, [tab]);
 
   return (
     <SidebarProvider>
