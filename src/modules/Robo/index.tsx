@@ -555,11 +555,69 @@ function RoboDialog({
           )}
 
           {campaignType === "disparo" && (
-            <div>
-              <Label>URL da planilha de contatos (CSV)</Label>
-              <Input value={planilhaUrl} onChange={(e) => setPlanilhaUrl(e.target.value)} placeholder="https://..." />
-            </div>
+            <>
+              <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                Esse robô busca contatos da planilha (CSV público com colunas <code>nome</code> e <code>numero</code>) e envia uma das variações de mensagem para cada contato, respeitando o delay configurado. Os disparos só rodam dentro dos dias/horários do cronograma.
+              </div>
+
+              <div>
+                <Label>Agente WhatsApp (instância conectada)</Label>
+                <Select value={agentId} onValueChange={async (v) => {
+                  setAgentId(v);
+                  const { data: conn } = await supabase
+                    .from("whatsapp_connections")
+                    .select("instance_name,status")
+                    .eq("portfolio_id", portfolioId)
+                    .maybeSingle();
+                  const a = (agents ?? []).find((x) => x.id === v);
+                  const live = conn?.instance_name ?? a?.instancia_id ?? "";
+                  setInstanciaId(live);
+                  if (conn && conn.status !== "connected") {
+                    toast.warning(`Instância está ${conn.status}. Conecte primeiro.`);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um agente" /></SelectTrigger>
+                  <SelectContent>
+                    {(agents ?? []).map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+              </div>
+
+              <div>
+                <Label>URL da planilha de contatos (CSV público)</Label>
+                <Input value={planilhaUrl} onChange={(e) => setPlanilhaUrl(e.target.value)} placeholder="https://docs.google.com/.../export?format=csv" />
+                <p className="text-xs text-muted-foreground mt-1">A planilha precisa ter as colunas <code>nome</code> e <code>numero</code> (ou <code>telefone</code>/<code>whatsapp</code>).</p>
+              </div>
+
+              <div>
+                <Label>Variações da mensagem</Label>
+                <Textarea
+                  rows={8}
+                  value={mensagensTxt}
+                  onChange={(e) => setMensagensTxt(e.target.value)}
+                  placeholder={"Olá {nome}, tudo bem? ...\n---\nOi {nome}! Passando pra ..."}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Separe variações com uma linha contendo apenas <code>---</code>. Use <code>{"{nome}"}</code> e <code>{"{telefone}"}</code> para personalizar.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Delay mínimo (min)</Label>
+                  <Input type="number" min={1} value={delayMin} onChange={(e) => setDelayMin(Number(e.target.value) || 1)} />
+                </div>
+                <div>
+                  <Label>Delay máximo (min)</Label>
+                  <Input type="number" min={1} value={delayMax} onChange={(e) => setDelayMax(Number(e.target.value) || 1)} />
+                </div>
+              </div>
+            </>
           )}
+
 
           {campaignType === "beacons_promo" && (
             <>
