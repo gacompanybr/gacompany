@@ -288,22 +288,14 @@ Deno.serve(async (req) => {
       const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
       if (state === "open") {
         await ensureSettings(existing.instance_name);
+        // Garante que o webhook da Evolution aponta para o webhook LOCAL
+        // (que tem memória de 24h e respeita o toggle Ativar/Desativar IA).
+        await ensureWebhook(existing.instance_name);
         const info = await evo(`/instance/fetchInstances?instanceName=${existing.instance_name}`);
         const phone = extractOwnerPhone(info.body);
         await admin.from("whatsapp_connections")
           .update({ status: "connected", phone })
           .eq("portfolio_id", portfolioId);
-        // Provisiona workflow n8n e aponta webhook da Evolution pra lá
-        try {
-          const syncResp = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-n8n-sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: authHeader },
-            body: JSON.stringify({ portfolioId }),
-          });
-          console.log("n8n-sync on open status:", syncResp.status);
-        } catch (err) {
-          console.error("n8n-sync trigger error", err);
-        }
       } else {
         await admin.from("whatsapp_connections")
           .update({ status: state === "close" ? "disconnected" : state })
