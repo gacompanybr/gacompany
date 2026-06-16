@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar, type AdminTab } from "@/components/admin/AdminSidebar";
 import { ClientesTab } from "@/components/admin/ClientesTab";
