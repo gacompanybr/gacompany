@@ -265,14 +265,16 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Carregar últimas 20 mensagens (memória)
+    // Memória: últimas 24h da conversa com esse contato (até 60 mensagens)
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: history } = await admin
       .from("whatsapp_conversas")
       .select("role, mensagem")
       .eq("portfolio_id", portfolioId)
       .eq("contato_telefone", phone)
+      .gte("created_at", since24h)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(60);
 
     const recent = (history ?? []).reverse();
 
@@ -298,7 +300,7 @@ async function processPayload(payload: any) {
           })),
         ],
         temperature: agent.temperatura ?? 0.7,
-        max_tokens: Math.min(Number(agent.max_tokens ?? 220), 260),
+        max_tokens: Math.min(Number(agent.max_tokens ?? 400), 600),
       }),
     });
 
