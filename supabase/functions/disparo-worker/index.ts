@@ -96,13 +96,26 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
   const mensagens: string[] = Array.isArray(campanha.mensagens) ? campanha.mensagens : [];
   if (!mensagens.length) return { sent: 0, errors: 0, reason: "sem_mensagens" };
 
+  // Respeita pausa de lote
+  if (campanha.pausa_ate) {
+    const until = new Date(campanha.pausa_ate).getTime();
+    if (until > Date.now()) {
+      return { sent: 0, errors: 0, reason: "em_pausa_de_lote", pausa_ate: campanha.pausa_ate };
+    }
+  }
+
+  const loteTamanho = Math.max(1, Number(campanha.lote_tamanho ?? 10));
+  const pausaLoteMin = Math.max(0, Number(campanha.pausa_lote_min ?? 15));
+  const limite = Math.min(BATCH_SIZE, loteTamanho);
+
   const { data: pendentes } = await admin
     .from("disparo_contatos")
     .select("*")
     .eq("campanha_id", campanha.id)
     .eq("status", "pendente")
     .order("created_at", { ascending: true })
-    .limit(BATCH_SIZE);
+    .limit(limite);
+
 
   if (!pendentes || pendentes.length === 0) {
     // marcar como concluida
