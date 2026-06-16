@@ -113,9 +113,10 @@ export default function DisparoModule({ portfolioId }: { portfolioId: string }) 
                     <Badge variant="outline" className="text-[10px]">{c.status}</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {c.enviados}/{c.total_contatos} enviados · delay {c.delay_min_seg}–{c.delay_max_seg}s ·{" "}
-                    {c.mensagens.length} variações
+                    {c.enviados}/{c.total_contatos} enviados · delay {c.delay_min_seg}–{c.delay_max_seg}s ·
+                    lote {c.lote_tamanho} · pausa {c.pausa_lote_min}min
                   </p>
+
                 </div>
                 <div className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => toggleStatus(c)}>
