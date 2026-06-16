@@ -100,11 +100,13 @@ function buildSystemPrompt(agent: any): string {
   return [
     `Você é ${agent.nome_atendente}, atendente via WhatsApp.`,
     `Tom de voz: ${tom}.`,
-    agent.instrucoes_base ? `Instruções: ${agent.instrucoes_base}` : "",
+    agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
-    "\nResponda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp.",
+    "\nMEMÓRIA: As mensagens anteriores desta conversa (últimas 24h) estão no histórico abaixo. SEMPRE leia e use esse histórico para lembrar o que o cliente já disse — nome, pedidos, dúvidas, contexto. Se a pessoa perguntar 'lembra do que eu te falei?', responda baseado no que está no histórico.",
+    "Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA.",
   ].filter(Boolean).join("\n");
 }
+
 
 function dentroDoHorario(agent: any): boolean {
   try {
