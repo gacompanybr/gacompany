@@ -106,7 +106,6 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
 
   const loteTamanho = Math.max(1, Number(campanha.lote_tamanho ?? 10));
   const pausaLoteMin = Math.max(0, Number(campanha.pausa_lote_min ?? 15));
-  const limite = Math.min(BATCH_SIZE, loteTamanho);
 
   const { data: pendentes } = await admin
     .from("disparo_contatos")
@@ -114,7 +113,8 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
     .eq("campanha_id", campanha.id)
     .eq("status", "pendente")
     .order("created_at", { ascending: true })
-    .limit(limite);
+    .limit(loteTamanho);
+
 
 
   if (!pendentes || pendentes.length === 0) {
