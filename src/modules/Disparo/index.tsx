@@ -136,24 +136,82 @@ function NovaCampanhaDialog({
   const [dMin, setDMin] = useState(8);
   const [dMax, setDMax] = useState(20);
   const [busy, setBusy] = useState(false);
+  const [contatos, setContatos] = useState<{ nome: string; telefone: string; variaveis: Record<string, any> }[]>([]);
+  const [arquivoNome, setArquivoNome] = useState<string>("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function normalizarTelefone(v: any): string {
+    const s = String(v ?? "").replace(/\D/g, "");
+    return s;
+  }
+
+  async function handleFile(file: File) {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+      if (!rows.length) return toast.error("Planilha vazia");
+      const parsed = rows
+        .map((r) => {
+          const keys = Object.keys(r);
+          const telKey = keys.find((k) => /tel|fone|whats|celular|phone|number/i.test(k));
+          const nomeKey = keys.find((k) => /nome|name/i.test(k));
+          const telefone = normalizarTelefone(telKey ? r[telKey] : Object.values(r)[0]);
+          const nome = String((nomeKey ? r[nomeKey] : "") ?? "").trim();
+          const variaveis: Record<string, any> = {};
+          for (const k of keys) if (k !== telKey && k !== nomeKey) variaveis[k] = r[k];
+          return { nome, telefone, variaveis };
+        })
+        .filter((c) => c.telefone.length >= 8);
+      if (!parsed.length) return toast.error("Nenhum telefone válido encontrado");
+      setContatos(parsed);
+      setArquivoNome(file.name);
+      toast.success(`${parsed.length} contatos carregados`);
+    } catch (e: any) {
+      toast.error("Erro ao ler planilha: " + (e?.message ?? e));
+    }
+  }
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome");
     const msgs = mensagens.split("\n---\n").map((m) => m.trim()).filter(Boolean);
     if (msgs.length < 2) return toast.error("Inclua ao menos 2 variações separadas por linha com ---");
+    if (!contatos.length && !planilha.trim()) return toast.error("Importe um arquivo XLSX/CSV ou informe o link da planilha");
     setBusy(true);
-    const { error } = await supabase.from("disparo_campanhas").insert({
+    const { data: campanha, error } = await supabase.from("disparo_campanhas").insert({
       portfolio_id: portfolioId,
       nome: nome.trim(),
       mensagens: msgs,
       planilha_url: planilha.trim() || null,
       delay_min_seg: dMin,
       delay_max_seg: dMax,
-    });
+      total_contatos: contatos.length,
+    }).select("id").single();
+    if (error || !campanha) {
+      setBusy(false);
+      return toast.error(error?.message ?? "Erro ao criar campanha");
+    }
+    if (contatos.length) {
+      const chunk = 500;
+      for (let i = 0; i < contatos.length; i += chunk) {
+        const slice = contatos.slice(i, i + chunk).map((c) => ({
+          campanha_id: campanha.id,
+          nome: c.nome || null,
+          telefone: c.telefone,
+          variaveis: c.variaveis,
+        }));
+        const { error: cErr } = await supabase.from("disparo_contatos").insert(slice);
+        if (cErr) {
+          setBusy(false);
+          return toast.error("Erro ao salvar contatos: " + cErr.message);
+        }
+      }
+    }
     setBusy(false);
-    if (error) return toast.error(error.message);
     toast.success("Campanha criada!");
     setNome(""); setMensagens(""); setPlanilha(""); setDMin(8); setDMax(20);
+    setContatos([]); setArquivoNome("");
     onOpenChange(false);
     onCreated();
   }
