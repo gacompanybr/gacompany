@@ -263,8 +263,8 @@ function NovaCampanhaDialog({
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome para a campanha");
-    const msgs = mensagens.split("\n---\n").map((m) => m.trim()).filter(Boolean);
-    if (msgs.length < 1) return toast.error("Inclua ao menos 1 variação de mensagem");
+    const msg = mensagem.trim();
+    if (!msg) return toast.error("Escreva a mensagem que será enviada");
 
     // Junta contatos: selecionados do WA + da planilha
     const fromWa: Contato[] = waContacts
@@ -293,13 +293,16 @@ function NovaCampanhaDialog({
     const { data: campanha, error } = await supabase.from("disparo_campanhas").insert({
       portfolio_id: portfolioId,
       nome: nome.trim(),
-      mensagens: msgs,
+      mensagens: [msg],
       delay_min_seg: dMin,
       delay_max_seg: dMax,
+      lote_tamanho: loteTamanho,
+      pausa_lote_min: pausaLoteMin,
       total_contatos: dedup.length,
       instancia_id: selectedAgent.instancia_id,
       status: "rascunho",
     }).select("id").single();
+
     if (error || !campanha) {
       setBusy(false);
       return toast.error(error?.message ?? "Erro ao criar campanha");
