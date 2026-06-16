@@ -219,18 +219,33 @@ Deno.serve(async (req) => {
 
     if (action === "send_test") {
       if (!number || !message) return json({ error: "number e message obrigatórios" }, 400);
-      // normaliza número: tira tudo que não for dígito
-      const digits = String(number).replace(/\D/g, "");
-      if (digits.length < 10) return json({ error: "Número inválido" }, 400);
-      const r = await evo(`/message/sendText/${instanceName}`, {
-        method: "POST",
-        body: JSON.stringify({
-          number: digits,
-          text: String(message),
-        }),
-      });
-      if (!r.ok) return json({ error: "Falha ao enviar", detail: r.body }, r.status || 500);
-      return json({ ok: true, result: r.body });
+      const raw = String(number).replace(/\D/g, "");
+      if (raw.length < 8) return json({ error: "Número inválido" }, 400);
+      // Normaliza para padrão BR adicionando 55 se faltar
+      let base = raw;
+      if (raw.length === 10 || raw.length === 11) base = "55" + raw;
+      // Monta variações: com e sem o "9" do celular BR
+      const tries: string[] = [base];
+      if (base.startsWith("55") && base.length === 13) {
+        const ddd = base.slice(2, 4);
+        const rest = base.slice(4);
+        if (rest.startsWith("9") && rest.length === 9) tries.push("55" + ddd + rest.slice(1));
+      } else if (base.startsWith("55") && base.length === 12) {
+        const ddd = base.slice(2, 4);
+        const rest = base.slice(4);
+        tries.push("55" + ddd + "9" + rest);
+      }
+      let last: any = null;
+      for (const t of tries) {
+        const r = await evo(`/message/sendText/${instanceName}`, {
+          method: "POST",
+          body: JSON.stringify({ number: t, text: String(message), delay: 1200, linkPreview: false }),
+        });
+        if (r.ok) return json({ ok: true, result: r.body, sentTo: t });
+        last = r;
+        if (!/exists"?\s*:\s*false/i.test(String(r.body ?? ""))) break;
+      }
+      return json({ error: "Falha ao enviar", detail: last?.body ?? "sem detalhe", tried: tries }, last?.status || 500);
     }
 
     return json({ error: "action inválido" }, 400);
