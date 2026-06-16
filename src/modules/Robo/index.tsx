@@ -107,6 +107,11 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
         if (dest.length === 0 || !r.instancia_id) {
           return toast.error("Configure grupos e instância antes de ativar.");
         }
+      } else if (r.campaign_type === "disparo") {
+        if (!r.instancia_id) return toast.error("Selecione a instância WhatsApp antes de ativar.");
+        if (!r.planilha_url) return toast.error("Informe a URL da planilha antes de ativar.");
+        const msgs = Array.isArray(r.mensagens) ? r.mensagens : [];
+        if (msgs.length === 0) return toast.error("Escreva ao menos uma mensagem antes de ativar.");
       } else {
         if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
         if (r.campaign_type === "ecommerce") {
@@ -117,7 +122,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
         }
       }
     }
-    if (r.campaign_type !== "beacons_promo") {
+    if (r.campaign_type !== "beacons_promo" && r.campaign_type !== "disparo") {
       const action = ativar ? "activate" : "deactivate";
       const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
         body: { action, workflowId: r.n8n_workflow_id },
@@ -130,6 +135,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
     toast.success(ativar ? "Robô ativado!" : "Robô pausado");
     qc.invalidateQueries({ queryKey: ["robo", portfolioId] });
   }
+
 
 
   async function remove(r: Robo) {
@@ -258,6 +264,11 @@ function RoboDialog({
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loadingGrupos, setLoadingGrupos] = useState(false);
   const [planilhaUrl, setPlanilhaUrl] = useState(editing?.planilha_url ?? "");
+  const [mensagensTxt, setMensagensTxt] = useState<string>(
+    Array.isArray(editing?.mensagens) ? (editing!.mensagens as string[]).join("\n---\n") : ""
+  );
+  const [delayMin, setDelayMin] = useState<number>(editing?.intervalo_min_min ?? 1);
+  const [delayMax, setDelayMax] = useState<number>(editing?.intervalo_max_min ?? 3);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -276,10 +287,14 @@ function RoboDialog({
     setTableId(editing?.n8n_datatable_id ?? "");
     setTableName(editing?.n8n_datatable_name ?? "");
     setPlanilhaUrl(editing?.planilha_url ?? "");
+    setMensagensTxt(Array.isArray(editing?.mensagens) ? (editing!.mensagens as string[]).join("\n---\n") : "");
+    setDelayMin(editing?.intervalo_min_min ?? 1);
+    setDelayMax(editing?.intervalo_max_min ?? 3);
     setAgentId("");
     setDatatables([]);
     setGrupos([]);
   }, [open, editing]);
+
 
   const { data: agents } = useQuery({
     queryKey: ["wa-agents", portfolioId],
@@ -329,8 +344,15 @@ function RoboDialog({
       if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
       if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
     } else {
-      if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos");
+      if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos (CSV público)");
+      if (!instanciaId) return toast.error("Selecione o agente WhatsApp conectado");
+      if (!mensagensTxt.trim()) return toast.error("Escreva ao menos uma mensagem para disparar");
     }
+
+    const mensagensArr = mensagensTxt
+      .split(/\n-{3,}\n/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     setBusy(true);
     const payload: any = {
@@ -343,14 +365,20 @@ function RoboDialog({
       message_template: campaignType === "ecommerce" ? template : null,
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
       instancia_id: instanciaId || null,
-      destinos,
+      destinos: campaignType === "disparo" ? [] : destinos,
+      mensagens: campaignType === "disparo" ? mensagensArr : null,
       horarios_por_dia: horarios,
       dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
-    const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
-    const minInt = intervalos.length ? Math.min(...intervalos) : 30;
-    payload.intervalo_min_min = minInt;
-    payload.intervalo_max_min = minInt;
+    if (campaignType === "disparo") {
+      payload.intervalo_min_min = Math.max(1, delayMin);
+      payload.intervalo_max_min = Math.max(payload.intervalo_min_min, delayMax);
+    } else {
+      const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
+      const minInt = intervalos.length ? Math.min(...intervalos) : 30;
+      payload.intervalo_min_min = minInt;
+      payload.intervalo_max_min = minInt;
+    }
 
     let roboId = editing?.id;
     if (editing) {
@@ -363,9 +391,11 @@ function RoboDialog({
       roboId = (inserted as any).id;
     }
 
-    if (campaignType === "beacons_promo") {
+    if (campaignType === "beacons_promo" || campaignType === "disparo") {
       setBusy(false);
-      toast.success("Robô de promoção salvo! Envia a promo ativa do card nos horários configurados.");
+      toast.success(campaignType === "disparo"
+        ? "Robô de disparo salvo! Ative para iniciar os envios."
+        : "Robô de promoção salvo!");
       onOpenChange(false);
       onSaved();
       return;
@@ -383,6 +413,7 @@ function RoboDialog({
     onOpenChange(false);
     onSaved();
   }
+
 
 
   return (
@@ -530,11 +561,69 @@ function RoboDialog({
           )}
 
           {campaignType === "disparo" && (
-            <div>
-              <Label>URL da planilha de contatos (CSV)</Label>
-              <Input value={planilhaUrl} onChange={(e) => setPlanilhaUrl(e.target.value)} placeholder="https://..." />
-            </div>
+            <>
+              <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                Esse robô busca contatos da planilha (CSV público com colunas <code>nome</code> e <code>numero</code>) e envia uma das variações de mensagem para cada contato, respeitando o delay configurado. Os disparos só rodam dentro dos dias/horários do cronograma.
+              </div>
+
+              <div>
+                <Label>Agente WhatsApp (instância conectada)</Label>
+                <Select value={agentId} onValueChange={async (v) => {
+                  setAgentId(v);
+                  const { data: conn } = await supabase
+                    .from("whatsapp_connections")
+                    .select("instance_name,status")
+                    .eq("portfolio_id", portfolioId)
+                    .maybeSingle();
+                  const a = (agents ?? []).find((x) => x.id === v);
+                  const live = conn?.instance_name ?? a?.instancia_id ?? "";
+                  setInstanciaId(live);
+                  if (conn && conn.status !== "connected") {
+                    toast.warning(`Instância está ${conn.status}. Conecte primeiro.`);
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um agente" /></SelectTrigger>
+                  <SelectContent>
+                    {(agents ?? []).map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+              </div>
+
+              <div>
+                <Label>URL da planilha de contatos (CSV público)</Label>
+                <Input value={planilhaUrl} onChange={(e) => setPlanilhaUrl(e.target.value)} placeholder="https://docs.google.com/.../export?format=csv" />
+                <p className="text-xs text-muted-foreground mt-1">A planilha precisa ter as colunas <code>nome</code> e <code>numero</code> (ou <code>telefone</code>/<code>whatsapp</code>).</p>
+              </div>
+
+              <div>
+                <Label>Variações da mensagem</Label>
+                <Textarea
+                  rows={8}
+                  value={mensagensTxt}
+                  onChange={(e) => setMensagensTxt(e.target.value)}
+                  placeholder={"Olá {nome}, tudo bem? ...\n---\nOi {nome}! Passando pra ..."}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Separe variações com uma linha contendo apenas <code>---</code>. Use <code>{"{nome}"}</code> e <code>{"{telefone}"}</code> para personalizar.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Delay mínimo (min)</Label>
+                  <Input type="number" min={1} value={delayMin} onChange={(e) => setDelayMin(Number(e.target.value) || 1)} />
+                </div>
+                <div>
+                  <Label>Delay máximo (min)</Label>
+                  <Input type="number" min={1} value={delayMax} onChange={(e) => setDelayMax(Number(e.target.value) || 1)} />
+                </div>
+              </div>
+            </>
           )}
+
 
           {campaignType === "beacons_promo" && (
             <>

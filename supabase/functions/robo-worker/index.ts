@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         if (proxima > now.getTime()) continue;
 
         const destinos: string[] = Array.isArray(r.destinos) ? r.destinos : [];
-        if (destinos.length === 0) {
+        if (r.campaign_type !== "disparo" && destinos.length === 0) {
           results.push({ id: r.id, skip: "sem destinos" });
           continue;
         }
@@ -106,6 +106,7 @@ Deno.serve(async (req) => {
           results.push({ id: r.id, skip: "sem instância WhatsApp" });
           continue;
         }
+
 
         let enviados = 0;
 
@@ -132,6 +133,58 @@ Deno.serve(async (req) => {
               console.error(`Falha envio promo robô ${r.id} → ${to}`, e);
             }
           }
+        } else if (r.campaign_type === "disparo") {
+          const mensagens: string[] = Array.isArray(r.mensagens) ? r.mensagens : [];
+          if (mensagens.length === 0) {
+            results.push({ id: r.id, skip: "sem mensagens" });
+            continue;
+          }
+          if (!r.planilha_url) {
+            results.push({ id: r.id, skip: "sem planilha_url" });
+            continue;
+          }
+          // Buscar CSV e parsear
+          let contatos: Array<{ nome: string; numero: string }> = [];
+          try {
+            const csvResp = await fetch(r.planilha_url);
+            if (!csvResp.ok) throw new Error(`CSV ${csvResp.status}`);
+            const csv = await csvResp.text();
+            const lines = csv.split(/\r?\n/).filter((l) => l.trim());
+            if (lines.length < 2) throw new Error("CSV vazio");
+            const sep = lines[0].includes(";") && !lines[0].includes(",") ? ";" : ",";
+            const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
+            const idxNome = headers.findIndex((h) => h === "nome" || h === "name");
+            const idxNum = headers.findIndex((h) => ["numero","número","telefone","whatsapp","phone","celular"].includes(h));
+            if (idxNum < 0) throw new Error("CSV sem coluna numero/telefone");
+            for (let i = 1; i < lines.length; i++) {
+              const cells = lines[i].split(sep).map((c) => c.trim().replace(/^"|"$/g, ""));
+              const numero = (cells[idxNum] ?? "").replace(/\D/g, "");
+              if (!numero) continue;
+              contatos.push({ nome: idxNome >= 0 ? cells[idxNome] ?? "" : "", numero });
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            await admin.from("robo_campanhas").update({ ultimo_erro: `CSV: ${msg}` }).eq("id", r.id);
+            results.push({ id: r.id, erro: `CSV: ${msg}` });
+            continue;
+          }
+          const offset = r.total_enviados ?? 0;
+          if (offset >= contatos.length) {
+            await admin.from("robo_campanhas").update({ status: "pausado", ultimo_erro: "Lista concluída" }).eq("id", r.id);
+            results.push({ id: r.id, skip: "lista concluída" });
+            continue;
+          }
+          const contato = contatos[offset];
+          const template = mensagens[Math.floor(Math.random() * mensagens.length)];
+          const text = template
+            .replace(/\{nome\}/gi, contato.nome || "tudo bem")
+            .replace(/\{telefone\}/gi, contato.numero);
+          try {
+            await sendText(r.instancia_id, contato.numero, text);
+            enviados = 1;
+          } catch (e) {
+            console.error(`Falha disparo robô ${r.id} → ${contato.numero}`, e);
+          }
         } else {
           const mensagens: string[] = Array.isArray(r.mensagens) ? r.mensagens : [];
           if (mensagens.length === 0) {
@@ -148,6 +201,7 @@ Deno.serve(async (req) => {
             }
           }
         }
+
 
         // Próxima execução: agora + intervalo aleatório
         const intervaloMin = hpd?.intervalo ?? r.intervalo_min_min ?? 30;
