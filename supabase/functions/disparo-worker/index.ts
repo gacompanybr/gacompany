@@ -58,30 +58,7 @@ async function evoSendOnce(instance: string, phone: string, text: string) {
 async function evoSend(instance: string, rawPhone: string, text: string) {
   const phone = normalizePhone(rawPhone);
   if (!phone) return { ok: false, status: 400, body: "telefone inválido" };
-  // Tenta variações: com DDI normalizado; se BR de 11 dígitos (com 9), tenta também sem o 9
-  const tries: string[] = [phone];
-  if (phone.startsWith("55") && phone.length === 13) {
-    // 55 + DDD(2) + 9 + 8dig → tentar também sem o 9
-    const ddd = phone.slice(2, 4);
-    const rest = phone.slice(4);
-    if (rest.startsWith("9") && rest.length === 9) {
-      tries.push("55" + ddd + rest.slice(1));
-    }
-  } else if (phone.startsWith("55") && phone.length === 12) {
-    // 55 + DDD + 8dig → tentar também com 9
-    const ddd = phone.slice(2, 4);
-    const rest = phone.slice(4);
-    tries.push("55" + ddd + "9" + rest);
-  }
-  let last = { ok: false, status: 0, body: "" };
-  for (const t of tries) {
-    const r = await evoSendOnce(instance, t, text);
-    if (r.ok) return r;
-    last = r;
-    // Se erro for "exists:false" tenta próxima variação; senão para
-    if (!/exists":false/.test(r.body)) break;
-  }
-  return last;
+  return await evoSendOnce(instance, phone, text);
 }
 
 async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
