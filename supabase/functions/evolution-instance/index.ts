@@ -190,6 +190,33 @@ Deno.serve(async (req) => {
       return json({ groups });
     }
 
+    if (action === "contacts") {
+      // Lista contatos individuais (não-grupos) da instância
+      const r = await evo(`/chat/findContacts/${instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({ where: {} }),
+      });
+      const arr = Array.isArray(r.body) ? r.body : (r.body?.contacts ?? r.body?.data ?? []);
+      const contacts = arr
+        .map((x: any) => {
+          const jid = String(x.remoteJid ?? x.id ?? x.jid ?? "");
+          if (!jid || jid.includes("@g.us") || jid.includes("@broadcast") || jid.includes("@lid")) return null;
+          const phone = jid.split("@")[0].replace(/\D/g, "");
+          if (phone.length < 8) return null;
+          const nome = String(x.pushName ?? x.name ?? x.notify ?? x.verifiedName ?? "").trim();
+          return { jid, phone, nome };
+        })
+        .filter((x: any) => x && x.phone)
+        // remove duplicados por telefone
+        .reduce((acc: any[], cur: any) => {
+          if (!acc.find((a) => a.phone === cur.phone)) acc.push(cur);
+          return acc;
+        }, [])
+        .sort((a: any, b: any) => (a.nome || a.phone).localeCompare(b.nome || b.phone));
+      return json({ contacts });
+    }
+
+
     if (action === "send_test") {
       if (!number || !message) return json({ error: "number e message obrigatórios" }, 400);
       // normaliza número: tira tudo que não for dígito
