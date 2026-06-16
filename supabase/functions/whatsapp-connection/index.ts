@@ -6,6 +6,57 @@ const EVO_URL = Deno.env.get("EVOLUTION_API_URL")!;
 const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const N8N_BASE_URL = (Deno.env.get("N8N_BASE_URL") || "").replace(/\/+$/, "");
+const N8N_API_KEY = Deno.env.get("N8N_API_KEY") || "";
+
+async function n8nApi(path: string, init: RequestInit = {}) {
+  if (!N8N_BASE_URL || !N8N_API_KEY) return null;
+  try {
+    const r = await fetch(`${N8N_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "X-N8N-API-KEY": N8N_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+    const text = await r.text();
+    let body: any = text;
+    try { body = JSON.parse(text); } catch { /* keep text */ }
+    return { ok: r.ok, status: r.status, body };
+  } catch (e) {
+    console.error("n8n api error", e);
+    return null;
+  }
+}
+
+async function deleteN8nWorkflow(id: string) {
+  if (!id) return;
+  await n8nApi(`/workflows/${id}/deactivate`, { method: "POST" });
+  const del = await n8nApi(`/workflows/${id}`, { method: "DELETE" });
+  console.log("n8n workflow deleted", id, del?.status);
+}
+
+// Remove TODOS os workflows do n8n criados pelo sistema que não estão mais
+// associados a nenhum agent (n8n_workflow_id na tabela whatsapp_agents).
+async function cleanupOrphanN8nWorkflows(admin: ReturnType<typeof createClient>) {
+  if (!N8N_BASE_URL || !N8N_API_KEY) return;
+  const list = await n8nApi("/workflows?limit=250");
+  if (!list?.ok) return;
+  const items = Array.isArray(list.body?.data) ? list.body.data : (Array.isArray(list.body) ? list.body : []);
+  const candidates = items.filter((w: any) => String(w?.name || "").startsWith("WhatsApp Agent —"));
+  if (!candidates.length) return;
+  const { data: agents } = await admin.from("whatsapp_agents").select("n8n_workflow_id");
+  const inUse = new Set((agents || []).map((a: any) => String(a.n8n_workflow_id || "")).filter(Boolean));
+  for (const w of candidates) {
+    const id = String(w.id);
+    if (!inUse.has(id)) {
+      await deleteN8nWorkflow(id);
+    }
+  }
+}
+
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
