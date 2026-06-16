@@ -177,10 +177,26 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
     .select("id", { count: "exact", head: true })
     .eq("campanha_id", campanha.id)
     .eq("status", "enviado");
-  await admin.from("disparo_campanhas").update({ enviados: count ?? 0 }).eq("id", campanha.id);
 
-  return { sent, errors };
+  // Verifica se ainda há pendentes; se sim, agenda pausa de lote
+  const { count: pendCount } = await admin
+    .from("disparo_contatos")
+    .select("id", { count: "exact", head: true })
+    .eq("campanha_id", campanha.id)
+    .eq("status", "pendente");
+
+  const update: Record<string, unknown> = { enviados: count ?? 0 };
+  if ((pendCount ?? 0) === 0) {
+    update.status = "concluida";
+    update.pausa_ate = null;
+  } else if ((sent + errors) > 0 && pausaLoteMin > 0) {
+    update.pausa_ate = new Date(Date.now() + pausaLoteMin * 60_000).toISOString();
+  }
+  await admin.from("disparo_campanhas").update(update).eq("id", campanha.id);
+
+  return { sent, errors, proxima_pausa_ate: update.pausa_ate ?? null };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
