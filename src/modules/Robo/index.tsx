@@ -258,6 +258,11 @@ function RoboDialog({
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [loadingGrupos, setLoadingGrupos] = useState(false);
   const [planilhaUrl, setPlanilhaUrl] = useState(editing?.planilha_url ?? "");
+  const [mensagensTxt, setMensagensTxt] = useState<string>(
+    Array.isArray(editing?.mensagens) ? (editing!.mensagens as string[]).join("\n---\n") : ""
+  );
+  const [delayMin, setDelayMin] = useState<number>(editing?.intervalo_min_min ?? 1);
+  const [delayMax, setDelayMax] = useState<number>(editing?.intervalo_max_min ?? 3);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -276,10 +281,14 @@ function RoboDialog({
     setTableId(editing?.n8n_datatable_id ?? "");
     setTableName(editing?.n8n_datatable_name ?? "");
     setPlanilhaUrl(editing?.planilha_url ?? "");
+    setMensagensTxt(Array.isArray(editing?.mensagens) ? (editing!.mensagens as string[]).join("\n---\n") : "");
+    setDelayMin(editing?.intervalo_min_min ?? 1);
+    setDelayMax(editing?.intervalo_max_min ?? 3);
     setAgentId("");
     setDatatables([]);
     setGrupos([]);
   }, [open, editing]);
+
 
   const { data: agents } = useQuery({
     queryKey: ["wa-agents", portfolioId],
