@@ -24,7 +24,15 @@ import gaLogo from "@/assets/logo.png";
 export default function Workspace() {
   const { portfolioId } = useParams();
   const { isAdmin, signOut, user } = useAuth();
-  const [activeModule, setActiveModule] = useState<WorkspaceModule>("metricas");
+  const storageKey = `ga:workspace:module:${portfolioId}`;
+  const [activeModule, setActiveModule] = useState<WorkspaceModule>(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+    return (saved as WorkspaceModule) || "metricas";
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, activeModule); } catch {}
+  }, [storageKey, activeModule]);
 
   const { data: portfolio, isLoading } = useQuery({
     queryKey: ["workspace-portfolio", portfolioId],
