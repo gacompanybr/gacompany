@@ -338,8 +338,15 @@ function RoboDialog({
       if (destinos.length === 0) return toast.error("Selecione pelo menos um grupo de destino");
       if (!instanciaId) return toast.error("Selecione a instância WhatsApp");
     } else {
-      if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos");
+      if (!planilhaUrl.trim()) return toast.error("Informe a URL da planilha de contatos (CSV público)");
+      if (!instanciaId) return toast.error("Selecione o agente WhatsApp conectado");
+      if (!mensagensTxt.trim()) return toast.error("Escreva ao menos uma mensagem para disparar");
     }
+
+    const mensagensArr = mensagensTxt
+      .split(/\n-{3,}\n/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     setBusy(true);
     const payload: any = {
@@ -352,14 +359,20 @@ function RoboDialog({
       message_template: campaignType === "ecommerce" ? template : null,
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
       instancia_id: instanciaId || null,
-      destinos,
+      destinos: campaignType === "disparo" ? [] : destinos,
+      mensagens: campaignType === "disparo" ? mensagensArr : null,
       horarios_por_dia: horarios,
       dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
-    const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
-    const minInt = intervalos.length ? Math.min(...intervalos) : 30;
-    payload.intervalo_min_min = minInt;
-    payload.intervalo_max_min = minInt;
+    if (campaignType === "disparo") {
+      payload.intervalo_min_min = Math.max(1, delayMin);
+      payload.intervalo_max_min = Math.max(payload.intervalo_min_min, delayMax);
+    } else {
+      const intervalos = Object.values(horarios).filter((h) => h.enabled).map((h) => h.intervalo);
+      const minInt = intervalos.length ? Math.min(...intervalos) : 30;
+      payload.intervalo_min_min = minInt;
+      payload.intervalo_max_min = minInt;
+    }
 
     let roboId = editing?.id;
     if (editing) {
@@ -372,9 +385,11 @@ function RoboDialog({
       roboId = (inserted as any).id;
     }
 
-    if (campaignType === "beacons_promo") {
+    if (campaignType === "beacons_promo" || campaignType === "disparo") {
       setBusy(false);
-      toast.success("Robô de promoção salvo! Envia a promo ativa do card nos horários configurados.");
+      toast.success(campaignType === "disparo"
+        ? "Robô de disparo salvo! Ative para iniciar os envios."
+        : "Robô de promoção salvo!");
       onOpenChange(false);
       onSaved();
       return;
@@ -392,6 +407,7 @@ function RoboDialog({
     onOpenChange(false);
     onSaved();
   }
+
 
 
   return (
