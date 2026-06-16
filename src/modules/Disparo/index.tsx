@@ -1,5 +1,4 @@
-import { useRef, useState } from "react";
-import * as XLSX from "xlsx";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -9,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Send, Trash2, Play, Pause, Upload, FileSpreadsheet, X } from "lucide-react";
+import { Loader2, Plus, Send, Trash2, Play, Pause } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -136,115 +135,24 @@ function NovaCampanhaDialog({
   const [dMin, setDMin] = useState(8);
   const [dMax, setDMax] = useState(20);
   const [busy, setBusy] = useState(false);
-  const [contatos, setContatos] = useState<{ nome: string | null; telefone: string }[]>([]);
-  const [fileName, setFileName] = useState<string>("");
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  function normalizeTel(raw: any): string {
-    const onlyDigits = String(raw ?? "").replace(/\D/g, "");
-    return onlyDigits;
-  }
-
-  async function handleFile(file: File) {
-    try {
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      if (!sheet) return toast.error("Planilha vazia");
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
-      if (!rows.length) return toast.error("Nenhuma linha encontrada");
-
-      const findKey = (row: Record<string, any>, candidates: string[]) => {
-        const keys = Object.keys(row);
-        for (const cand of candidates) {
-          const hit = keys.find((k) => k.toLowerCase().trim() === cand);
-          if (hit) return hit;
-        }
-        // fallback fuzzy includes
-        for (const cand of candidates) {
-          const hit = keys.find((k) => k.toLowerCase().includes(cand));
-          if (hit) return hit;
-        }
-        return null;
-      };
-
-      const first = rows[0];
-      const telKey = findKey(first, ["telefone", "celular", "whatsapp", "phone", "numero", "número", "fone"]);
-      const nomeKey = findKey(first, ["nome", "name", "contato"]);
-
-      if (!telKey) {
-        return toast.error("Não encontrei coluna de telefone (telefone/celular/whatsapp/phone).");
-      }
-
-      const parsed = rows
-        .map((r) => ({
-          nome: nomeKey ? String(r[nomeKey] ?? "").trim() || null : null,
-          telefone: normalizeTel(r[telKey]),
-        }))
-        .filter((c) => c.telefone.length >= 8);
-
-      if (!parsed.length) return toast.error("Nenhum telefone válido encontrado.");
-      setContatos(parsed);
-      setFileName(file.name);
-      toast.success(`${parsed.length} contato(s) carregado(s)`);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || "Falha ao ler arquivo");
-    } finally {
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
-
-  function clearFile() {
-    setContatos([]);
-    setFileName("");
-  }
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome");
     const msgs = mensagens.split("\n---\n").map((m) => m.trim()).filter(Boolean);
     if (msgs.length < 2) return toast.error("Inclua ao menos 2 variações separadas por linha com ---");
     setBusy(true);
-    const { data: created, error } = await supabase
-      .from("disparo_campanhas")
-      .insert({
-        portfolio_id: portfolioId,
-        nome: nome.trim(),
-        mensagens: msgs,
-        planilha_url: planilha.trim() || (fileName ? `arquivo:${fileName}` : null),
-        delay_min_seg: dMin,
-        delay_max_seg: dMax,
-        total_contatos: contatos.length,
-      })
-      .select("id")
-      .single();
-    if (error || !created) {
-      setBusy(false);
-      return toast.error(error?.message || "Falha ao criar campanha");
-    }
-
-    if (contatos.length) {
-      const payload = contatos.map((c) => ({
-        campanha_id: created.id,
-        nome: c.nome,
-        telefone: c.telefone,
-      }));
-      // Insere em lotes para evitar request gigante
-      const CHUNK = 500;
-      for (let i = 0; i < payload.length; i += CHUNK) {
-        const slice = payload.slice(i, i + CHUNK);
-        const { error: cErr } = await supabase.from("disparo_contatos").insert(slice);
-        if (cErr) {
-          setBusy(false);
-          return toast.error(`Contatos: ${cErr.message}`);
-        }
-      }
-    }
-
+    const { error } = await supabase.from("disparo_campanhas").insert({
+      portfolio_id: portfolioId,
+      nome: nome.trim(),
+      mensagens: msgs,
+      planilha_url: planilha.trim() || null,
+      delay_min_seg: dMin,
+      delay_max_seg: dMax,
+    });
     setBusy(false);
-    toast.success(`Campanha criada${contatos.length ? ` com ${contatos.length} contatos` : ""}!`);
+    if (error) return toast.error(error.message);
+    toast.success("Campanha criada!");
     setNome(""); setMensagens(""); setPlanilha(""); setDMin(8); setDMax(20);
-    clearFile();
     onOpenChange(false);
     onCreated();
   }
@@ -270,46 +178,8 @@ function NovaCampanhaDialog({
               Use <code>{"{nome}"}</code> para personalizar. Quanto mais variações, menor o risco de ban.
             </p>
           </div>
-          <div className="space-y-2">
-            <Label>Contatos (planilha XLSX, XLS ou CSV)</Label>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => fileRef.current?.click()}
-                disabled={busy}
-              >
-                <Upload size={14} /> Importar planilha
-              </Button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFile(f);
-                }}
-              />
-              {fileName && (
-                <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
-                  <FileSpreadsheet size={12} />
-                  <span className="truncate max-w-[180px]">{fileName}</span>
-                  <Badge variant="outline" className="text-[10px]">{contatos.length}</Badge>
-                  <button type="button" onClick={clearFile} className="ml-1 hover:text-destructive">
-                    <X size={12} />
-                  </button>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              A planilha deve ter colunas <code>telefone</code> (ou celular/whatsapp/phone) e opcionalmente <code>nome</code>.
-            </p>
-          </div>
           <div>
-            <Label>Ou link de planilha (opcional)</Label>
+            <Label>Link da planilha de contatos</Label>
             <Input value={planilha} onChange={(e) => setPlanilha(e.target.value)} placeholder="https://docs.google.com/..." />
           </div>
           <div className="grid grid-cols-2 gap-3">

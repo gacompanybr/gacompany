@@ -100,20 +100,15 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
 
   async function toggleActive() {
     if (!local) return;
-    const nextActive = local.status !== "active";
-    setSaving(true);
-    const { data, error } = await supabase.functions.invoke("whatsapp-toggle-active", {
-      body: { portfolioId, active: nextActive },
-    });
-    setSaving(false);
-    if (error || (data as any)?.error) {
-      return toast.error(error?.message || (data as any)?.error || "Falha ao alterar status");
-    }
-    setLocal({ ...local, status: nextActive ? "active" : "inactive" });
+    const next = local.status === "active" ? "inactive" : "active";
+    const { error } = await supabase
+      .from("whatsapp_agents")
+      .update({ status: next })
+      .eq("id", local.id);
+    if (error) return toast.error(error.message);
+    setLocal({ ...local, status: next });
     qc.invalidateQueries({ queryKey: ["whatsapp-agent", portfolioId] });
-    toast.success(nextActive
-      ? "IA ATIVADA — agente responderá automaticamente"
-      : "IA DESATIVADA — webhook do WhatsApp desligado");
+    toast.success(next === "active" ? "Agente de IA ATIVADO" : "Agente de IA DESATIVADO");
   }
 
   return (
