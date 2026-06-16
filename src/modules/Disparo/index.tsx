@@ -26,10 +26,13 @@ type Campanha = {
   planilha_url: string | null;
   delay_min_seg: number;
   delay_max_seg: number;
+  lote_tamanho: number;
+  pausa_lote_min: number;
   total_contatos: number;
   enviados: number;
   instancia_id: string | null;
 };
+
 
 type Agent = { id: string; nome: string; nome_atendente?: string | null; instancia_id: string | null; status: string };
 type WaContact = { jid: string; phone: string; nome: string };
