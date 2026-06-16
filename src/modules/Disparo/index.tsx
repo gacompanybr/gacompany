@@ -151,13 +151,16 @@ function NovaCampanhaDialog({
   onCreated: () => void;
 }) {
   const [nome, setNome] = useState("");
-  const [mensagens, setMensagens] = useState("");
+  const [mensagem, setMensagem] = useState("");
   const [dMin, setDMin] = useState(8);
   const [dMax, setDMax] = useState(20);
+  const [loteTamanho, setLoteTamanho] = useState(10);
+  const [pausaLoteMin, setPausaLoteMin] = useState(15);
   const [busy, setBusy] = useState(false);
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [arquivoNome, setArquivoNome] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   // Agente WhatsApp / Instância
   const [agentId, setAgentId] = useState<string>("");
