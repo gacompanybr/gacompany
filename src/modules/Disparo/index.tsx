@@ -342,15 +342,15 @@ function NovaCampanhaDialog({
           </div>
 
           <div>
-            <Label>Variações de mensagem (separe com uma linha contendo apenas <code>---</code>)</Label>
+            <Label>Mensagem</Label>
             <Textarea
-              rows={6}
-              value={mensagens}
-              onChange={(e) => setMensagens(e.target.value)}
-              placeholder={"Oi {nome}, tudo bem?\n---\nOlá {nome}! Tudo certo por aí?\n---\nE aí {nome}, beleza?"}
+              rows={5}
+              value={mensagem}
+              onChange={(e) => setMensagem(e.target.value)}
+              placeholder={"Oi {nome}, tudo bem? Passando pra te avisar..."}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Use <code>{"{nome}"}</code> para personalizar com o nome do contato. Quanto mais variações, menor o risco de ban.
+              Use <code>{"{nome}"}</code> para personalizar com o nome do contato.
             </p>
           </div>
 
@@ -364,6 +364,21 @@ function NovaCampanhaDialog({
               <Input type="number" min={dMin} value={dMax} onChange={(e) => setDMax(Number(e.target.value))} />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Tamanho do lote (mensagens por bloco)</Label>
+              <Input type="number" min={1} value={loteTamanho} onChange={(e) => setLoteTamanho(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Pausa entre lotes (minutos)</Label>
+              <Input type="number" min={0} value={pausaLoteMin} onChange={(e) => setPausaLoteMin(Number(e.target.value))} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Ex.: 50 contatos com lote de 10 e pausa de 15min → envia 10, espera 15min, envia mais 10, e assim por diante. Reduz risco de ban.
+          </p>
+
 
           <Card className="p-3 space-y-3">
             <div>
