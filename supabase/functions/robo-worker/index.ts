@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         if (proxima > now.getTime()) continue;
 
         const destinos: string[] = Array.isArray(r.destinos) ? r.destinos : [];
-        if (destinos.length === 0) {
+        if (r.campaign_type !== "disparo" && destinos.length === 0) {
           results.push({ id: r.id, skip: "sem destinos" });
           continue;
         }
@@ -106,6 +106,7 @@ Deno.serve(async (req) => {
           results.push({ id: r.id, skip: "sem instância WhatsApp" });
           continue;
         }
+
 
         let enviados = 0;
 
