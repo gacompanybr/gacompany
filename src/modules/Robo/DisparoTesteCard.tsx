@@ -49,9 +49,12 @@ export function DisparoTesteCard({ portfolioId }: { portfolioId: string }) {
       },
     });
     setSending(false);
-    if (error) return toast.error(error.message);
-    if ((data as any)?.error) return toast.error((data as any).error);
-    toast.success("Mensagem de teste enviada!");
+    const d: any = data;
+    if (error || d?.error) {
+      const detail = d?.detail ? ` — ${typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)}` : "";
+      return toast.error(`${d?.error ?? error?.message ?? "Falha"}${detail}`);
+    }
+    toast.success(`Mensagem enviada para ${d?.sentTo ?? numero}`);
   }
 
   return (
