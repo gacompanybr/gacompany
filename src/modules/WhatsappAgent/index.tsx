@@ -108,12 +108,8 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
     if (error) return toast.error(error.message);
     setLocal({ ...local, status: next });
     qc.invalidateQueries({ queryKey: ["whatsapp-agent", portfolioId] });
-    // Sincroniza n8n para ativar/desativar o workflow que responde via Evolution
-    try {
-      await supabase.functions.invoke("whatsapp-n8n-sync", { body: { portfolioId } });
-    } catch (e) {
-      console.warn("n8n sync falhou", e);
-    }
+    // O webhook local (whatsapp-webhook) checa agent.status a cada mensagem,
+    // então o gate é imediato — não precisa sincronizar n8n.
     toast.success(next === "active" ? "Agente de IA ATIVADO" : "Agente de IA DESATIVADO");
   }
 
