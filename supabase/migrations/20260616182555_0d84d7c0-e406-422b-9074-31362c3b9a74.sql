@@ -1,0 +1,1 @@
+UPDATE public.disparo_contatos SET status='pendente', erro=NULL WHERE status='erro' AND erro LIKE '%exists%false%';
