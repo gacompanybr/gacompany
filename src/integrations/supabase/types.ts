@@ -394,8 +394,11 @@ export type Database = {
           enviados: number
           id: string
           instancia_id: string | null
+          lote_tamanho: number
           mensagens: Json
           nome: string
+          pausa_ate: string | null
+          pausa_lote_min: number
           planilha_url: string | null
           portfolio_id: string
           status: string
@@ -409,8 +412,11 @@ export type Database = {
           enviados?: number
           id?: string
           instancia_id?: string | null
+          lote_tamanho?: number
           mensagens?: Json
           nome: string
+          pausa_ate?: string | null
+          pausa_lote_min?: number
           planilha_url?: string | null
           portfolio_id: string
           status?: string
@@ -424,8 +430,11 @@ export type Database = {
           enviados?: number
           id?: string
           instancia_id?: string | null
+          lote_tamanho?: number
           mensagens?: Json
           nome?: string
+          pausa_ate?: string | null
+          pausa_lote_min?: number
           planilha_url?: string | null
           portfolio_id?: string
           status?: string

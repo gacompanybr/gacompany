@@ -96,13 +96,26 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
   const mensagens: string[] = Array.isArray(campanha.mensagens) ? campanha.mensagens : [];
   if (!mensagens.length) return { sent: 0, errors: 0, reason: "sem_mensagens" };
 
+  // Respeita pausa de lote
+  if (campanha.pausa_ate) {
+    const until = new Date(campanha.pausa_ate).getTime();
+    if (until > Date.now()) {
+      return { sent: 0, errors: 0, reason: "em_pausa_de_lote", pausa_ate: campanha.pausa_ate };
+    }
+  }
+
+  const loteTamanho = Math.max(1, Number(campanha.lote_tamanho ?? 10));
+  const pausaLoteMin = Math.max(0, Number(campanha.pausa_lote_min ?? 15));
+
   const { data: pendentes } = await admin
     .from("disparo_contatos")
     .select("*")
     .eq("campanha_id", campanha.id)
     .eq("status", "pendente")
     .order("created_at", { ascending: true })
-    .limit(BATCH_SIZE);
+    .limit(loteTamanho);
+
+
 
   if (!pendentes || pendentes.length === 0) {
     // marcar como concluida
@@ -164,10 +177,26 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
     .select("id", { count: "exact", head: true })
     .eq("campanha_id", campanha.id)
     .eq("status", "enviado");
-  await admin.from("disparo_campanhas").update({ enviados: count ?? 0 }).eq("id", campanha.id);
 
-  return { sent, errors };
+  // Verifica se ainda há pendentes; se sim, agenda pausa de lote
+  const { count: pendCount } = await admin
+    .from("disparo_contatos")
+    .select("id", { count: "exact", head: true })
+    .eq("campanha_id", campanha.id)
+    .eq("status", "pendente");
+
+  const update: Record<string, unknown> = { enviados: count ?? 0 };
+  if ((pendCount ?? 0) === 0) {
+    update.status = "concluida";
+    update.pausa_ate = null;
+  } else if ((sent + errors) > 0 && pausaLoteMin > 0) {
+    update.pausa_ate = new Date(Date.now() + pausaLoteMin * 60_000).toISOString();
+  }
+  await admin.from("disparo_campanhas").update(update).eq("id", campanha.id);
+
+  return { sent, errors, proxima_pausa_ate: update.pausa_ate ?? null };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

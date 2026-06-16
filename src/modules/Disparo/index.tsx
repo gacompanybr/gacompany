@@ -26,10 +26,13 @@ type Campanha = {
   planilha_url: string | null;
   delay_min_seg: number;
   delay_max_seg: number;
+  lote_tamanho: number;
+  pausa_lote_min: number;
   total_contatos: number;
   enviados: number;
   instancia_id: string | null;
 };
+
 
 type Agent = { id: string; nome: string; nome_atendente?: string | null; instancia_id: string | null; status: string };
 type WaContact = { jid: string; phone: string; nome: string };
@@ -110,9 +113,10 @@ export default function DisparoModule({ portfolioId }: { portfolioId: string }) 
                     <Badge variant="outline" className="text-[10px]">{c.status}</Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {c.enviados}/{c.total_contatos} enviados · delay {c.delay_min_seg}–{c.delay_max_seg}s ·{" "}
-                    {c.mensagens.length} variações
+                    {c.enviados}/{c.total_contatos} enviados · delay {c.delay_min_seg}–{c.delay_max_seg}s ·
+                    lote {c.lote_tamanho} · pausa {c.pausa_lote_min}min
                   </p>
+
                 </div>
                 <div className="flex gap-1">
                   <Button size="icon" variant="ghost" onClick={() => toggleStatus(c)}>
@@ -147,13 +151,16 @@ function NovaCampanhaDialog({
   onCreated: () => void;
 }) {
   const [nome, setNome] = useState("");
-  const [mensagens, setMensagens] = useState("");
+  const [mensagem, setMensagem] = useState("");
   const [dMin, setDMin] = useState(8);
   const [dMax, setDMax] = useState(20);
+  const [loteTamanho, setLoteTamanho] = useState(10);
+  const [pausaLoteMin, setPausaLoteMin] = useState(15);
   const [busy, setBusy] = useState(false);
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [arquivoNome, setArquivoNome] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   // Agente WhatsApp / Instância
   const [agentId, setAgentId] = useState<string>("");
@@ -177,7 +184,7 @@ function NovaCampanhaDialog({
 
   useEffect(() => {
     if (!open) {
-      setNome(""); setMensagens(""); setDMin(8); setDMax(20);
+      setNome(""); setMensagem(""); setDMin(8); setDMax(20); setLoteTamanho(10); setPausaLoteMin(15);
       setContatos([]); setArquivoNome("");
       setAgentId(""); setWaContacts([]); setSelectedJids(new Set()); setFiltroContato("");
     }
@@ -256,8 +263,8 @@ function NovaCampanhaDialog({
 
   async function save() {
     if (!nome.trim()) return toast.error("Informe um nome para a campanha");
-    const msgs = mensagens.split("\n---\n").map((m) => m.trim()).filter(Boolean);
-    if (msgs.length < 1) return toast.error("Inclua ao menos 1 variação de mensagem");
+    const msg = mensagem.trim();
+    if (!msg) return toast.error("Escreva a mensagem que será enviada");
 
     // Junta contatos: selecionados do WA + da planilha
     const fromWa: Contato[] = waContacts
@@ -286,13 +293,16 @@ function NovaCampanhaDialog({
     const { data: campanha, error } = await supabase.from("disparo_campanhas").insert({
       portfolio_id: portfolioId,
       nome: nome.trim(),
-      mensagens: msgs,
+      mensagens: [msg],
       delay_min_seg: dMin,
       delay_max_seg: dMax,
+      lote_tamanho: loteTamanho,
+      pausa_lote_min: pausaLoteMin,
       total_contatos: dedup.length,
       instancia_id: selectedAgent.instancia_id,
       status: "rascunho",
     }).select("id").single();
+
     if (error || !campanha) {
       setBusy(false);
       return toast.error(error?.message ?? "Erro ao criar campanha");
@@ -332,15 +342,15 @@ function NovaCampanhaDialog({
           </div>
 
           <div>
-            <Label>Variações de mensagem (separe com uma linha contendo apenas <code>---</code>)</Label>
+            <Label>Mensagem</Label>
             <Textarea
-              rows={6}
-              value={mensagens}
-              onChange={(e) => setMensagens(e.target.value)}
-              placeholder={"Oi {nome}, tudo bem?\n---\nOlá {nome}! Tudo certo por aí?\n---\nE aí {nome}, beleza?"}
+              rows={5}
+              value={mensagem}
+              onChange={(e) => setMensagem(e.target.value)}
+              placeholder={"Oi {nome}, tudo bem? Passando pra te avisar..."}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Use <code>{"{nome}"}</code> para personalizar com o nome do contato. Quanto mais variações, menor o risco de ban.
+              Use <code>{"{nome}"}</code> para personalizar com o nome do contato.
             </p>
           </div>
 
@@ -354,6 +364,21 @@ function NovaCampanhaDialog({
               <Input type="number" min={dMin} value={dMax} onChange={(e) => setDMax(Number(e.target.value))} />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Tamanho do lote (mensagens por bloco)</Label>
+              <Input type="number" min={1} value={loteTamanho} onChange={(e) => setLoteTamanho(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Pausa entre lotes (minutos)</Label>
+              <Input type="number" min={0} value={pausaLoteMin} onChange={(e) => setPausaLoteMin(Number(e.target.value))} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Ex.: 50 contatos com lote de 10 e pausa de 15min → envia 10, espera 15min, envia mais 10, e assim por diante. Reduz risco de ban.
+          </p>
+
 
           <Card className="p-3 space-y-3">
             <div>
