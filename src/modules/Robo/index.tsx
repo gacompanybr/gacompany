@@ -107,6 +107,11 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
         if (dest.length === 0 || !r.instancia_id) {
           return toast.error("Configure grupos e instância antes de ativar.");
         }
+      } else if (r.campaign_type === "disparo") {
+        if (!r.instancia_id) return toast.error("Selecione a instância WhatsApp antes de ativar.");
+        if (!r.planilha_url) return toast.error("Informe a URL da planilha antes de ativar.");
+        const msgs = Array.isArray(r.mensagens) ? r.mensagens : [];
+        if (msgs.length === 0) return toast.error("Escreva ao menos uma mensagem antes de ativar.");
       } else {
         if (!r.n8n_workflow_id) return toast.error("Salve o robô antes de ativar.");
         if (r.campaign_type === "ecommerce") {
@@ -117,7 +122,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
         }
       }
     }
-    if (r.campaign_type !== "beacons_promo") {
+    if (r.campaign_type !== "beacons_promo" && r.campaign_type !== "disparo") {
       const action = ativar ? "activate" : "deactivate";
       const { error: fnErr } = await supabase.functions.invoke("n8n-sync", {
         body: { action, workflowId: r.n8n_workflow_id },
@@ -130,6 +135,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
     toast.success(ativar ? "Robô ativado!" : "Robô pausado");
     qc.invalidateQueries({ queryKey: ["robo", portfolioId] });
   }
+
 
 
   async function remove(r: Robo) {
