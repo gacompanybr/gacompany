@@ -238,7 +238,34 @@ function NovaCampanhaDialog({
             </p>
           </div>
           <div>
-            <Label>Link da planilha de contatos</Label>
+            <Label>Importar contatos (XLSX, XLS ou CSV)</Label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+                e.target.value = "";
+              }}
+            />
+            <div className="flex items-center gap-2 mt-1">
+              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
+                <Upload size={14} /> Escolher arquivo
+              </Button>
+              {arquivoNome && (
+                <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                  <FileSpreadsheet size={12} /> {arquivoNome} · {contatos.length} contatos
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Colunas reconhecidas: <code>nome</code> e <code>telefone</code> (ou <code>whatsapp</code>, <code>celular</code>). Demais colunas viram variáveis.
+            </p>
+          </div>
+          <div>
+            <Label>Ou link da planilha (opcional)</Label>
             <Input value={planilha} onChange={(e) => setPlanilha(e.target.value)} placeholder="https://docs.google.com/..." />
           </div>
           <div className="grid grid-cols-2 gap-3">
