@@ -184,7 +184,7 @@ function NovaCampanhaDialog({
 
   useEffect(() => {
     if (!open) {
-      setNome(""); setMensagens(""); setDMin(8); setDMax(20);
+      setNome(""); setMensagem(""); setDMin(8); setDMax(20); setLoteTamanho(10); setPausaLoteMin(15);
       setContatos([]); setArquivoNome("");
       setAgentId(""); setWaContacts([]); setSelectedJids(new Set()); setFiltroContato("");
     }
