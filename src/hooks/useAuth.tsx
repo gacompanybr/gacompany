@@ -44,28 +44,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let lastUserId: string | null = null;
 
-    async function applySession(s: Session | null) {
+    async function applySession(s: Session | null, isInitial: boolean) {
       if (!active) return;
-      setLoading(true);
+      if (isInitial) setLoading(true);
       setSession(s);
 
-      if (s?.user) {
-        const admin = await fetchRole(s.user.id);
-        if (active) setIsAdmin(admin);
-      } else {
-        if (active) setIsAdmin(false);
+      const newUserId = s?.user?.id ?? null;
+      // Só re-busca role se o usuário realmente mudou (evita re-render em TOKEN_REFRESHED)
+      if (newUserId !== lastUserId) {
+        lastUserId = newUserId;
+        if (s?.user) {
+          const admin = await fetchRole(s.user.id);
+          if (active) setIsAdmin(admin);
+        } else {
+          if (active) setIsAdmin(false);
+        }
       }
 
-      if (active) setLoading(false);
+      if (isInitial && active) setLoading(false);
     }
 
     supabase.auth.getSession().then(({ data }) => {
-      applySession(data.session);
+      applySession(data.session, true);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      applySession(s);
+      // Eventos como TOKEN_REFRESHED não devem reativar o loading global
+      // (isso desmontava as páginas e perdia o estado dos formulários)
+      applySession(s, false);
     });
 
     return () => {
