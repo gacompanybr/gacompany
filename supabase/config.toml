@@ -24,6 +24,10 @@ verify_jwt = false
 [functions.whatsapp-webhook]
 verify_jwt = false
 
+[functions.disparo-worker]
+verify_jwt = false
+
+
 
 
 

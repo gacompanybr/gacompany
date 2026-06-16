@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Send, Trash2, Play, Pause, Upload, FileSpreadsheet } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+} from "@/components/ui/select";
+import { Loader2, Plus, Send, Trash2, Play, Pause, Upload, FileSpreadsheet, RefreshCw, Users } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -27,6 +31,10 @@ type Campanha = {
   instancia_id: string | null;
 };
 
+type Agent = { id: string; nome: string; nome_atendente?: string | null; instancia_id: string | null; status: string };
+type WaContact = { jid: string; phone: string; nome: string };
+type Contato = { nome: string; telefone: string; variaveis: Record<string, any> };
+
 export default function DisparoModule({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -42,6 +50,7 @@ export default function DisparoModule({ portfolioId }: { portfolioId: string }) 
       if (error) throw error;
       return (data ?? []) as unknown as Campanha[];
     },
+    refetchInterval: 10000,
   });
 
   async function toggleStatus(c: Campanha) {
@@ -51,8 +60,15 @@ export default function DisparoModule({ portfolioId }: { portfolioId: string }) 
       .update({ status: novo })
       .eq("id", c.id);
     if (error) return toast.error(error.message);
-    toast.success(novo === "executando" ? "Campanha iniciada" : "Campanha pausada");
     qc.invalidateQueries({ queryKey: ["disparo", portfolioId] });
+    if (novo === "executando") {
+      toast.success("Campanha iniciada — disparando em background");
+      // Aciona o worker imediatamente
+      supabase.functions.invoke("disparo-worker", { body: { campanhaId: c.id } })
+        .catch((e) => console.warn("worker invoke falhou", e));
+    } else {
+      toast.success("Campanha pausada");
+    }
   }
 
   async function remove(id: string) {
@@ -132,17 +148,48 @@ function NovaCampanhaDialog({
 }) {
   const [nome, setNome] = useState("");
   const [mensagens, setMensagens] = useState("");
-  const [planilha, setPlanilha] = useState("");
   const [dMin, setDMin] = useState(8);
   const [dMax, setDMax] = useState(20);
   const [busy, setBusy] = useState(false);
-  const [contatos, setContatos] = useState<{ nome: string; telefone: string; variaveis: Record<string, any> }[]>([]);
+  const [contatos, setContatos] = useState<Contato[]>([]);
   const [arquivoNome, setArquivoNome] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Agente WhatsApp / Instância
+  const [agentId, setAgentId] = useState<string>("");
+  const [waContacts, setWaContacts] = useState<WaContact[]>([]);
+  const [loadingWa, setLoadingWa] = useState(false);
+  const [filtroContato, setFiltroContato] = useState("");
+  const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
+
+  const { data: agents } = useQuery({
+    queryKey: ["wa-agents-disparo", portfolioId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_agents")
+        .select("id, nome, nome_atendente, instancia_id, status")
+        .eq("portfolio_id", portfolioId);
+      if (error) throw error;
+      return (data ?? []) as Agent[];
+    },
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (!open) {
+      setNome(""); setMensagens(""); setDMin(8); setDMax(20);
+      setContatos([]); setArquivoNome("");
+      setAgentId(""); setWaContacts([]); setSelectedJids(new Set()); setFiltroContato("");
+    }
+  }, [open]);
+
+  const selectedAgent = useMemo(
+    () => (agents ?? []).find((a) => a.id === agentId) ?? null,
+    [agents, agentId],
+  );
+
   function normalizarTelefone(v: any): string {
-    const s = String(v ?? "").replace(/\D/g, "");
-    return s;
+    return String(v ?? "").replace(/\D/g, "");
   }
 
   async function handleFile(file: File) {
@@ -155,90 +202,229 @@ function NovaCampanhaDialog({
       const parsed = rows
         .map((r) => {
           const keys = Object.keys(r);
-          const telKey = keys.find((k) => /tel|fone|whats|celular|phone|number/i.test(k));
-          const nomeKey = keys.find((k) => /nome|name/i.test(k));
-          const telefone = normalizarTelefone(telKey ? r[telKey] : Object.values(r)[0]);
-          const nome = String((nomeKey ? r[nomeKey] : "") ?? "").trim();
+          const telKey = keys.find((k) => /tel|fone|whats|celular|phone|number|numero|número/i.test(k));
+          const nomeKey = keys.find((k) => /nome|name|contato/i.test(k));
+          if (!telKey || !nomeKey) return null;
+          const telefone = normalizarTelefone(r[telKey]);
+          const nome = String(r[nomeKey] ?? "").trim();
           const variaveis: Record<string, any> = {};
           for (const k of keys) if (k !== telKey && k !== nomeKey) variaveis[k] = r[k];
           return { nome, telefone, variaveis };
         })
-        .filter((c) => c.telefone.length >= 8);
-      if (!parsed.length) return toast.error("Nenhum telefone válido encontrado");
+        .filter((c): c is Contato => !!c && c.telefone.length >= 8);
+      if (!parsed.length) {
+        return toast.error("A planilha precisa ter uma coluna 'nome' e outra 'numero' (ou 'telefone').");
+      }
       setContatos(parsed);
       setArquivoNome(file.name);
-      toast.success(`${parsed.length} contatos carregados`);
+      toast.success(`${parsed.length} contatos carregados da planilha`);
     } catch (e: any) {
       toast.error("Erro ao ler planilha: " + (e?.message ?? e));
     }
   }
 
+  async function carregarContatosDoNumero() {
+    if (!agentId) return toast.error("Selecione um agente WhatsApp");
+    setLoadingWa(true);
+    const { data, error } = await supabase.functions.invoke("evolution-instance", {
+      body: { action: "contacts", agentId },
+    });
+    setLoadingWa(false);
+    if (error) return toast.error(error.message);
+    const list = (data?.contacts ?? []) as WaContact[];
+    if (!list.length) return toast.warning("Nenhum contato encontrado nesse número");
+    setWaContacts(list);
+    setSelectedJids(new Set());
+    toast.success(`${list.length} contatos carregados do WhatsApp`);
+  }
+
+  const contatosFiltrados = useMemo(() => {
+    const q = filtroContato.trim().toLowerCase();
+    if (!q) return waContacts;
+    return waContacts.filter(
+      (c) => c.nome.toLowerCase().includes(q) || c.phone.includes(q),
+    );
+  }, [waContacts, filtroContato]);
+
+  function toggleAll() {
+    if (selectedJids.size === contatosFiltrados.length) {
+      setSelectedJids(new Set());
+    } else {
+      setSelectedJids(new Set(contatosFiltrados.map((c) => c.jid)));
+    }
+  }
+
   async function save() {
-    if (!nome.trim()) return toast.error("Informe um nome");
+    if (!nome.trim()) return toast.error("Informe um nome para a campanha");
     const msgs = mensagens.split("\n---\n").map((m) => m.trim()).filter(Boolean);
-    if (msgs.length < 2) return toast.error("Inclua ao menos 2 variações separadas por linha com ---");
-    if (!contatos.length && !planilha.trim()) return toast.error("Importe um arquivo XLSX/CSV ou informe o link da planilha");
+    if (msgs.length < 1) return toast.error("Inclua ao menos 1 variação de mensagem");
+
+    // Junta contatos: selecionados do WA + da planilha
+    const fromWa: Contato[] = waContacts
+      .filter((c) => selectedJids.has(c.jid))
+      .map((c) => ({ nome: c.nome, telefone: c.phone, variaveis: {} }));
+    const todosContatos = [...fromWa, ...contatos];
+
+    // dedup por telefone
+    const dedup: Contato[] = [];
+    const seen = new Set<string>();
+    for (const c of todosContatos) {
+      if (!c.telefone || seen.has(c.telefone)) continue;
+      seen.add(c.telefone);
+      dedup.push(c);
+    }
+
+    if (!dedup.length) {
+      return toast.error("Selecione contatos do WhatsApp ou importe uma planilha");
+    }
+
+    if (!selectedAgent?.instancia_id) {
+      return toast.error("Selecione um agente WhatsApp com número conectado");
+    }
+
     setBusy(true);
     const { data: campanha, error } = await supabase.from("disparo_campanhas").insert({
       portfolio_id: portfolioId,
       nome: nome.trim(),
       mensagens: msgs,
-      planilha_url: planilha.trim() || null,
       delay_min_seg: dMin,
       delay_max_seg: dMax,
-      total_contatos: contatos.length,
+      total_contatos: dedup.length,
+      instancia_id: selectedAgent.instancia_id,
+      status: "rascunho",
     }).select("id").single();
     if (error || !campanha) {
       setBusy(false);
       return toast.error(error?.message ?? "Erro ao criar campanha");
     }
-    if (contatos.length) {
-      const chunk = 500;
-      for (let i = 0; i < contatos.length; i += chunk) {
-        const slice = contatos.slice(i, i + chunk).map((c) => ({
-          campanha_id: campanha.id,
-          nome: c.nome || null,
-          telefone: c.telefone,
-          variaveis: c.variaveis,
-        }));
-        const { error: cErr } = await supabase.from("disparo_contatos").insert(slice);
-        if (cErr) {
-          setBusy(false);
-          return toast.error("Erro ao salvar contatos: " + cErr.message);
-        }
+
+    const chunk = 500;
+    for (let i = 0; i < dedup.length; i += chunk) {
+      const slice = dedup.slice(i, i + chunk).map((c) => ({
+        campanha_id: campanha.id,
+        nome: c.nome || null,
+        telefone: c.telefone,
+        variaveis: c.variaveis,
+      }));
+      const { error: cErr } = await supabase.from("disparo_contatos").insert(slice);
+      if (cErr) {
+        setBusy(false);
+        return toast.error("Erro ao salvar contatos: " + cErr.message);
       }
     }
     setBusy(false);
-    toast.success("Campanha criada!");
-    setNome(""); setMensagens(""); setPlanilha(""); setDMin(8); setDMax(20);
-    setContatos([]); setArquivoNome("");
+    toast.success(`Campanha criada com ${dedup.length} contatos! Clique em ▶ para iniciar.`);
     onOpenChange(false);
     onCreated();
   }
 
+  const totalSelecionado =
+    (Array.from(selectedJids).length) + contatos.length;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Nova campanha de disparo</DialogTitle></DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
             <Label>Nome da campanha</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Promo Black Friday" />
           </div>
+
           <div>
             <Label>Variações de mensagem (separe com uma linha contendo apenas <code>---</code>)</Label>
             <Textarea
-              rows={8}
+              rows={6}
               value={mensagens}
               onChange={(e) => setMensagens(e.target.value)}
               placeholder={"Oi {nome}, tudo bem?\n---\nOlá {nome}! Tudo certo por aí?\n---\nE aí {nome}, beleza?"}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Use <code>{"{nome}"}</code> para personalizar. Quanto mais variações, menor o risco de ban.
+              Use <code>{"{nome}"}</code> para personalizar com o nome do contato. Quanto mais variações, menor o risco de ban.
             </p>
           </div>
-          <div>
-            <Label>Importar contatos (XLSX, XLS ou CSV)</Label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Delay mínimo entre disparos (segundos)</Label>
+              <Input type="number" min={1} value={dMin} onChange={(e) => setDMin(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Delay máximo (segundos)</Label>
+              <Input type="number" min={dMin} value={dMax} onChange={(e) => setDMax(Number(e.target.value))} />
+            </div>
+          </div>
+
+          <Card className="p-3 space-y-3">
+            <div>
+              <Label>Número do WhatsApp (agente conectado)</Label>
+              <Select value={agentId} onValueChange={(v) => { setAgentId(v); setWaContacts([]); setSelectedJids(new Set()); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione o agente WhatsApp" /></SelectTrigger>
+                <SelectContent>
+                  {(agents ?? []).map((a) => (
+                    <SelectItem key={a.id} value={a.id} disabled={!a.instancia_id}>
+                      {a.nome_atendente || a.nome} {a.instancia_id ? "(conectado)" : "(sem número)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Os disparos serão enviados pelo número conectado nesse agente.
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <Label className="m-0">Contatos do número</Label>
+                <Button type="button" size="sm" variant="outline" onClick={carregarContatosDoNumero} disabled={!agentId || loadingWa} className="gap-2">
+                  {loadingWa ? <Loader2 className="animate-spin" size={12} /> : <Users size={12} />}
+                  Carregar contatos
+                </Button>
+              </div>
+              {waContacts.length > 0 && (
+                <>
+                  <div className="flex gap-2 mb-2">
+                    <Input
+                      placeholder="Buscar por nome ou número..."
+                      value={filtroContato}
+                      onChange={(e) => setFiltroContato(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                    <Button type="button" size="sm" variant="outline" onClick={toggleAll}>
+                      {selectedJids.size === contatosFiltrados.length ? "Limpar" : "Todos"}
+                    </Button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto border border-border rounded">
+                    {contatosFiltrados.map((c) => (
+                      <label
+                        key={c.jid}
+                        className="flex items-center gap-2 p-2 hover:bg-muted/40 cursor-pointer border-b border-border/50 text-sm"
+                      >
+                        <Checkbox
+                          checked={selectedJids.has(c.jid)}
+                          onCheckedChange={(checked) => {
+                            setSelectedJids((cur) => {
+                              const next = new Set(cur);
+                              if (checked) next.add(c.jid); else next.delete(c.jid);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="truncate flex-1">{c.nome || "(sem nome)"}</span>
+                        <span className="text-xs text-muted-foreground">{c.phone}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedJids.size} de {waContacts.length} contatos selecionados
+                  </p>
+                </>
+              )}
+            </div>
+          </Card>
+
+          <Card className="p-3 space-y-2">
+            <Label>Ou importe uma planilha (XLSX, XLS ou CSV)</Label>
             <input
               ref={fileRef}
               type="file"
@@ -250,7 +436,7 @@ function NovaCampanhaDialog({
                 e.target.value = "";
               }}
             />
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2">
               <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
                 <Upload size={14} /> Escolher arquivo
               </Button>
@@ -259,30 +445,25 @@ function NovaCampanhaDialog({
                   <FileSpreadsheet size={12} /> {arquivoNome} · {contatos.length} contatos
                 </span>
               )}
+              {contatos.length > 0 && (
+                <Button type="button" size="sm" variant="ghost" onClick={() => { setContatos([]); setArquivoNome(""); }}>
+                  Remover
+                </Button>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Colunas reconhecidas: <code>nome</code> e <code>telefone</code> (ou <code>whatsapp</code>, <code>celular</code>). Demais colunas viram variáveis.
+            <p className="text-xs text-muted-foreground">
+              <strong>Obrigatório:</strong> a planilha precisa ter uma coluna <code>nome</code> e uma coluna <code>numero</code> (ou <code>telefone</code>/<code>whatsapp</code>/<code>celular</code>). Demais colunas viram variáveis usáveis na mensagem como <code>{"{coluna}"}</code>.
             </p>
-          </div>
-          <div>
-            <Label>Ou link da planilha (opcional)</Label>
-            <Input value={planilha} onChange={(e) => setPlanilha(e.target.value)} placeholder="https://docs.google.com/..." />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Delay mín (s)</Label>
-              <Input type="number" value={dMin} onChange={(e) => setDMin(Number(e.target.value))} />
-            </div>
-            <div>
-              <Label>Delay máx (s)</Label>
-              <Input type="number" value={dMax} onChange={(e) => setDMax(Number(e.target.value))} />
-            </div>
+          </Card>
+
+          <div className="text-sm text-center p-2 rounded bg-muted/30">
+            Total de contatos: <strong>{totalSelecionado}</strong>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={save} disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" size={14} /> : "Criar"}
+            {busy ? <Loader2 className="animate-spin" size={14} /> : "Criar campanha"}
           </Button>
         </DialogFooter>
       </DialogContent>
