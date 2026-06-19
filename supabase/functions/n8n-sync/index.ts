@@ -913,19 +913,33 @@ try {
           method: "GET", url,
           headers: {
             "user-agent": UA,
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "accept-language": "pt-BR,pt;q=0.9,en;q=0.8",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "accept-encoding": "gzip, deflate, br",
+            "sec-ch-ua": "\"Chromium\";v=\"141\", \"Not?A_Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "none",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "referer": "https://www.mercadolivre.com.br/",
+            "cookie": ML_COOKIE,
           },
           returnFullResponse: true,
           ignoreHttpStatusErrors: true,
         });
         const status = (resp && (resp.statusCode || resp.status)) || 0;
         const body = (resp && resp.body !== undefined) ? resp.body : resp;
-        return { status, html: typeof body === "string" ? body : String(body || "") };
+        const html = typeof body === "string" ? body : String(body || "");
+        const challenge = /suspicious-traffic-frontend|gz-account-verification/i.test(html);
+        return { status, html, err: challenge ? "BOT_CHALLENGE: ML retornou página de verificação anti-bot. Renove ml_cookie (precisa estar logado) ou aguarde alguns minutos." : null };
       } catch (e) {
         return { status: 0, html: "", err: (e && e.message) || String(e) };
       }
     }
+
 
     // 1) Coleta candidatos por query (todas as páginas configuradas)
     const buckets = [];
