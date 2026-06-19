@@ -671,20 +671,25 @@ try {
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
-    let keywords = TERMOS.length ? TERMOS : CATEGORIAS;
+    // Mescla termos + categorias preservando ordem definida pelo usuário (sem shuffle)
+    let keywords = Array.from(new Set([...(TERMOS || []), ...(CATEGORIAS || [])].map((k) => String(k).trim()).filter(Boolean)));
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
-    // Shuffle: embaralha keywords para variedade a cada execução
-    for (let i = keywords.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
-    }
-    // 1) Busca todos os keywords primeiro
+    // 1) Busca todos os keywords primeiro (sortType=2 = popular/CTR na API Shopee Affiliate)
     const buckets = [];
     for (const kw of keywords) {
       if (timeUp()) { debug.push({ stopped: "time_up_fetch", total }); break; }
       const r = await shopeeSearch(kw);
-      debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
-      buckets.push({ kw, nodes: (r.nodes || []).slice() });
+      // Ordena cada bucket pelos "melhores" primeiro: prioriza vendas, depois rating, depois comissão
+      const sorted = (r.nodes || []).slice().sort((a, b) => {
+        const sa = Number(a.sales ?? 0), sb = Number(b.sales ?? 0);
+        if (sb !== sa) return sb - sa;
+        const ra = Number(a.ratingStar ?? 0), rb = Number(b.ratingStar ?? 0);
+        if (rb !== ra) return rb - ra;
+        const ca = Number(a.commission ?? 0), cb = Number(b.commission ?? 0);
+        return cb - ca;
+      });
+      debug.push({ keyword: kw, status: r.status, found: sorted.length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
+      buckets.push({ kw, nodes: sorted });
     }
     // 2) Round-robin: 1 produto de cada termo, ciclando até esgotar/atingir limites
     outerShopee: while (buckets.some((b) => b.nodes.length > 0)) {
