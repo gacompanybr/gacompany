@@ -909,18 +909,31 @@ try {
         const resp = await http({
           method: "GET", url,
           headers: {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "accept-encoding": "gzip, deflate, br",
             "user-agent": UA,
             "upgrade-insecure-requests": "1",
+            "sec-ch-ua": "\"Chromium\";v=\"141\", \"Not?A_Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "none",
+            "sec-fetch-user": "?1",
+            "referer": "https://www.mercadolivre.com.br/",
+            "cookie": ML_COOKIE,
           },
           returnFullResponse: true,
           ignoreHttpStatusErrors: true,
+          followRedirect: true,
         });
         const status = (resp && (resp.statusCode || resp.status)) || 0;
         const html = (resp && resp.body !== undefined) ? String(resp.body || "") : String(resp || "");
+        const finalUrl = (resp && (resp.url || (resp.request && resp.request.uri && resp.request.uri.href))) || url;
+        const isChallenge = /account-verification|\/jms\/mlb\/lgz\/login/i.test(String(finalUrl)) || /account-verification/i.test(html);
         const items = parseListHtml(html);
-        return { status, items, url, err: null, htmlLen: html.length };
+        return { status, items, url, err: isChallenge ? "BOT_CHALLENGE (redirecionado p/ account-verification — cookie ML inválido/expirado)" : null, htmlLen: html.length, finalUrl };
       } catch (e) {
         return { status: 0, items: [], url, err: (e && e.message) || String(e), htmlLen: 0 };
       }
