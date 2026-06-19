@@ -760,56 +760,109 @@ try {
       }
     }
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
-    if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID).");
-    if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (cookie/CSRF). Edite o job e cole as credenciais.");
-    // Categorias padrão ML (Celulares, Eletrônicos, Informática, Eletrodomésticos, Moda)
-    const DEFAULT_ML_CATEGORIES = ["MLB1055","MLB1000","MLB1648","MLB1574","MLB1430"];
-    let categoryIds = (CATEGORIAS.length ? CATEGORIAS : (TERMOS.length ? TERMOS : DEFAULT_ML_CATEGORIES))
-      .map((c) => String(c).trim().toUpperCase())
-      .filter((c) => /^MLB\d+$/.test(c));
-    if (!categoryIds.length) categoryIds = DEFAULT_ML_CATEGORIES.slice();
-    for (let i = categoryIds.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [categoryIds[i], categoryIds[j]] = [categoryIds[j], categoryIds[i]];
-    }
-    categoryIds = categoryIds.slice(0, Math.max(1, ML_KEYWORDS_PER_RUN));
+    if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID / matt_word).");
+    if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (Cookie / x-csrf-token). Edite o job e cole as credenciais.");
 
     const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
-    // ===== Pega access_token oficial fresco (renovado via refresh_token pelo scrapper-api) =====
-    let ML_ACCESS_TOKEN = "";
-    try {
-      const tokenResp = await http({
-        method: "GET",
-        url: SCRAPPER_API + "?action=ml_token&scrapper_job_id=" + encodeURIComponent(JOB_ID),
-        headers: { "Authorization": "Bearer " + SCRAPPER_SECRET },
-        json: true,
-      });
-      const td = typeof tokenResp === "string" ? JSON.parse(tokenResp) : tokenResp;
-      ML_ACCESS_TOKEN = (td && td.access_token) || "";
-      debug.push({ mlToken: { ok: !!ML_ACCESS_TOKEN, expires_at: td && td.expires_at, nickname: td && td.nickname, status: td && td.status } });
-    } catch (e) {
-      throw new Error("Falha ao obter access_token ML: " + (e.message || String(e)));
+    // ===== Monta lista de queries preservando ordem (termos + categorias) =====
+    const slugify = (s) => String(s || "").toLowerCase()
+      .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+      .replace(/[^a-z0-9\\s-]/g, "").trim()
+      .replace(/\\s+/g, "-");
+    const isCategoryId = (s) => /^MLB\\d+$/i.test(String(s || "").trim());
+    function buildListingUrl(query, page){
+      const isCat = isCategoryId(query);
+      const base = isCat
+        ? "https://lista.mercadolivre.com.br/_CategID_" + String(query).trim().toUpperCase()
+        : "https://lista.mercadolivre.com.br/" + slugify(query);
+      // Filtros: ordenar por desconto desc + faixa de desconto (se ML_MIN_DISCOUNT>0)
+      let suffix = "_OrderId_PRICE*DESC";
+      if (ML_MIN_DISCOUNT > 0) suffix += "_DiscountRange_" + ML_MIN_DISCOUNT + "-99";
+      let url = base + suffix;
+      if (page > 1) {
+        const offset = (page - 1) * 48 + 1;
+        url = url.replace(/_OrderId_/, "_Desde_" + offset + "_OrderId_");
+      }
+      return url;
     }
-    if (!ML_ACCESS_TOKEN) throw new Error("Sem access_token ML. Reconecte a conta do Mercado Livre.");
 
+    const queriesRaw = Array.from(new Set([...(TERMOS || []), ...(CATEGORIAS || [])]
+      .map((x) => String(x || "").trim()).filter(Boolean)));
+    if (!queriesRaw.length) throw new Error("Defina pelo menos um termo ou categoria no job ML.");
+
+    // ===== Parser do HTML da listagem ML (regex) =====
+    function decodeEntities(s){
+      return String(s || "")
+        .replace(/&amp;/g, "&").replace(/&quot;/g, "\\"").replace(/&#39;/g, "'")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
+        .replace(/&#(\\d+);/g, function(_, n){ return String.fromCharCode(parseInt(n,10)); });
+    }
+    function pickAttr(html, attr){
+      const re = new RegExp(attr + "=\\"([^\\"]+)\\"", "i");
+      const m = html.match(re);
+      return m ? decodeEntities(m[1]) : "";
+    }
+    function parseListingHtml(html){
+      const out = [];
+      // Cada card começa com <div class="poly-card ...
+      const parts = String(html || "").split(/<div\\s+class="poly-card[\\s\\S]*?(?=<div\\s+class="poly-card|$)/g)
+        .map((s, i, arr) => i === 0 ? null : s).filter(Boolean);
+      // Fallback: split correto
+      const cards = [];
+      const re = /<div\\s+class="poly-card[^>]*>([\\s\\S]*?)(?=<div\\s+class="poly-card|<\\/section>|<\\/ol>|$)/g;
+      let mm;
+      while ((mm = re.exec(html)) !== null) cards.push(mm[1]);
+      for (const card of cards) {
+        // Title + link: <a class="poly-component__title" href="...">Titulo</a>
+        const aMatch = card.match(/<a[^>]*class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/i);
+        if (!aMatch) continue;
+        const href = decodeEntities(aMatch[1]);
+        const title = decodeEntities(aMatch[2].replace(/<[^>]+>/g, "").replace(/\\s+/g, " ")).trim();
+        if (!title || !href) continue;
+
+        // Image: prefer data-src, fallback src
+        const imgBlock = (card.match(/<img[^>]*class="[^"]*poly-component__picture[^"]*"[^>]*>/i) || [""])[0];
+        let image = pickAttr(imgBlock, "data-src") || pickAttr(imgBlock, "src");
+        image = String(image).replace(/^http:/, "https:");
+
+        // Preços: lista de andes-money-amount__fraction (e cents opcional)
+        const priceBlock = (card.match(/<div[^>]*class="[^"]*poly-component__price[^"]*"[^>]*>[\\s\\S]*?<\\/div>/i) || [""])[0] || card;
+        const fracs = [];
+        const fre = /<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d\\.]+)<\\/span>(?:[\\s\\S]{0,80}<span[^>]*class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\\d+)<\\/span>)?/g;
+        let fm;
+        while ((fm = fre.exec(priceBlock)) !== null) {
+          const inteiro = parseInt(String(fm[1]).replace(/\\./g, ""), 10);
+          const cents = fm[2] ? parseInt(fm[2], 10) : 0;
+          if (Number.isFinite(inteiro)) fracs.push(inteiro + cents / 100);
+        }
+        // Desconto: "33% OFF"
+        const discM = priceBlock.match(/(\\d{1,2})\\s*%\\s*OFF/i);
+        const discount = discM ? parseInt(discM[1], 10) : 0;
+
+        let price = 0, priceOriginal = 0;
+        if (fracs.length >= 2) { priceOriginal = fracs[0]; price = fracs[1]; }
+        else if (fracs.length === 1) {
+          price = fracs[0];
+          if (discount > 0 && discount < 100) priceOriginal = Number((price / (1 - discount/100)).toFixed(2));
+        }
+
+        out.push({ title, href, image, price, priceOriginal, discount });
+      }
+      return out;
+    }
+
+    // ===== Affiliate link via cookie + csrf (igual ao workflow do user) =====
     let affiliateCookieExpired = false;
     let affiliateSuccessLogged = false;
-
-    async function generateAffiliateLink(permalink) {
-      if (!ML_COOKIE || !ML_CSRF || !ML_AFFILIATE_ID) {
-        debug.push({ affiliateErr: "MISSING_CREDENTIALS", permalink: String(permalink || "").slice(0, 180), ts: new Date().toISOString() });
-        return null;
-      }
+    async function generateAffiliateLink(permalink){
       const url = String(permalink || "");
       if (!/^https?:\\/\\//i.test(url)) {
-        debug.push({ affiliateErr: "INVALID_PERMALINK", permalink: url.slice(0, 180), ts: new Date().toISOString() });
+        debug.push({ affiliateErr: "INVALID_PERMALINK", permalink: url.slice(0, 180) });
         return null;
       }
-
       const payload = JSON.stringify({ urls: [url], tag: ML_AFFILIATE_ID });
       let lastErr = null;
-
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const resp = await http({
@@ -833,187 +886,112 @@ try {
           const raw = (resp && resp.body !== undefined) ? resp.body : resp;
           let data = raw;
           if (typeof raw === "string") { try { data = JSON.parse(raw); } catch (_) { data = null; } }
-
           if (status === 401 || status === 403) {
             affiliateCookieExpired = true;
-            debug.push({ affiliateErr: "COOKIE_EXPIRED", status, permalink: url.slice(0, 180), ts: new Date().toISOString() });
+            debug.push({ affiliateErr: "COOKIE_EXPIRED", status });
             return null;
           }
-
-          const shortUrl =
-            (data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl)) ||
-            (data && data.short_url) || null;
-
+          const shortUrl = (data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl)) || (data && data.short_url) || null;
           if (shortUrl && /^https?:\\/\\/meli\\.la\\//i.test(String(shortUrl))) {
-            if (!affiliateSuccessLogged) {
-              debug.push({ affiliateOk: true, sample: shortUrl, ts: new Date().toISOString() });
-              affiliateSuccessLogged = true;
-            }
+            if (!affiliateSuccessLogged) { debug.push({ affiliateOk: true, sample: shortUrl }); affiliateSuccessLogged = true; }
             return String(shortUrl);
           }
           lastErr = { status, attempt, bodyPreview: typeof raw === "string" ? raw.slice(0, 200) : JSON.stringify(raw || {}).slice(0, 200) };
         } catch (e) {
           lastErr = { attempt, exception: (e && e.message) || String(e) };
         }
-        if (attempt < 3) await new Promise((res) => setTimeout(res, 2000));
+        if (attempt < 3) await new Promise((res) => setTimeout(res, 1500));
       }
-
-      debug.push({ affiliateErr: "RETRY_EXHAUSTED", permalink: url.slice(0, 180), lastErr, ts: new Date().toISOString() });
+      debug.push({ affiliateErr: "RETRY_EXHAUSTED", permalink: url.slice(0, 180), lastErr });
       return null;
     }
 
-
-    let mlRateLimited = false;
-    let mlAccessBlocked = false;
-
-    async function mlPause(minMs, maxMs){
-      const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-      await new Promise((res) => setTimeout(res, delayMs));
-    }
-
-    // ===== Novo fluxo oficial: highlights por categoria + detalhes via /products =====
-    const ML_HEADERS = {
-      "Authorization": "Bearer " + ML_ACCESS_TOKEN,
-      "Accept": "application/json",
-      "User-Agent": UA,
-    };
-
-    async function fetchHighlights(categoryId){
-      const url = "https://api.mercadolibre.com/highlights/MLB/category/" + encodeURIComponent(categoryId);
+    // ===== Fetch listing HTML para cada query (todas as páginas) =====
+    async function fetchListing(url){
       try {
-        const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
-        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
-        const content = Array.isArray(data && data.content) ? data.content : [];
-        const entries = [];
-        for (const c of content) {
-          if (!c) continue;
-          const id = String(c.id || c.product_id || "").toUpperCase();
-          if (!id) continue;
-          let type = String(c.type || "").toUpperCase();
-          if (!type) {
-            if (/^MLBU[0-9]+$/i.test(id)) type = "USER_PRODUCT";
-            else if (/^MLB[0-9]+$/i.test(id)) type = "ITEM";
-          }
-          if (type === "ITEM" && /^MLB[0-9]+$/i.test(id)) entries.push({ id, type });
-          else if ((type === "USER_PRODUCT" || type === "PRODUCT") && /^(MLBU|MLB)[0-9]+$/i.test(id)) entries.push({ id, type: "USER_PRODUCT" });
-        }
-        return { url, entries };
+        const resp = await http({
+          method: "GET", url,
+          headers: {
+            "user-agent": UA,
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": "pt-BR,pt;q=0.9,en;q=0.8",
+          },
+          returnFullResponse: true,
+          ignoreHttpStatusErrors: true,
+        });
+        const status = (resp && (resp.statusCode || resp.status)) || 0;
+        const body = (resp && resp.body !== undefined) ? resp.body : resp;
+        return { status, html: typeof body === "string" ? body : String(body || "") };
       } catch (e) {
-        const httpCode = e && (e.httpCode || e.statusCode);
-        const msg = String((e && e.message) || e || "");
-        return { url, entries: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429"), accessBlocked: Number(httpCode) === 403 || msg.includes("403") };
+        return { status: 0, html: "", err: (e && e.message) || String(e) };
       }
     }
 
-    async function fetchProductItems(productId){
-      const url = "https://api.mercadolibre.com/products/" + encodeURIComponent(productId) + "/items?limit=3";
-      try {
-        const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
-        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
-        return { url, results: (data && data.results) || [] };
-      } catch (e) {
-        const httpCode = e && (e.httpCode || e.statusCode);
-        const msg = String((e && e.message) || e || "");
-        return { url, results: [], fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
+    // 1) Coleta candidatos por query (todas as páginas configuradas)
+    const buckets = [];
+    for (const q of queriesRaw) {
+      if (timeUp()) { debug.push({ stopped: "time_up_fetch", total }); break; }
+      const items = [];
+      for (let page = 1; page <= ML_PAGES; page++) {
+        if (timeUp()) break;
+        const url = buildListingUrl(q, page);
+        const r = await fetchListing(url);
+        const parsed = parseListingHtml(r.html);
+        debug.push({ query: q, page, url, status: r.status, found: parsed.length, err: r.err || null });
+        for (const p of parsed) items.push(p);
+        if (parsed.length === 0) break; // página vazia → para
+        await new Promise((res) => setTimeout(res, 400 + Math.floor(Math.random() * 600)));
       }
+      // Ordena: maior desconto primeiro, depois maior preço-original
+      items.sort((a, b) => (b.discount - a.discount) || ((b.priceOriginal || 0) - (a.priceOriginal || 0)));
+      buckets.push({ q, items });
     }
 
-    async function fetchItemById(itemId){
-      const url = "https://api.mercadolibre.com/items/" + encodeURIComponent(itemId);
-      try {
-        const resp = await http({ method: "GET", url, headers: ML_HEADERS, json: true });
-        const data = typeof resp === "string" ? JSON.parse(resp) : resp;
-        return { url, item: data || null };
-      } catch (e) {
-        const httpCode = e && (e.httpCode || e.statusCode);
-        const msg = String((e && e.message) || e || "");
-        return { url, item: null, fetchErr: msg, httpCode, rateLimited: Number(httpCode) === 429 || msg.includes("429") };
-      }
-    }
-
-    outerML: for (const categoryId of categoryIds) {
-      if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerML; }
-      if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
-
-      const hl = await fetchHighlights(categoryId);
-      if (hl.fetchErr) {
-        debug.push({ category: categoryId, step: "highlights", url: hl.url, fetchErr: hl.fetchErr, httpCode: hl.httpCode });
-        if (hl.accessBlocked) { mlAccessBlocked = true; continue; }
-        if (hl.rateLimited) { mlRateLimited = true; break outerML; }
-        continue;
-      }
-      const itemCount = hl.entries.filter((e) => e.type === "ITEM").length;
-      const userProductCount = hl.entries.filter((e) => e.type === "USER_PRODUCT").length;
-      debug.push({ category: categoryId, highlights: hl.entries.length, items: itemCount, userProducts: userProductCount });
-
-      const skip = { discount: 0, missing: 0, commission: 0, insert: 0, affiliate: 0, duplicate: 0, noPrice: 0 };
-      let kept = 0;
-
-      for (const entry of hl.entries) {
-        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) break;
+    // 2) Round-robin: 1 produto por query/categoria, ciclando até esgotar/atingir limite
+    outerML: while (buckets.some((b) => b.items.length > 0)) {
+      for (const b of buckets) {
+        if (!b.items.length) continue;
+        if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products", total }); break outerML; }
         if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerML; }
-        await mlPause(400, 900);
 
-        let chosen = null;
-        let fallbackPermalink = "";
+        const it = b.items.shift();
+        const title = String(it.title || "");
+        const price = Number(it.price || 0);
+        if (!price) { debug.push({ skipped: "no_price", q: b.q, title }); continue; }
+        const priceOriginal = Number(it.priceOriginal || price);
+        const discount = Number(it.discount || (priceOriginal > price ? Math.round((1 - price/priceOriginal)*100) : 0));
+        if (ML_MIN_DISCOUNT > 0 && discount < ML_MIN_DISCOUNT) { debug.push({ skipped: "discount<min", q: b.q, title, discount }); continue; }
 
-        if (entry.type === "ITEM") {
-          const det = await fetchItemById(entry.id);
-          if (det.fetchErr) {
-            debug.push({ category: categoryId, itemId: entry.id, step: "items", fetchErr: det.fetchErr, httpCode: det.httpCode });
-            if (det.rateLimited) { mlRateLimited = true; break outerML; }
-            continue;
-          }
-          if (det.item && Number(det.item.price || 0) > 0) chosen = det.item;
-          fallbackPermalink = "https://www.mercadolivre.com.br/" + entry.id;
-        } else {
-          const det = await fetchProductItems(entry.id);
-          if (det.fetchErr) {
-            debug.push({ category: categoryId, productId: entry.id, step: "products", fetchErr: det.fetchErr, httpCode: det.httpCode });
-            if (det.rateLimited) { mlRateLimited = true; break outerML; }
-            continue;
-          }
-          for (const it of det.results) {
-            if (it && Number(it.price || 0) > 0) { chosen = it; break; }
-          }
-          fallbackPermalink = "https://www.mercadolivre.com.br/p/" + entry.id;
-        }
-
-        if (!chosen) { skip.missing++; continue; }
-
-        const itemId = String(chosen.item_id || chosen.id || "");
-        const title = String(chosen.title || chosen.name || entry.id);
         const nameKey = normName(title);
-        if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
-        if (isSimilar(title, "Mercado Livre")) { skip.duplicate++; dupSkipped++; debug.push({ skipped: "similar", item: title }); continue; }
-
-        const price = Number(chosen.price || 0);
-        if (!price) { skip.noPrice++; continue; }
-        const priceOld = Number(chosen.original_price || 0) > price ? Number(chosen.original_price) : 0;
-        const disc = priceOld > 0 ? Math.round((1 - price / priceOld) * 100) : 0;
-        if (ML_MIN_DISCOUNT > 0 && disc < ML_MIN_DISCOUNT) { skip.discount++; continue; }
+        if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
+        if (isSimilar(title, "Mercado Livre")) { dupSkipped++; debug.push({ skipped: "similar", q: b.q, title }); continue; }
 
         const commissionRate = ML_DEFAULT_COMMISSION_RATE;
-        const commissionValue = price * commissionRate / 100;
-        if (commissionValue < MIN_COMMISSION_VALUE) { skip.commission++; continue; }
+        const commissionValue = Number((price * commissionRate / 100).toFixed(2));
+        if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", q: b.q, title, commissionValue }); continue; }
 
-        const image = String((chosen.pictures && chosen.pictures[0] && (chosen.pictures[0].url || chosen.pictures[0].secure_url)) || chosen.thumbnail || "")
-          .replace(/^http:/, "https:");
-        const rawLink = String(chosen.permalink || fallbackPermalink);
-
+        // Limpa URL: remove tracking de clique e querystring
+        let rawLink = String(it.href || "");
+        const clickMatch = rawLink.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s\"]+)/i);
+        if (clickMatch) { try { rawLink = decodeURIComponent(clickMatch[1]); } catch (_) {} }
+        rawLink = rawLink.split("#")[0].split("?")[0];
+        if (!/^https?:\\/\\//i.test(rawLink)) { debug.push({ skipped: "bad_url", q: b.q, title, rawLink }); continue; }
 
         const offer = await generateAffiliateLink(rawLink);
-        if (!offer) { skip.affiliate++; if (affiliateCookieExpired) break outerML; continue; }
+        if (!offer) {
+          if (affiliateCookieExpired) { debug.push({ stopped: "cookie_expired" }); break outerML; }
+          continue;
+        }
 
         try {
           await insertRow(tableId, {
             productname: title,
             price,
-            priceoriginal: priceOld || price,
-            pricediscountrate: disc,
+            priceoriginal: priceOriginal,
+            pricediscountrate: discount,
             shopname: "Mercado Livre",
             offerlink: offer,
-            imageUrl: image,
+            imageUrl: String(it.image || ""),
             sending: false,
             commission_rate: commissionRate,
             commission_value: commissionValue,
@@ -1024,18 +1002,18 @@ try {
             existingNames.add(nameKey);
             existingEntries.push({ shop: normName("Mercado Livre"), tokens: new Set(tokenize(title)) });
           }
-          total++; kept++;
-        } catch (err) {
-          skip.insert++;
-          debug.push({ insertError: err.message || String(err), item: title });
+          total++;
+          await new Promise((res) => setTimeout(res, 300 + Math.floor(Math.random() * 500)));
+        } catch (e) {
+          debug.push({ insertError: (e && e.message) || String(e), item: title });
         }
       }
-      debug.push({ category: categoryId, kept, skipped: skip });
     }
-    if (mlAccessBlocked && total === 0) {
-      erro = "Mercado Livre retornou 403 ao buscar highlights. Verifique o access_token / categorias informadas.";
-    } else if (mlRateLimited && total === 0) {
-      erro = "Mercado Livre retornou 429 (limite temporário). Aguarde alguns minutos e rode novamente.";
+
+    if (affiliateCookieExpired && total === 0) {
+      erro = "Cookie/CSRF do Mercado Livre expirou. Atualize as credenciais no job.";
+    } else if (total === 0) {
+      erro = erro || "Nenhum produto coletado. Verifique os termos/categorias e se as páginas da listagem retornaram cards (status 200).";
     }
   } else {
     throw new Error("Plataforma " + PLATAFORMA + " ainda não implementada no scrapper n8n.");
