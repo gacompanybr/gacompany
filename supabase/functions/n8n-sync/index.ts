@@ -1151,6 +1151,90 @@ Deno.serve(async (req) => {
       return j({ ok: true, workflowId });
     }
 
+    if (action === "recreate_datatable") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+
+      const tableName: string = job.data_table_name || `${(job.plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
+      const columns = [
+        { name: "productname", type: "string" },
+        { name: "price", type: "number" },
+        { name: "priceoriginal", type: "number" },
+        { name: "pricediscountrate", type: "number" },
+        { name: "shopname", type: "string" },
+        { name: "offerlink", type: "string" },
+        { name: "imageUrl", type: "string" },
+        { name: "sending", type: "boolean" },
+        { name: "commission_rate", type: "number" },
+        { name: "commission_value", type: "number" },
+        { name: "sales", type: "number" },
+        { name: "rating", type: "number" },
+        { name: "sent_at", type: "string" },
+      ];
+
+      // procura projeto
+      let projectId: string | null = null;
+      try {
+        const projs = await n8nFetch("/projects");
+        const list = projs?.data ?? projs ?? [];
+        for (const p of (Array.isArray(list) ? list : [])) {
+          if (p?.id) { projectId = p.id; break; }
+        }
+      } catch (_) {}
+
+      // checa se já existe com esse nome
+      let datatableId: string | null = null;
+      const searchPaths = ["/data-tables", "/data-tables?includeProject=true"];
+      if (projectId) searchPaths.push(`/projects/${projectId}/data-tables`);
+      for (const path of searchPaths) {
+        try {
+          const d = await n8nFetch(path);
+          const arr = d?.data ?? d ?? [];
+          const found = (Array.isArray(arr) ? arr : []).find((t: any) => String(t?.name ?? "").trim() === tableName);
+          if (found?.id) { datatableId = found.id; break; }
+        } catch (_) {}
+      }
+
+      // se existe, deleta para recriar limpa
+      if (datatableId) {
+        try { await n8nFetch(`/data-tables/${datatableId}`, { method: "DELETE" }); } catch (e) { console.warn("delete datatable falhou:", e); }
+        datatableId = null;
+      }
+
+      // cria nova
+      const createCandidates: Array<{ path: string; body: any }> = [];
+      if (projectId) createCandidates.push({ path: `/projects/${projectId}/data-tables`, body: { name: tableName, columns } });
+      createCandidates.push({ path: "/data-tables", body: { name: tableName, columns } });
+      if (projectId) createCandidates.push({ path: "/data-tables", body: { name: tableName, columns, projectId } });
+      let lastErr: any = null;
+      for (const c of createCandidates) {
+        try {
+          const created = await n8nFetch(c.path, { method: "POST", body: JSON.stringify(c.body) });
+          datatableId = created?.id ?? created?.data?.id ?? null;
+          if (datatableId) break;
+        } catch (e) { lastErr = e; }
+      }
+      if (!datatableId) return j({ error: `Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}` }, 500);
+
+      await admin.from("scrapper_jobs")
+        .update({ n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
+        .eq("id", jobId);
+
+      // se o workflow existe, faz upsert pra garantir que aponta pra nova table
+      if (job.n8n_workflow_id) {
+        try {
+          const refreshed = { ...job, n8n_datatable_id: datatableId, data_table_name: tableName };
+          const wf = buildScrapperWorkflow(refreshed);
+          await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wf) });
+        } catch (e) { console.warn("refresh workflow falhou:", e); }
+      }
+
+      return j({ ok: true, datatableId, tableName, message: `Data table "${tableName}" recriada com ${columns.length} colunas.` });
+    }
+
     if (action === "upsert_scrapper_workflow") {
       const jobId: string = body?.jobId;
       if (!jobId) return j({ error: "jobId requerido" }, 400);
