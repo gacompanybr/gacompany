@@ -842,16 +842,16 @@ try {
     async function fetchApiPage(q, page){
       const limit = 50;
       const offset = (page - 1) * limit;
-      const params = new URLSearchParams();
-      if (isCategoryId(q)) {
-        params.set("category", String(q).trim().toUpperCase());
-      } else {
-        params.set("q", slugToTerm(q));
-      }
-      params.set("sort", "sold_quantity_desc"); // mais vendidos primeiro
-      params.set("limit", String(limit));
-      params.set("offset", String(offset));
-      const url = "https://api.mercadolibre.com/sites/MLB/search?" + params.toString();
+      const encodedQ = isCategoryId(q)
+        ? encodeURIComponent(String(q).trim().toUpperCase())
+        : encodeURIComponent(slugToTerm(q));
+      const paramKey = isCategoryId(q) ? "category" : "q";
+      const url = "https://api.mercadolibre.com/sites/MLB/search?" +
+        `${paramKey}=${encodedQ}` +
+        `&sort=${encodeURIComponent("sold_quantity_desc")}` +
+        `&limit=${limit}` +
+        `&offset=${offset}`;
+
       try {
         const resp = await http({
           method: "GET", url,
