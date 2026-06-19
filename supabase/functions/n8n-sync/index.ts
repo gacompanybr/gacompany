@@ -836,40 +836,52 @@ try {
       return null;
     }
 
-    // ===== Fetch listing HTML para cada query (todas as páginas) =====
-    async function fetchListing(url){
+    // ===== Fetch via API pública do Mercado Livre (sem cookie, sem anti-bot) =====
+    // Suporta: termo livre ("perfume"), slug de categoria ("casa-moveis-e-decoracao")
+    // ou MLB id ("MLB1574"). Categorias usam /sites/MLB/search?category=, termos usam q=.
+    async function fetchApiPage(q, page){
+      const limit = 50;
+      const offset = (page - 1) * limit;
+      const params = new URLSearchParams();
+      if (isCategoryId(q)) {
+        params.set("category", String(q).trim().toUpperCase());
+      } else {
+        params.set("q", slugToTerm(q));
+      }
+      params.set("sort", "sold_quantity_desc"); // mais vendidos primeiro
+      params.set("limit", String(limit));
+      params.set("offset", String(offset));
+      const url = "https://api.mercadolibre.com/sites/MLB/search?" + params.toString();
       try {
         const resp = await http({
           method: "GET", url,
-          headers: {
-            "user-agent": UA,
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "accept-encoding": "gzip, deflate, br",
-            "sec-ch-ua": "\"Chromium\";v=\"141\", \"Not?A_Brand\";v=\"24\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "referer": "https://www.mercadolivre.com.br/",
-            "cookie": ML_COOKIE,
-          },
+          headers: { "accept": "application/json", "user-agent": UA },
           returnFullResponse: true,
           ignoreHttpStatusErrors: true,
         });
         const status = (resp && (resp.statusCode || resp.status)) || 0;
-        const body = (resp && resp.body !== undefined) ? resp.body : resp;
-        const html = typeof body === "string" ? body : String(body || "");
-        const challenge = /suspicious-traffic-frontend|gz-account-verification/i.test(html);
-        return { status, html, err: challenge ? "BOT_CHALLENGE: ML retornou página de verificação anti-bot. Renove ml_cookie (precisa estar logado) ou aguarde alguns minutos." : null };
+        const raw = (resp && resp.body !== undefined) ? resp.body : resp;
+        let data = raw;
+        if (typeof raw === "string") { try { data = JSON.parse(raw); } catch (_) { data = null; } }
+        const results = (data && Array.isArray(data.results)) ? data.results : [];
+        const items = [];
+        for (const it of results) {
+          const title = String(it.title || "").trim();
+          const href = String(it.permalink || "").trim();
+          if (!title || !href) continue;
+          const price = Number(it.price) || 0;
+          const priceOriginal = Number(it.original_price) || 0;
+          const discount = (priceOriginal && price && priceOriginal > price)
+            ? Math.round((1 - price / priceOriginal) * 100)
+            : 0;
+          const image = String(it.thumbnail || "").replace(/^http:/, "https:");
+          items.push({ title, href, image, price, priceOriginal, discount });
+        }
+        return { status, items, url, err: null };
       } catch (e) {
-        return { status: 0, html: "", err: (e && e.message) || String(e) };
+        return { status: 0, items: [], url, err: (e && e.message) || String(e) };
       }
     }
-
 
     // 1) Coleta candidatos por query (todas as páginas configuradas)
     const buckets = [];
@@ -878,18 +890,20 @@ try {
       const items = [];
       for (let page = 1; page <= ML_PAGES; page++) {
         if (timeUp()) break;
-        const url = buildListingUrl(q, page);
-        const r = await fetchListing(url);
-        const parsed = parseListingHtml(r.html);
-        debug.push({ query: q, page, url, status: r.status, found: parsed.length, err: r.err || null });
-        for (const p of parsed) items.push(p);
-        if (parsed.length === 0) break; // página vazia → para
-        await new Promise((res) => setTimeout(res, 400 + Math.floor(Math.random() * 600)));
+        const r = await fetchApiPage(q, page);
+        debug.push({ query: q, page, url: r.url, status: r.status, found: r.items.length, err: r.err });
+        for (const p of r.items) {
+          if (ML_MIN_DISCOUNT > 0 && (p.discount || 0) < ML_MIN_DISCOUNT) continue;
+          items.push(p);
+        }
+        if (r.items.length === 0) break;
+        await new Promise((res) => setTimeout(res, 300 + Math.floor(Math.random() * 400)));
       }
       // Ordena: maior desconto primeiro, depois maior preço-original
       items.sort((a, b) => (b.discount - a.discount) || ((b.priceOriginal || 0) - (a.priceOriginal || 0)));
       buckets.push({ q, items });
     }
+
 
     // 2) Round-robin: 1 produto por query/categoria, ciclando até esgotar/atingir limite
     outerML: while (buckets.some((b) => b.items.length > 0)) {
