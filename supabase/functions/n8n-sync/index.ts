@@ -771,25 +771,13 @@ try {
       .replace(/[^a-z0-9\\s-]/g, "").trim()
       .replace(/\\s+/g, "-");
     const isCategoryId = (s) => /^MLB\\d+$/i.test(String(s || "").trim());
-    function buildListingUrl(query, page){
-      const isCat = isCategoryId(query);
-      const base = isCat
-        ? "https://lista.mercadolivre.com.br/_CategID_" + String(query).trim().toUpperCase()
-        : "https://lista.mercadolivre.com.br/" + slugify(query);
-      // Filtros: ordenar por desconto desc + faixa de desconto (se ML_MIN_DISCOUNT>0)
-      let suffix = "_OrderId_PRICE*DESC";
-      if (ML_MIN_DISCOUNT > 0) suffix += "_DiscountRange_" + ML_MIN_DISCOUNT + "-99";
-      let url = base + suffix;
-      if (page > 1) {
-        const offset = (page - 1) * 48 + 1;
-        url = url.replace(/_OrderId_/, "_Desde_" + offset + "_OrderId_");
-      }
-      return url;
-    }
+    // Converte slug ("casa-moveis-e-decoracao") em termo de busca legível
+    const slugToTerm = (s) => String(s || "").replace(/-/g, " ").trim();
 
     const queriesRaw = Array.from(new Set([...(TERMOS || []), ...(CATEGORIAS || [])]
       .map((x) => String(x || "").trim()).filter(Boolean)));
     if (!queriesRaw.length) throw new Error("Defina pelo menos um termo ou categoria no job ML.");
+
 
     // ===== Parser do HTML da listagem ML (regex) =====
     function decodeEntities(s){
