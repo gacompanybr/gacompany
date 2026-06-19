@@ -726,6 +726,7 @@ try {
           const rating = Number(it.ratingStar ?? 0);
           const nameKey = normName(it.productName);
           if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
+          if (isSimilar(it.productName, it.shopName)) { dupSkipped++; debug.push({ skipped: "similar", kw: b.kw, item: it.productName, shop: it.shopName }); continue; }
           if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", kw: b.kw, item: it.productName, commissionValue }); continue; }
           if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", kw: b.kw, item: it.productName, sales, rating }); continue; }
           const discRate = Number(it.priceDiscountRate) || 0;
@@ -746,7 +747,10 @@ try {
             sales,
             rating,
           });
-          if (nameKey) existingNames.add(nameKey);
+          if (nameKey) {
+            existingNames.add(nameKey);
+            existingEntries.push({ shop: normName(it.shopName), tokens: new Set(tokenize(it.productName)) });
+          }
           total++;
           const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
           await new Promise((res) => setTimeout(res, delayMs));
