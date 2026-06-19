@@ -779,66 +779,8 @@ try {
     if (!queriesRaw.length) throw new Error("Defina pelo menos um termo ou categoria no job ML.");
 
 
-    // ===== Parser do HTML da listagem ML (regex) =====
-    function decodeEntities(s){
-      return String(s || "")
-        .replace(/&amp;/g, "&").replace(/&quot;/g, "\\"").replace(/&#39;/g, "'")
-        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
-        .replace(/&#(\\d+);/g, function(_, n){ return String.fromCharCode(parseInt(n,10)); });
-    }
-    function pickAttr(html, attr){
-      const re = new RegExp(attr + "=\\"([^\\"]+)\\"", "i");
-      const m = html.match(re);
-      return m ? decodeEntities(m[1]) : "";
-    }
-    function parseListingHtml(html){
-      const out = [];
-      // Cada card começa com <div class="poly-card ...
-      const parts = String(html || "").split(/<div\\s+class="poly-card[\\s\\S]*?(?=<div\\s+class="poly-card|$)/g)
-        .map((s, i, arr) => i === 0 ? null : s).filter(Boolean);
-      // Fallback: split correto
-      const cards = [];
-      const re = /<div\\s+class="poly-card[^>]*>([\\s\\S]*?)(?=<div\\s+class="poly-card|<\\/section>|<\\/ol>|$)/g;
-      let mm;
-      while ((mm = re.exec(html)) !== null) cards.push(mm[1]);
-      for (const card of cards) {
-        // Title + link: <a class="poly-component__title" href="...">Titulo</a>
-        const aMatch = card.match(/<a[^>]*class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/i);
-        if (!aMatch) continue;
-        const href = decodeEntities(aMatch[1]);
-        const title = decodeEntities(aMatch[2].replace(/<[^>]+>/g, "").replace(/\\s+/g, " ")).trim();
-        if (!title || !href) continue;
+    // (parser HTML removido — agora usamos API pública api.mercadolibre.com)
 
-        // Image: prefer data-src, fallback src
-        const imgBlock = (card.match(/<img[^>]*class="[^"]*poly-component__picture[^"]*"[^>]*>/i) || [""])[0];
-        let image = pickAttr(imgBlock, "data-src") || pickAttr(imgBlock, "src");
-        image = String(image).replace(/^http:/, "https:");
-
-        // Preços: lista de andes-money-amount__fraction (e cents opcional)
-        const priceBlock = (card.match(/<div[^>]*class="[^"]*poly-component__price[^"]*"[^>]*>[\\s\\S]*?<\\/div>/i) || [""])[0] || card;
-        const fracs = [];
-        const fre = /<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d\\.]+)<\\/span>(?:[\\s\\S]{0,80}<span[^>]*class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\\d+)<\\/span>)?/g;
-        let fm;
-        while ((fm = fre.exec(priceBlock)) !== null) {
-          const inteiro = parseInt(String(fm[1]).replace(/\\./g, ""), 10);
-          const cents = fm[2] ? parseInt(fm[2], 10) : 0;
-          if (Number.isFinite(inteiro)) fracs.push(inteiro + cents / 100);
-        }
-        // Desconto: "33% OFF"
-        const discM = priceBlock.match(/(\\d{1,2})\\s*%\\s*OFF/i);
-        const discount = discM ? parseInt(discM[1], 10) : 0;
-
-        let price = 0, priceOriginal = 0;
-        if (fracs.length >= 2) { priceOriginal = fracs[0]; price = fracs[1]; }
-        else if (fracs.length === 1) {
-          price = fracs[0];
-          if (discount > 0 && discount < 100) priceOriginal = Number((price / (1 - discount/100)).toFixed(2));
-        }
-
-        out.push({ title, href, image, price, priceOriginal, discount });
-      }
-      return out;
-    }
 
     // ===== Affiliate link via cookie + csrf (igual ao workflow do user) =====
     let affiliateCookieExpired = false;
