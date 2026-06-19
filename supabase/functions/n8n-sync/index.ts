@@ -771,86 +771,16 @@ try {
       .replace(/[^a-z0-9\\s-]/g, "").trim()
       .replace(/\\s+/g, "-");
     const isCategoryId = (s) => /^MLB\\d+$/i.test(String(s || "").trim());
-    function buildListingUrl(query, page){
-      const isCat = isCategoryId(query);
-      const base = isCat
-        ? "https://lista.mercadolivre.com.br/_CategID_" + String(query).trim().toUpperCase()
-        : "https://lista.mercadolivre.com.br/" + slugify(query);
-      // Filtros: ordenar por desconto desc + faixa de desconto (se ML_MIN_DISCOUNT>0)
-      let suffix = "_OrderId_PRICE*DESC";
-      if (ML_MIN_DISCOUNT > 0) suffix += "_DiscountRange_" + ML_MIN_DISCOUNT + "-99";
-      let url = base + suffix;
-      if (page > 1) {
-        const offset = (page - 1) * 48 + 1;
-        url = url.replace(/_OrderId_/, "_Desde_" + offset + "_OrderId_");
-      }
-      return url;
-    }
+    // Converte slug ("casa-moveis-e-decoracao") em termo de busca legível
+    const slugToTerm = (s) => String(s || "").replace(/-/g, " ").trim();
 
     const queriesRaw = Array.from(new Set([...(TERMOS || []), ...(CATEGORIAS || [])]
       .map((x) => String(x || "").trim()).filter(Boolean)));
     if (!queriesRaw.length) throw new Error("Defina pelo menos um termo ou categoria no job ML.");
 
-    // ===== Parser do HTML da listagem ML (regex) =====
-    function decodeEntities(s){
-      return String(s || "")
-        .replace(/&amp;/g, "&").replace(/&quot;/g, "\\"").replace(/&#39;/g, "'")
-        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ")
-        .replace(/&#(\\d+);/g, function(_, n){ return String.fromCharCode(parseInt(n,10)); });
-    }
-    function pickAttr(html, attr){
-      const re = new RegExp(attr + "=\\"([^\\"]+)\\"", "i");
-      const m = html.match(re);
-      return m ? decodeEntities(m[1]) : "";
-    }
-    function parseListingHtml(html){
-      const out = [];
-      // Cada card começa com <div class="poly-card ...
-      const parts = String(html || "").split(/<div\\s+class="poly-card[\\s\\S]*?(?=<div\\s+class="poly-card|$)/g)
-        .map((s, i, arr) => i === 0 ? null : s).filter(Boolean);
-      // Fallback: split correto
-      const cards = [];
-      const re = /<div\\s+class="poly-card[^>]*>([\\s\\S]*?)(?=<div\\s+class="poly-card|<\\/section>|<\\/ol>|$)/g;
-      let mm;
-      while ((mm = re.exec(html)) !== null) cards.push(mm[1]);
-      for (const card of cards) {
-        // Title + link: <a class="poly-component__title" href="...">Titulo</a>
-        const aMatch = card.match(/<a[^>]*class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/i);
-        if (!aMatch) continue;
-        const href = decodeEntities(aMatch[1]);
-        const title = decodeEntities(aMatch[2].replace(/<[^>]+>/g, "").replace(/\\s+/g, " ")).trim();
-        if (!title || !href) continue;
 
-        // Image: prefer data-src, fallback src
-        const imgBlock = (card.match(/<img[^>]*class="[^"]*poly-component__picture[^"]*"[^>]*>/i) || [""])[0];
-        let image = pickAttr(imgBlock, "data-src") || pickAttr(imgBlock, "src");
-        image = String(image).replace(/^http:/, "https:");
+    // (parser HTML removido — agora usamos API pública api.mercadolibre.com)
 
-        // Preços: lista de andes-money-amount__fraction (e cents opcional)
-        const priceBlock = (card.match(/<div[^>]*class="[^"]*poly-component__price[^"]*"[^>]*>[\\s\\S]*?<\\/div>/i) || [""])[0] || card;
-        const fracs = [];
-        const fre = /<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\\d\\.]+)<\\/span>(?:[\\s\\S]{0,80}<span[^>]*class="[^"]*andes-money-amount__cents[^"]*"[^>]*>(\\d+)<\\/span>)?/g;
-        let fm;
-        while ((fm = fre.exec(priceBlock)) !== null) {
-          const inteiro = parseInt(String(fm[1]).replace(/\\./g, ""), 10);
-          const cents = fm[2] ? parseInt(fm[2], 10) : 0;
-          if (Number.isFinite(inteiro)) fracs.push(inteiro + cents / 100);
-        }
-        // Desconto: "33% OFF"
-        const discM = priceBlock.match(/(\\d{1,2})\\s*%\\s*OFF/i);
-        const discount = discM ? parseInt(discM[1], 10) : 0;
-
-        let price = 0, priceOriginal = 0;
-        if (fracs.length >= 2) { priceOriginal = fracs[0]; price = fracs[1]; }
-        else if (fracs.length === 1) {
-          price = fracs[0];
-          if (discount > 0 && discount < 100) priceOriginal = Number((price / (1 - discount/100)).toFixed(2));
-        }
-
-        out.push({ title, href, image, price, priceOriginal, discount });
-      }
-      return out;
-    }
 
     // ===== Affiliate link via cookie + csrf (igual ao workflow do user) =====
     let affiliateCookieExpired = false;
@@ -906,40 +836,52 @@ try {
       return null;
     }
 
-    // ===== Fetch listing HTML para cada query (todas as páginas) =====
-    async function fetchListing(url){
+    // ===== Fetch via API pública do Mercado Livre (sem cookie, sem anti-bot) =====
+    // Suporta: termo livre ("perfume"), slug de categoria ("casa-moveis-e-decoracao")
+    // ou MLB id ("MLB1574"). Categorias usam /sites/MLB/search?category=, termos usam q=.
+    async function fetchApiPage(q, page){
+      const limit = 50;
+      const offset = (page - 1) * limit;
+      const params = new URLSearchParams();
+      if (isCategoryId(q)) {
+        params.set("category", String(q).trim().toUpperCase());
+      } else {
+        params.set("q", slugToTerm(q));
+      }
+      params.set("sort", "sold_quantity_desc"); // mais vendidos primeiro
+      params.set("limit", String(limit));
+      params.set("offset", String(offset));
+      const url = "https://api.mercadolibre.com/sites/MLB/search?" + params.toString();
       try {
         const resp = await http({
           method: "GET", url,
-          headers: {
-            "user-agent": UA,
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "accept-encoding": "gzip, deflate, br",
-            "sec-ch-ua": "\"Chromium\";v=\"141\", \"Not?A_Brand\";v=\"24\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "referer": "https://www.mercadolivre.com.br/",
-            "cookie": ML_COOKIE,
-          },
+          headers: { "accept": "application/json", "user-agent": UA },
           returnFullResponse: true,
           ignoreHttpStatusErrors: true,
         });
         const status = (resp && (resp.statusCode || resp.status)) || 0;
-        const body = (resp && resp.body !== undefined) ? resp.body : resp;
-        const html = typeof body === "string" ? body : String(body || "");
-        const challenge = /suspicious-traffic-frontend|gz-account-verification/i.test(html);
-        return { status, html, err: challenge ? "BOT_CHALLENGE: ML retornou página de verificação anti-bot. Renove ml_cookie (precisa estar logado) ou aguarde alguns minutos." : null };
+        const raw = (resp && resp.body !== undefined) ? resp.body : resp;
+        let data = raw;
+        if (typeof raw === "string") { try { data = JSON.parse(raw); } catch (_) { data = null; } }
+        const results = (data && Array.isArray(data.results)) ? data.results : [];
+        const items = [];
+        for (const it of results) {
+          const title = String(it.title || "").trim();
+          const href = String(it.permalink || "").trim();
+          if (!title || !href) continue;
+          const price = Number(it.price) || 0;
+          const priceOriginal = Number(it.original_price) || 0;
+          const discount = (priceOriginal && price && priceOriginal > price)
+            ? Math.round((1 - price / priceOriginal) * 100)
+            : 0;
+          const image = String(it.thumbnail || "").replace(/^http:/, "https:");
+          items.push({ title, href, image, price, priceOriginal, discount });
+        }
+        return { status, items, url, err: null };
       } catch (e) {
-        return { status: 0, html: "", err: (e && e.message) || String(e) };
+        return { status: 0, items: [], url, err: (e && e.message) || String(e) };
       }
     }
-
 
     // 1) Coleta candidatos por query (todas as páginas configuradas)
     const buckets = [];
@@ -948,18 +890,20 @@ try {
       const items = [];
       for (let page = 1; page <= ML_PAGES; page++) {
         if (timeUp()) break;
-        const url = buildListingUrl(q, page);
-        const r = await fetchListing(url);
-        const parsed = parseListingHtml(r.html);
-        debug.push({ query: q, page, url, status: r.status, found: parsed.length, err: r.err || null });
-        for (const p of parsed) items.push(p);
-        if (parsed.length === 0) break; // página vazia → para
-        await new Promise((res) => setTimeout(res, 400 + Math.floor(Math.random() * 600)));
+        const r = await fetchApiPage(q, page);
+        debug.push({ query: q, page, url: r.url, status: r.status, found: r.items.length, err: r.err });
+        for (const p of r.items) {
+          if (ML_MIN_DISCOUNT > 0 && (p.discount || 0) < ML_MIN_DISCOUNT) continue;
+          items.push(p);
+        }
+        if (r.items.length === 0) break;
+        await new Promise((res) => setTimeout(res, 300 + Math.floor(Math.random() * 400)));
       }
       // Ordena: maior desconto primeiro, depois maior preço-original
       items.sort((a, b) => (b.discount - a.discount) || ((b.priceOriginal || 0) - (a.priceOriginal || 0)));
       buckets.push({ q, items });
     }
+
 
     // 2) Round-robin: 1 produto por query/categoria, ciclando até esgotar/atingir limite
     outerML: while (buckets.some((b) => b.items.length > 0)) {
