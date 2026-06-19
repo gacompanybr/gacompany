@@ -678,13 +678,21 @@ try {
       const j = Math.floor(Math.random() * (i + 1));
       [keywords[i], keywords[j]] = [keywords[j], keywords[i]];
     }
-    outerShopee: for (const kw of keywords) {
-      if (timeUp()) { debug.push({ stopped: "time_up", total }); break; }
+    // 1) Busca todos os keywords primeiro
+    const buckets = [];
+    for (const kw of keywords) {
+      if (timeUp()) { debug.push({ stopped: "time_up_fetch", total }); break; }
       const r = await shopeeSearch(kw);
       debug.push({ keyword: kw, status: r.status, found: (r.nodes || []).length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
-      for (const it of (r.nodes || [])) {
+      buckets.push({ kw, nodes: (r.nodes || []).slice() });
+    }
+    // 2) Round-robin: 1 produto de cada termo, ciclando até esgotar/atingir limites
+    outerShopee: while (buckets.some((b) => b.nodes.length > 0)) {
+      for (const b of buckets) {
+        if (!b.nodes.length) continue;
         if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerShopee; }
         if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerShopee; }
+        const it = b.nodes.shift();
         try {
           const price = Number(it.price ?? it.priceMin ?? 0);
           const commissionRate = Number(it.commissionRate ?? 0);
@@ -693,8 +701,8 @@ try {
           const rating = Number(it.ratingStar ?? 0);
           const nameKey = normName(it.productName);
           if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
-          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", item: it.productName, commissionValue }); continue; }
-          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", item: it.productName, sales, rating }); continue; }
+          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", kw: b.kw, item: it.productName, commissionValue }); continue; }
+          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", kw: b.kw, item: it.productName, sales, rating }); continue; }
           const discRate = Number(it.priceDiscountRate) || 0;
           const priceOriginal = (price > 0 && discRate > 0 && discRate < 100)
             ? Math.round((price / (1 - discRate / 100)) * 100) / 100
@@ -715,7 +723,6 @@ try {
           });
           if (nameKey) existingNames.add(nameKey);
           total++;
-          // Delay curto entre inserts (200-800ms) — tinha 3-12s e estourava o timeout de 300s do n8n.
           const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
           await new Promise((res) => setTimeout(res, delayMs));
         } catch (e) {
