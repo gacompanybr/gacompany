@@ -985,6 +985,7 @@ try {
         const title = String(chosen.title || chosen.name || entry.id);
         const nameKey = normName(title);
         if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
+        if (isSimilar(title, "Mercado Livre")) { skip.duplicate++; dupSkipped++; debug.push({ skipped: "similar", item: title }); continue; }
 
         const price = Number(chosen.price || 0);
         if (!price) { skip.noPrice++; continue; }
