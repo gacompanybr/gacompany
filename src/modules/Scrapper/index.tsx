@@ -669,7 +669,27 @@ function DataTableViewer({ job, onClose }: { job: Job | null; onClose: () => voi
             </table>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (!job) return;
+              if (!confirm(`Apagar TODOS os ${rows?.length ?? 0} produtos da data table "${job.data_table_name}"? Esta ação é irreversível. A tabela será recriada vazia na próxima execução do scrapper.`)) return;
+              setLoading(true);
+              const { data, error } = await supabase.functions.invoke("n8n-sync", { body: { action: "reset_datatable", jobId: job.id } });
+              setLoading(false);
+              if (error || data?.error) {
+                alert("Erro: " + (error?.message || data?.error));
+              } else {
+                setRows([]);
+                alert(data?.message || "Data table limpa.");
+                onClose();
+              }
+            }}
+            disabled={loading || !rows || rows.length === 0}
+          >
+            Limpar tudo
+          </Button>
           <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
       </DialogContent>

@@ -1361,6 +1361,41 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === "reset_datatable") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+      const tableId = job.n8n_datatable_id as string | null;
+      let deleted = false;
+      if (tableId) {
+        try {
+          await n8nFetch(`/data-tables/${tableId}`, { method: "DELETE" });
+          deleted = true;
+        } catch (e) {
+          // fallback: apagar linhas uma a uma
+          try {
+            const data = await n8nFetch(`/data-tables/${tableId}/rows?take=10000`);
+            const parsed = data?.data ?? data ?? [];
+            const rows: any[] = Array.isArray(parsed) ? parsed : [];
+            for (const r of rows) {
+              if (r?.id != null) {
+                try { await n8nFetch(`/data-tables/${tableId}/rows/${r.id}`, { method: "DELETE" }); } catch (_) {}
+              }
+            }
+            deleted = true;
+          } catch (_e2) {
+            throw new Error(`Não consegui limpar a data table: ${(e as Error).message}`);
+          }
+        }
+      }
+      await admin.from("scrapper_jobs")
+        .update({ n8n_datatable_id: null, ultima_qtd: 0 })
+        .eq("id", jobId);
+      return j({ ok: true, deleted, message: "Data table limpa. Será recriada vazia na próxima execução do scrapper." });
+    }
+
     return j({ error: "action desconhecida" }, 400);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
