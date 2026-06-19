@@ -931,7 +931,7 @@ try {
         const status = (resp && (resp.statusCode || resp.status)) || 0;
         const html = (resp && resp.body !== undefined) ? String(resp.body || "") : String(resp || "");
         const finalUrl = (resp && (resp.url || (resp.request && resp.request.uri && resp.request.uri.href))) || url;
-        const isChallenge = /account-verification|\/jms\/mlb\/lgz\/login/i.test(String(finalUrl)) || /account-verification/i.test(html);
+        const isChallenge = /account-verification|\\/jms\\/mlb\\/lgz\\/login/i.test(String(finalUrl)) || /account-verification/i.test(html);
         const items = parseListHtml(html);
         return { status, items, url, err: isChallenge ? "BOT_CHALLENGE (redirecionado p/ account-verification — cookie ML inválido/expirado)" : null, htmlLen: html.length, finalUrl };
       } catch (e) {
