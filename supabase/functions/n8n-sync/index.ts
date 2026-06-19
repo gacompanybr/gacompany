@@ -846,11 +846,13 @@ try {
         ? encodeURIComponent(String(q).trim().toUpperCase())
         : encodeURIComponent(slugToTerm(q));
       const paramKey = isCategoryId(q) ? "category" : "q";
+      const encodedSort = encodeURIComponent("sold_quantity_desc");
       const url = "https://api.mercadolibre.com/sites/MLB/search?" +
-        `${paramKey}=${encodedQ}` +
-        `&sort=${encodeURIComponent("sold_quantity_desc")}` +
-        `&limit=${limit}` +
-        `&offset=${offset}`;
+        paramKey + "=" + encodedQ +
+        "&sort=" + encodedSort +
+        "&limit=" + String(limit) +
+        "&offset=" + String(offset);
+
 
       try {
         const resp = await http({
