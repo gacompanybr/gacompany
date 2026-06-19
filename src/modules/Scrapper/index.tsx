@@ -671,10 +671,30 @@ function DataTableViewer({ job, onClose }: { job: Job | null; onClose: () => voi
         </div>
         <DialogFooter className="gap-2">
           <Button
+            variant="secondary"
+            onClick={async () => {
+              if (!job) return;
+              if (!confirm(`Recriar a data table "${job.data_table_name}" no n8n? Se já existir, será apagada e recriada vazia com todas as colunas corretas.`)) return;
+              setLoading(true);
+              const { data, error } = await supabase.functions.invoke("n8n-sync", { body: { action: "recreate_datatable", jobId: job.id } });
+              setLoading(false);
+              if (error || data?.error) {
+                alert("Erro: " + (error?.message || data?.error));
+              } else {
+                setRows([]);
+                alert(data?.message || "Data table recriada.");
+                onClose();
+              }
+            }}
+            disabled={loading}
+          >
+            Recriar data table
+          </Button>
+          <Button
             variant="destructive"
             onClick={async () => {
               if (!job) return;
-              if (!confirm(`Apagar TODOS os ${rows?.length ?? 0} produtos da data table "${job.data_table_name}"? Esta ação é irreversível. A tabela será recriada vazia na próxima execução do scrapper.`)) return;
+              if (!confirm(`Apagar TODOS os ${rows?.length ?? 0} produtos da data table "${job.data_table_name}"? Esta ação é irreversível.`)) return;
               setLoading(true);
               const { data, error } = await supabase.functions.invoke("n8n-sync", { body: { action: "reset_datatable", jobId: job.id } });
               setLoading(false);
