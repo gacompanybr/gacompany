@@ -651,9 +651,26 @@ try {
     if (toDelete.length || deleted) debug.push({ cleanup: { candidates: toDelete.length, deleted } });
   } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
 
-  // Dedup: monta set com produtos ja existentes no data table (nome normalizado)
+  // Dedup: nome exato + similaridade (mesma loja + tokens parecidos no titulo)
   const normName = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const STOPWORDS = new Set(["de","da","do","das","dos","com","sem","para","pra","por","em","no","na","nos","nas","e","ou","a","o","as","os","um","uma","uns","umas","the","and","for","with","of","kit","set","pcs","un","und","ml","cm","mm","kg","g","mah","w","v"]);
+  const tokenize = (s) => normName(s).split(" ").filter((t) => t.length >= 3 && !STOPWORDS.has(t));
   const existingNames = new Set();
+  const existingEntries = []; // {shop, tokens:Set}
+  const isSimilar = (title, shop) => {
+    const toks = new Set(tokenize(title));
+    if (toks.size === 0) return false;
+    const shopKey = normName(shop);
+    for (const e of existingEntries) {
+      if (!shopKey || e.shop !== shopKey) continue;
+      let inter = 0;
+      for (const t of toks) if (e.tokens.has(t)) inter++;
+      const union = toks.size + e.tokens.size - inter;
+      const jaccard = union > 0 ? inter / union : 0;
+      if (inter >= 3 || jaccard >= 0.6) return true;
+    }
+    return false;
+  };
   try {
     const all = await listRows(tableId);
     let badMlLinksDeleted = 0;
@@ -664,7 +681,10 @@ try {
         continue;
       }
       const n = normName(r && r.productname);
-      if (n) existingNames.add(n);
+      if (n) {
+        existingNames.add(n);
+        existingEntries.push({ shop: normName(r && r.shopname), tokens: new Set(tokenize(r && r.productname)) });
+      }
     }
     debug.push({ dedup: { loaded: existingNames.size, badMlLinksDeleted } });
   } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
