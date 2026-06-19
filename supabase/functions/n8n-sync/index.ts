@@ -1020,7 +1020,10 @@ try {
             sales: 0,
             rating: 0,
           });
-          if (nameKey) existingNames.add(nameKey);
+          if (nameKey) {
+            existingNames.add(nameKey);
+            existingEntries.push({ shop: normName("Mercado Livre"), tokens: new Set(tokenize(title)) });
+          }
           total++; kept++;
         } catch (err) {
           skip.insert++;
