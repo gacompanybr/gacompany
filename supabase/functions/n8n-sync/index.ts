@@ -1367,33 +1367,92 @@ Deno.serve(async (req) => {
       const { data: job, error } = await admin
         .from("scrapper_jobs").select("*").eq("id", jobId).single();
       if (error) throw error;
-      const tableId = job.n8n_datatable_id as string | null;
-      let deleted = false;
-      if (tableId) {
+      let tableId = job.n8n_datatable_id as string | null;
+      const tableName: string = job.data_table_name || "";
+
+      // se id sumiu, tenta achar pelo nome
+      if (!tableId && tableName) {
+        const searchPaths = ["/data-tables", "/data-tables?includeProject=true"];
         try {
-          await n8nFetch(`/data-tables/${tableId}`, { method: "DELETE" });
-          deleted = true;
-        } catch (e) {
-          // fallback: apagar linhas uma a uma
-          try {
-            const data = await n8nFetch(`/data-tables/${tableId}/rows?take=10000`);
-            const parsed = data?.data ?? data ?? [];
-            const rows: any[] = Array.isArray(parsed) ? parsed : [];
-            for (const r of rows) {
-              if (r?.id != null) {
-                try { await n8nFetch(`/data-tables/${tableId}/rows/${r.id}`, { method: "DELETE" }); } catch (_) {}
-              }
-            }
-            deleted = true;
-          } catch (_e2) {
-            throw new Error(`Não consegui limpar a data table: ${(e as Error).message}`);
+          const projs = await n8nFetch("/projects");
+          const list = projs?.data ?? projs ?? [];
+          for (const p of (Array.isArray(list) ? list : [])) {
+            if (p?.id) searchPaths.push(`/projects/${p.id}/data-tables`);
           }
+        } catch (_) {}
+        for (const path of searchPaths) {
+          try {
+            const d = await n8nFetch(path);
+            const arr = d?.data ?? d ?? [];
+            const found = (Array.isArray(arr) ? arr : []).find((t: any) => String(t?.name ?? "").trim() === tableName);
+            if (found?.id) { tableId = found.id; break; }
+          } catch (_) {}
+        }
+        if (tableId) {
+          await admin.from("scrapper_jobs").update({ n8n_datatable_id: tableId }).eq("id", jobId);
         }
       }
+
+      if (!tableId) return j({ error: "Data table não encontrada no n8n" }, 404);
+
+      // Apaga SOMENTE as linhas, mantendo a estrutura da tabela
+      let totalDeleted = 0;
+      let totalAttempted = 0;
+      // pagina coletando IDs
+      const allIds: any[] = [];
+      for (const path of [`/data-tables/${tableId}/rows?take=10000`, `/data-tables/${tableId}/rows?limit=10000`, `/data-tables/${tableId}/rows`]) {
+        try {
+          const data = await n8nFetch(path);
+          const parsed = data?.data ?? data ?? [];
+          const rows: any[] = Array.isArray(parsed) ? parsed : [];
+          for (const r of rows) if (r?.id != null) allIds.push(r.id);
+          if (rows.length > 0) break;
+        } catch (_) {}
+      }
+      totalAttempted = allIds.length;
+
+      // tenta bulk delete primeiro (vários formatos de API)
+      let bulkOk = false;
+      if (allIds.length > 0) {
+        const bulkAttempts = [
+          { path: `/data-tables/${tableId}/rows`, method: "DELETE", body: JSON.stringify({ filter: { type: "and", filters: [{ columnName: "id", condition: "in", value: allIds }] } }) },
+          { path: `/data-tables/${tableId}/rows`, method: "DELETE", body: JSON.stringify({ ids: allIds }) },
+          { path: `/data-tables/${tableId}/rows?filter=${encodeURIComponent(JSON.stringify({ id: { in: allIds } }))}`, method: "DELETE" as const, body: undefined as any },
+        ];
+        for (const att of bulkAttempts) {
+          try {
+            await n8nFetch(att.path, { method: att.method, ...(att.body ? { body: att.body } : {}) });
+            bulkOk = true;
+            totalDeleted = allIds.length;
+            break;
+          } catch (_) {}
+        }
+      }
+
+      // fallback: deleta uma a uma (em paralelo)
+      if (!bulkOk && allIds.length > 0) {
+        const BATCH = 20;
+        for (let i = 0; i < allIds.length; i += BATCH) {
+          const slice = allIds.slice(i, i + BATCH);
+          await Promise.all(slice.map(async (id) => {
+            try {
+              await n8nFetch(`/data-tables/${tableId}/rows/${id}`, { method: "DELETE" });
+              totalDeleted++;
+            } catch (_) {}
+          }));
+        }
+      }
+
       await admin.from("scrapper_jobs")
-        .update({ n8n_datatable_id: null, ultima_qtd: 0 })
+        .update({ ultima_qtd: 0 })
         .eq("id", jobId);
-      return j({ ok: true, deleted, message: "Data table limpa. Será recriada vazia na próxima execução do scrapper." });
+
+      return j({
+        ok: true,
+        deleted: totalDeleted,
+        attempted: totalAttempted,
+        message: `${totalDeleted} de ${totalAttempted} linhas removidas. A data table foi mantida.`,
+      });
     }
 
     return j({ error: "action desconhecida" }, 400);
