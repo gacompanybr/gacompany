@@ -651,9 +651,26 @@ try {
     if (toDelete.length || deleted) debug.push({ cleanup: { candidates: toDelete.length, deleted } });
   } catch (e) { debug.push({ cleanupErr: e.message || String(e) }); }
 
-  // Dedup: monta set com produtos ja existentes no data table (nome normalizado)
+  // Dedup: nome exato + similaridade (mesma loja + tokens parecidos no titulo)
   const normName = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const STOPWORDS = new Set(["de","da","do","das","dos","com","sem","para","pra","por","em","no","na","nos","nas","e","ou","a","o","as","os","um","uma","uns","umas","the","and","for","with","of","kit","set","pcs","un","und","ml","cm","mm","kg","g","mah","w","v"]);
+  const tokenize = (s) => normName(s).split(" ").filter((t) => t.length >= 3 && !STOPWORDS.has(t));
   const existingNames = new Set();
+  const existingEntries = []; // {shop, tokens:Set}
+  const isSimilar = (title, shop) => {
+    const toks = new Set(tokenize(title));
+    if (toks.size === 0) return false;
+    const shopKey = normName(shop);
+    for (const e of existingEntries) {
+      if (!shopKey || e.shop !== shopKey) continue;
+      let inter = 0;
+      for (const t of toks) if (e.tokens.has(t)) inter++;
+      const union = toks.size + e.tokens.size - inter;
+      const jaccard = union > 0 ? inter / union : 0;
+      if (inter >= 3 || jaccard >= 0.6) return true;
+    }
+    return false;
+  };
   try {
     const all = await listRows(tableId);
     let badMlLinksDeleted = 0;
@@ -664,7 +681,10 @@ try {
         continue;
       }
       const n = normName(r && r.productname);
-      if (n) existingNames.add(n);
+      if (n) {
+        existingNames.add(n);
+        existingEntries.push({ shop: normName(r && r.shopname), tokens: new Set(tokenize(r && r.productname)) });
+      }
     }
     debug.push({ dedup: { loaded: existingNames.size, badMlLinksDeleted } });
   } catch (e) { debug.push({ dedupErr: e.message || String(e) }); }
@@ -706,6 +726,7 @@ try {
           const rating = Number(it.ratingStar ?? 0);
           const nameKey = normName(it.productName);
           if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
+          if (isSimilar(it.productName, it.shopName)) { dupSkipped++; debug.push({ skipped: "similar", kw: b.kw, item: it.productName, shop: it.shopName }); continue; }
           if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", kw: b.kw, item: it.productName, commissionValue }); continue; }
           if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", kw: b.kw, item: it.productName, sales, rating }); continue; }
           const discRate = Number(it.priceDiscountRate) || 0;
@@ -726,7 +747,10 @@ try {
             sales,
             rating,
           });
-          if (nameKey) existingNames.add(nameKey);
+          if (nameKey) {
+            existingNames.add(nameKey);
+            existingEntries.push({ shop: normName(it.shopName), tokens: new Set(tokenize(it.productName)) });
+          }
           total++;
           const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
           await new Promise((res) => setTimeout(res, delayMs));
@@ -961,6 +985,7 @@ try {
         const title = String(chosen.title || chosen.name || entry.id);
         const nameKey = normName(title);
         if (nameKey && existingNames.has(nameKey)) { skip.duplicate++; dupSkipped++; continue; }
+        if (isSimilar(title, "Mercado Livre")) { skip.duplicate++; dupSkipped++; debug.push({ skipped: "similar", item: title }); continue; }
 
         const price = Number(chosen.price || 0);
         if (!price) { skip.noPrice++; continue; }
@@ -995,7 +1020,10 @@ try {
             sales: 0,
             rating: 0,
           });
-          if (nameKey) existingNames.add(nameKey);
+          if (nameKey) {
+            existingNames.add(nameKey);
+            existingEntries.push({ shop: normName("Mercado Livre"), tokens: new Set(tokenize(title)) });
+          }
           total++; kept++;
         } catch (err) {
           skip.insert++;
