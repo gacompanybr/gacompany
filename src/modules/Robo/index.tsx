@@ -366,7 +366,7 @@ function RoboDialog({
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
       instancia_id: instanciaId || null,
       destinos: campaignType === "disparo" ? [] : destinos,
-      mensagens: campaignType === "disparo" ? mensagensArr : null,
+      mensagens: campaignType === "disparo" ? mensagensArr : [],
       horarios_por_dia: horarios,
       dias_semana: DIAS.filter((d) => horarios[d.v]?.enabled).map((d) => d.v),
     };
