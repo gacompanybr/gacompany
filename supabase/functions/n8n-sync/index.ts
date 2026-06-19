@@ -836,75 +836,117 @@ try {
       return null;
     }
 
-    // ===== Fetch via API pública do Mercado Livre (sem cookie, sem anti-bot) =====
-    // Suporta: termo livre ("perfume"), slug de categoria ("casa-moveis-e-decoracao")
-    // ou MLB id ("MLB1574"). Categorias usam /sites/MLB/search?category=, termos usam q=.
-    async function fetchApiPage(q, page){
-      const limit = 50;
-      const offset = (page - 1) * limit;
-      const encodedQ = isCategoryId(q)
-        ? encodeURIComponent(String(q).trim().toUpperCase())
-        : encodeURIComponent(slugToTerm(q));
-      const paramKey = isCategoryId(q) ? "category" : "q";
-      const encodedSort = encodeURIComponent("sold_quantity_desc");
-      const url = "https://api.mercadolibre.com/sites/MLB/search?" +
-        paramKey + "=" + encodedQ +
-        "&sort=" + encodedSort +
-        "&limit=" + String(limit) +
-        "&offset=" + String(offset);
+    // ===== Fetch via HTML do lista.mercadolivre.com.br =====
+    // (mesmo método do workflow que o user validou — usa headers de browser e roda no IP do n8n)
+    // Para slug/termo: lista.mercadolivre.com.br/<slug>_OrderId_PRICE*DESC_DiscountRange_<min>-99
+    // Paginação: _Desde_<offset> (48 itens/página)
+    function buildListUrl(q, page){
+      const minD = Math.max(1, ML_MIN_DISCOUNT || 10);
+      const isCat = isCategoryId(q);
+      const slug = isCat ? String(q).trim() : slugify(String(q));
+      const base = "https://lista.mercadolivre.com.br/" + slug +
+        "_OrderId_PRICE*DESC_DiscountRange_" + String(minD) + "-99";
+      if (page <= 1) return base;
+      const offset = (page - 1) * 48 + 1;
+      return base.replace(/_([A-Z])/, "_Desde_" + offset + "_$1");
+    }
 
+    function parseListHtml(html){
+      const out = [];
+      if (!html || typeof html !== "string") return out;
+      const parts = html.split(/<div[^>]*class="[^"]*poly-card[^"]*"/);
+      for (let i = 1; i < parts.length; i++) {
+        const chunk = parts[i].slice(0, 8000);
+        const aMatch = chunk.match(/<a[^>]*class="[^"]*poly-component__title[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)</i)
+          || chunk.match(/<h3[^>]*>\\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</i);
+        if (!aMatch) continue;
+        const href = aMatch[1].replace(/&amp;/g, "&");
+        const title = aMatch[2].replace(/\\s+/g, " ").trim();
+        if (!title || !href) continue;
+        let image = "";
+        const imgMatch = chunk.match(/<img[^>]*class="[^"]*poly-component__picture[^"]*"[^>]*>/i)
+          || chunk.match(/<img[^>]+>/i);
+        if (imgMatch) {
+          const ig = imgMatch[0];
+          const sSrc = ig.match(/\\bsrc="([^"]+)"/i);
+          const dSrc = ig.match(/\\bdata-src="([^"]+)"/i);
+          const sSet = ig.match(/\\bsrcset="([^"]+)"/i) || ig.match(/\\bdata-srcset="([^"]+)"/i);
+          let pick = (dSrc && dSrc[1]) || (sSrc && sSrc[1]) || "";
+          if ((!pick || /data:image/i.test(pick)) && sSet) pick = String(sSet[1]).split(",")[0].trim().split(" ")[0];
+          image = String(pick || "").replace(/^http:/, "https:");
+        }
+        const fractions = [];
+        const fre = /andes-money-amount__fraction[^>]*>([\\d\\.]+)</gi;
+        let m; while ((m = fre.exec(chunk)) !== null) fractions.push(Number(String(m[1]).replace(/\\./g, "")));
+        const cents = [];
+        const cre = /andes-money-amount__cents[^>]*>(\\d+)</gi;
+        while ((m = cre.exec(chunk)) !== null) cents.push(Number(m[1]) || 0);
+        const previousIdx = chunk.search(/andes-money-amount--previous/i);
+        let price = 0, priceOriginal = 0;
+        if (previousIdx >= 0 && fractions.length >= 2) {
+          priceOriginal = fractions[0] + ((cents[0] || 0) / 100);
+          price = fractions[1] + ((cents[1] || 0) / 100);
+        } else if (fractions.length >= 1) {
+          price = fractions[0] + ((cents[0] || 0) / 100);
+        }
+        let discount = 0;
+        const dMatch = chunk.match(/andes-money-amount__discount[^>]*>\\s*(\\d{1,2})\\s*%/i);
+        if (dMatch) discount = Number(dMatch[1]) || 0;
+        if (!discount && priceOriginal > price && price > 0) {
+          discount = Math.round((1 - price / priceOriginal) * 100);
+        }
+        if (!priceOriginal && discount > 0 && price > 0 && discount < 100) {
+          priceOriginal = Math.round((price / (1 - discount / 100)) * 100) / 100;
+        }
+        out.push({ title, href, image, price, priceOriginal, discount });
+      }
+      return out;
+    }
 
+    async function fetchListPage(q, page){
+      const url = buildListUrl(q, page);
       try {
         const resp = await http({
           method: "GET", url,
-          headers: { "accept": "application/json", "user-agent": UA },
+          headers: {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "user-agent": UA,
+            "upgrade-insecure-requests": "1",
+          },
           returnFullResponse: true,
           ignoreHttpStatusErrors: true,
         });
         const status = (resp && (resp.statusCode || resp.status)) || 0;
-        const raw = (resp && resp.body !== undefined) ? resp.body : resp;
-        let data = raw;
-        if (typeof raw === "string") { try { data = JSON.parse(raw); } catch (_) { data = null; } }
-        const results = (data && Array.isArray(data.results)) ? data.results : [];
-        const items = [];
-        for (const it of results) {
-          const title = String(it.title || "").trim();
-          const href = String(it.permalink || "").trim();
-          if (!title || !href) continue;
-          const price = Number(it.price) || 0;
-          const priceOriginal = Number(it.original_price) || 0;
-          const discount = (priceOriginal && price && priceOriginal > price)
-            ? Math.round((1 - price / priceOriginal) * 100)
-            : 0;
-          const image = String(it.thumbnail || "").replace(/^http:/, "https:");
-          items.push({ title, href, image, price, priceOriginal, discount });
-        }
-        return { status, items, url, err: null };
+        const html = (resp && resp.body !== undefined) ? String(resp.body || "") : String(resp || "");
+        const items = parseListHtml(html);
+        return { status, items, url, err: null, htmlLen: html.length };
       } catch (e) {
-        return { status: 0, items: [], url, err: (e && e.message) || String(e) };
+        return { status: 0, items: [], url, err: (e && e.message) || String(e), htmlLen: 0 };
       }
     }
 
-    // 1) Coleta candidatos por query (todas as páginas configuradas)
+    // 1) Coleta candidatos por query
     const buckets = [];
     for (const q of queriesRaw) {
       if (timeUp()) { debug.push({ stopped: "time_up_fetch", total }); break; }
       const items = [];
       for (let page = 1; page <= ML_PAGES; page++) {
         if (timeUp()) break;
-        const r = await fetchApiPage(q, page);
-        debug.push({ query: q, page, url: r.url, status: r.status, found: r.items.length, err: r.err });
+        const r = await fetchListPage(q, page);
+        debug.push({ query: q, page, url: r.url, status: r.status, htmlLen: r.htmlLen, found: r.items.length, err: r.err });
         for (const p of r.items) {
           if (ML_MIN_DISCOUNT > 0 && (p.discount || 0) < ML_MIN_DISCOUNT) continue;
           items.push(p);
         }
         if (r.items.length === 0) break;
-        await new Promise((res) => setTimeout(res, 300 + Math.floor(Math.random() * 400)));
+        await new Promise((res) => setTimeout(res, 400 + Math.floor(Math.random() * 600)));
       }
-      // Ordena: maior desconto primeiro, depois maior preço-original
       items.sort((a, b) => (b.discount - a.discount) || ((b.priceOriginal || 0) - (a.priceOriginal || 0)));
       buckets.push({ q, items });
     }
+
+
 
 
     // 2) Round-robin: 1 produto por query/categoria, ciclando até esgotar/atingir limite
