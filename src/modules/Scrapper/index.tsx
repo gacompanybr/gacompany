@@ -245,7 +245,7 @@ function JobDialog({
   const [minProducts, setMinProducts] = useState(0);
   const [maxProducts, setMaxProducts] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [shopeePages, setShopeePages] = useState(5);
+  const [shopeePages, setShopeePages] = useState(20);
 
   useEffect(() => {
     if (!open) return;
@@ -270,7 +270,7 @@ function JobDialog({
     setMinRating(editing?.config?.min_rating ?? 0);
     setMinProducts(editing?.config?.min_products ?? 0);
     setMaxProducts(editing?.config?.max_products ?? 0);
-    setShopeePages(editing?.config?.shopee_pages ?? 5);
+    setShopeePages(editing?.config?.shopee_pages ?? 20);
   }, [open, editing, categoria]);
 
   // sugere nome da data table
@@ -394,16 +394,16 @@ function JobDialog({
               </div>
               <div>
                 <Label>Shopee Affiliate Secret</Label>
-              <div>
-                <Label>Páginas por termo</Label>
-                <Input type="number" min={1} max={20} value={shopeePages} onChange={(e) => setShopeePages(Number(e.target.value) || 5)} />
-              </div>
                 <Input
                   type="password"
                   value={shopeeSecret}
                   onChange={(e) => setShopeeSecret(e.target.value)}
                   placeholder="••••••••"
                 />
+              </div>
+              <div>
+                <Label>Páginas por termo</Label>
+                <Input type="number" min={1} max={20} value={shopeePages} onChange={(e) => setShopeePages(Number(e.target.value) || 20)} />
               </div>
             </>
           )}
