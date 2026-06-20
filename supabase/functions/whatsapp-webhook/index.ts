@@ -125,24 +125,67 @@ function dentroDoHorario(agent: any): boolean {
   }
 }
 
-async function sendText(instance: string, targets: string[], text: string) {
+function splitMessage(text: string): string[] {
+  const raw = (text ?? "").trim();
+  if (!raw) return [];
+  // Separador explícito do modelo
+  if (raw.includes("|||")) {
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean);
+  }
+  // Quebra por parágrafo duplo
+  const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (byParagraph.length > 1) return byParagraph;
+  // Curta o suficiente — manda em uma única mensagem
+  const lineCount = raw.split(/\n/).length;
+  if (raw.length <= 250 && lineCount <= 3) return [raw];
+  // Quebra por fim de frase
+  const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
+  const chunks: string[] = [];
+  let current = "";
+  for (const s of sentences) {
+    if ((current + s).length > 200 && current.length > 0) {
+      chunks.push(current.trim());
+      current = s;
+    } else {
+      current += s;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter(Boolean);
+}
+
+async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
   for (const [index, target] of targets.entries()) {
     const body = { number: target, text };
-    const r = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     const responseText = await r.text();
     let responseJson: any = null;
     try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
     const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
     console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-    // PENDING também é sucesso (Evolution aceitou e vai entregar). Parar aqui evita duplicar a mensagem em outro target.
     if (r.ok) return true;
   }
+  return false;
+}
+
+const SPLIT_DELAY_MS = 8000;
+
+async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
+  const parts = splitMessage(text);
+  const sent: string[] = [];
+  const failed: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const ok = await sendOnce(instance, targets, parts[i]);
+    if (ok) sent.push(parts[i]); else failed.push(parts[i]);
+    if (i < parts.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, SPLIT_DELAY_MS));
+    }
+  }
+  return { sent, failed };
+}
+
 
   return false;
 }
