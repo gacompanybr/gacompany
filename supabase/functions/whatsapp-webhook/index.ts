@@ -290,15 +290,21 @@ async function processPayload(payload: any) {
     // Fora do horário → mensagem padrão (se houver)
     if (!dentroDoHorario(agent)) {
       if (agent.fora_horario_msg) {
-        const sent = await sendText(instance, sendTargets, agent.fora_horario_msg);
-        await admin.from("whatsapp_conversas").insert({
-          portfolio_id: portfolioId,
-          instance_name: instance,
-          contato_telefone: phone,
-          contato_nome: pushName,
-          role: "assistant",
-          mensagem: sent ? agent.fora_horario_msg : `[FALHA AO ENVIAR] ${agent.fora_horario_msg}`,
-        });
+        const { sent, failed } = await sendText(instance, sendTargets, agent.fora_horario_msg);
+        const rows = [
+          ...sent.map((m) => ({ role: "assistant" as const, mensagem: m })),
+          ...failed.map((m) => ({ role: "assistant" as const, mensagem: `[FALHA AO ENVIAR] ${m}` })),
+        ];
+        if (rows.length) {
+          await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
+            portfolio_id: portfolioId,
+            instance_name: instance,
+            contato_telefone: phone,
+            contato_nome: pushName,
+            role: r.role,
+            mensagem: r.mensagem,
+          })));
+        }
       }
       continue;
     }
