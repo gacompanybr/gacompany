@@ -127,6 +127,9 @@ export function ConfigTab({
           </p>
         </div>
       </Card>
+
+      <ReportGroupCard agent={agent} onChange={onChange} />
     </div>
   );
 }
+
