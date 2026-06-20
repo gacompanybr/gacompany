@@ -82,9 +82,18 @@ export function SdrUpload({
       const { data, error } = await supabase.functions.invoke("sdr-sheet-fetch", {
         body: { sheetUrl },
       });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const csv = (data as any)?.csv as string;
+      let payload: any = data;
+      if (error) {
+        // functions.invoke devolve FunctionsHttpError em respostas não-2xx; ler o body
+        try {
+          const ctx = (error as any).context;
+          if (ctx && typeof ctx.json === "function") payload = await ctx.json();
+          else if (ctx && typeof ctx.text === "function") payload = JSON.parse(await ctx.text());
+        } catch { /* ignore */ }
+        if (!payload?.error && !payload?.csv) throw error;
+      }
+      if (payload?.error) throw new Error(payload.error);
+      const csv = payload?.csv as string;
       if (!csv) throw new Error("Planilha vazia ou inacessível");
       const wb = XLSX.read(csv, { type: "string" });
       const first = wb.SheetNames[0];

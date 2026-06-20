@@ -1,5 +1,6 @@
-// Proxy fetch para Google Sheets via export CSV.
-// Resolve o problema de CORS / redirect que impede leitura direta do navegador.
+// Proxy fetch para Google Sheets via endpoint gviz (CSV).
+// Usa gviz/tq em vez de /export porque /export emite redirect 307 -> googleusercontent
+// que depende de cookies de sessão e retorna 400 a partir de servidores headless.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -21,21 +22,26 @@ Deno.serve(async (req) => {
     const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
     const gid = gidMatch ? gidMatch[1] : "0";
 
-    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-    const resp = await fetch(csvUrl, { redirect: "follow" });
+    const tryUrls = [
+      `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`,
+      `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`,
+    ];
 
-    if (!resp.ok) {
-      return json({
-        error: "Não foi possível acessar a planilha. Verifique se o compartilhamento está como 'Qualquer pessoa com o link' e tente novamente.",
-      }, 400);
+    let csv = "";
+    let lastStatus = 0;
+    for (const url of tryUrls) {
+      const resp = await fetch(url, { redirect: "follow" });
+      lastStatus = resp.status;
+      const text = await resp.text();
+      if (resp.ok && text && !text.trim().startsWith("<") && !text.includes("<!DOCTYPE")) {
+        csv = text;
+        break;
+      }
     }
 
-    const csv = await resp.text();
-
-    // Detecção: se Google devolveu HTML de login em vez de CSV
-    if (csv.trim().startsWith("<") || csv.includes("<!DOCTYPE")) {
+    if (!csv) {
       return json({
-        error: "Planilha não é pública. Compartilhe como 'Qualquer pessoa com o link' e tente novamente.",
+        error: `Planilha não acessível (status ${lastStatus}). Compartilhe como 'Qualquer pessoa com o link' e tente novamente.`,
       }, 400);
     }
 
