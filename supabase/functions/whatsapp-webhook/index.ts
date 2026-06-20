@@ -356,17 +356,24 @@ async function processPayload(payload: any) {
     const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
     if (!reply) continue;
 
-    const sent = await sendText(instance, sendTargets, reply);
-    await admin.from("whatsapp_conversas").insert({
-      portfolio_id: portfolioId,
-      instance_name: instance,
-      contato_telefone: phone,
-      contato_nome: pushName,
-      role: "assistant",
-      mensagem: sent ? reply : `[FALHA AO ENVIAR] ${reply}`,
-    });
+    const { sent, failed } = await sendText(instance, sendTargets, reply);
+    const rows = [
+      ...sent.map((m) => ({ role: "assistant" as const, mensagem: m })),
+      ...failed.map((m) => ({ role: "assistant" as const, mensagem: `[FALHA AO ENVIAR] ${m}` })),
+    ];
+    if (rows.length) {
+      await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
+        portfolio_id: portfolioId,
+        instance_name: instance,
+        contato_telefone: phone,
+        contato_nome: pushName,
+        role: r.role,
+        mensagem: r.mensagem,
+      })));
+    }
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
