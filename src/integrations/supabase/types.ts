@@ -1229,6 +1229,128 @@ export type Database = {
         }
         Relationships: []
       }
+      sdr_campaigns: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          nome: string
+          portfolio_id: string
+          rate_per_hour: number
+          status: string
+          total_leads: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          nome: string
+          portfolio_id: string
+          rate_per_hour?: number
+          status?: string
+          total_leads?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          nome?: string
+          portfolio_id?: string
+          rate_per_hour?: number
+          status?: string
+          total_leads?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_campaigns_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_leads: {
+        Row: {
+          campaign_id: string
+          cooldown_ate: string | null
+          created_at: string
+          enviado: boolean
+          follow_up_count: number
+          id: string
+          instagram: string | null
+          mensagens_trocadas: number
+          motivo_contato: string
+          nicho: string
+          nome: string | null
+          nome_resolvido: string | null
+          portfolio_id: string
+          primeira_mensagem_em: string | null
+          status: string
+          telefone: string
+          ultima_mensagem_em: string | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          cooldown_ate?: string | null
+          created_at?: string
+          enviado?: boolean
+          follow_up_count?: number
+          id?: string
+          instagram?: string | null
+          mensagens_trocadas?: number
+          motivo_contato: string
+          nicho: string
+          nome?: string | null
+          nome_resolvido?: string | null
+          portfolio_id: string
+          primeira_mensagem_em?: string | null
+          status?: string
+          telefone: string
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          cooldown_ate?: string | null
+          created_at?: string
+          enviado?: boolean
+          follow_up_count?: number
+          id?: string
+          instagram?: string | null
+          mensagens_trocadas?: number
+          motivo_contato?: string
+          nicho?: string
+          nome?: string | null
+          nome_resolvido?: string | null
+          portfolio_id?: string
+          primeira_mensagem_em?: string | null
+          status?: string
+          telefone?: string
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_leads_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       social_media_integrations: {
         Row: {
           access_token: string
@@ -1636,6 +1758,7 @@ export type Database = {
           mensagem: string
           portfolio_id: string
           role: string
+          sdr_lead_id: string | null
         }
         Insert: {
           contato_nome?: string | null
@@ -1646,6 +1769,7 @@ export type Database = {
           mensagem: string
           portfolio_id: string
           role: string
+          sdr_lead_id?: string | null
         }
         Update: {
           contato_nome?: string | null
@@ -1656,6 +1780,7 @@ export type Database = {
           mensagem?: string
           portfolio_id?: string
           role?: string
+          sdr_lead_id?: string | null
         }
         Relationships: [
           {
@@ -1663,6 +1788,13 @@ export type Database = {
             columns: ["portfolio_id"]
             isOneToOne: false
             referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversas_sdr_lead_id_fkey"
+            columns: ["sdr_lead_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_leads"
             referencedColumns: ["id"]
           },
         ]
