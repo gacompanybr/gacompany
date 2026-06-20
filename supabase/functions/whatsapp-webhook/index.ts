@@ -187,8 +187,6 @@ async function sendText(instance: string, targets: string[], text: string): Prom
 }
 
 
-  return false;
-}
 
 async function processPayload(payload: any) {
   const event = payload.event ?? payload.eventName;
