@@ -433,7 +433,7 @@ function buildScrapperWorkflow(job: any) {
     .trim();
   const shopeeAppId = normalizeShopeeCredential(cfg.shopee_app_id);
   const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
-  const shopeePages = Math.max(1, Math.min(20, Number(cfg.shopee_pages ?? 5)));
+  const shopeePages = Math.max(1, Math.min(20, Number(cfg.shopee_pages ?? 20)));
   const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
   const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
   const mlAffiliateId = normalizeShopeeCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
@@ -718,7 +718,7 @@ try {
             if (rb !== ra) return rb - ra;
             return 0;
           });
-          debug.push({ keyword: b.kw, page: b.page, status: r.status, found: sorted.length });
+          debug.push({ keyword: b.kw, page: b.page, status: r.status, found: sorted.length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
           b.nodes = sorted;
           b.page++;
           if (sorted.length === 0) {
@@ -740,10 +740,10 @@ try {
           const rating = Number(it.ratingStar ?? 0);
           const nameKey = normName(it.productName);
 
-          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
-          if (isSimilar(it.productName, it.shopName)) { dupSkipped++; continue; }
-          if (commissionValue < MIN_COMMISSION_VALUE) continue;
-          if (!passesQualityFilter(sales, rating)) continue;
+          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; debug.push({ skipped: "duplicate", kw: b.kw, page: b.page - 1, item: it.productName }); continue; }
+          if (isSimilar(it.productName, it.shopName)) { dupSkipped++; debug.push({ skipped: "similar", kw: b.kw, page: b.page - 1, item: it.productName, shop: it.shopName }); continue; }
+          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", kw: b.kw, page: b.page - 1, item: it.productName, commissionValue }); continue; }
+          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", kw: b.kw, page: b.page - 1, item: it.productName, sales, rating }); continue; }
 
           const discRate = Number(it.priceDiscountRate) || 0;
           const priceOriginal = (price > 0 && discRate > 0 && discRate < 100)
