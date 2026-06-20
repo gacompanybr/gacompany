@@ -76,21 +76,22 @@ export function SdrUpload({
   async function handleSheet() {
     setBusy(true);
     try {
-      const m = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (!m) throw new Error("Link do Google Sheets inválido");
-      const id = m[1];
-      const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
-      const gid = gidMatch ? gidMatch[1] : "0";
-      const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error("Não foi possível ler a planilha. Confirme que ela está pública ('Qualquer um com o link').");
-      const csv = await resp.text();
+      if (!/\/spreadsheets\/d\/[a-zA-Z0-9-_]+/.test(sheetUrl)) {
+        throw new Error("Link do Google Sheets inválido");
+      }
+      const { data, error } = await supabase.functions.invoke("sdr-sheet-fetch", {
+        body: { sheetUrl },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const csv = (data as any)?.csv as string;
+      if (!csv) throw new Error("Planilha vazia ou inacessível");
       const wb = XLSX.read(csv, { type: "string" });
       const first = wb.SheetNames[0];
       const json = XLSX.utils.sheet_to_json<Row>(wb.Sheets[first], { defval: "" });
       ingest(json);
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e?.message ?? "Falha ao ler planilha");
     } finally {
       setBusy(false);
     }
