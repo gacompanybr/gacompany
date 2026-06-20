@@ -1526,6 +1526,8 @@ export type Database = {
           nome: string
           nome_atendente: string
           portfolio_id: string
+          report_group_id: string | null
+          report_group_name: string | null
           status: string
           telefone: string | null
           temperatura: number
@@ -1550,6 +1552,8 @@ export type Database = {
           nome: string
           nome_atendente?: string
           portfolio_id: string
+          report_group_id?: string | null
+          report_group_name?: string | null
           status?: string
           telefone?: string | null
           temperatura?: number
@@ -1574,6 +1578,8 @@ export type Database = {
           nome?: string
           nome_atendente?: string
           portfolio_id?: string
+          report_group_id?: string | null
+          report_group_name?: string | null
           status?: string
           telefone?: string | null
           temperatura?: number
