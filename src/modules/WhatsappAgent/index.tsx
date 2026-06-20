@@ -144,11 +144,12 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       </Card>
 
       <Tabs defaultValue="config">
-        <TabsList className="grid grid-cols-4 w-full mb-4">
+        <TabsList className="grid grid-cols-5 w-full mb-4">
           <TabsTrigger value="config">Configurações</TabsTrigger>
           <TabsTrigger value="faqs">FAQs</TabsTrigger>
           <TabsTrigger value="conectar">Conectar</TabsTrigger>
           <TabsTrigger value="preview">Pré-visualizar</TabsTrigger>
+          <TabsTrigger value="sdr">SDR</TabsTrigger>
         </TabsList>
 
         <TabsContent value="config">
@@ -166,7 +167,11 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
         <TabsContent value="preview">
           <PreviewTab agent={local} />
         </TabsContent>
+        <TabsContent value="sdr">
+          <SdrTab portfolioId={portfolioId} />
+        </TabsContent>
       </Tabs>
+
 
       <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-width,16rem)] border-t border-border bg-card/95 backdrop-blur p-3 flex justify-end z-30">
         <Button onClick={save} disabled={saving} className="gap-2">
