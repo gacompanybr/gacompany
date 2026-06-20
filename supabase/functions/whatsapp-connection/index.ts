@@ -206,7 +206,8 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, portfolioId, instanceName: requestedInstanceName, phone, testText } = await req.json();
+    const reqBody = await req.json();
+    const { action, portfolioId, instanceName: requestedInstanceName, phone, testText, reportGroupId, reportGroupName, reportPayload, trigger } = reqBody;
     if (!action || !portfolioId) return json({ error: "action e portfolioId obrigatórios" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
