@@ -11,6 +11,7 @@ import { ConfigTab } from "./ConfigTab";
 import { FaqsTab } from "./FaqsTab";
 import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
+import { ConversasTab } from "./ConversasTab";
 import { SdrTab } from "./SdrTab";
 import { emptyAgent, type WhatsappAgent } from "./types";
 
@@ -144,10 +145,11 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       </Card>
 
       <Tabs defaultValue="config">
-        <TabsList className="grid grid-cols-5 w-full mb-4">
+        <TabsList className="grid grid-cols-6 w-full mb-4">
           <TabsTrigger value="config">Configurações</TabsTrigger>
           <TabsTrigger value="faqs">FAQs</TabsTrigger>
           <TabsTrigger value="conectar">Conectar</TabsTrigger>
+          <TabsTrigger value="conversas">Conversas</TabsTrigger>
           <TabsTrigger value="preview">Pré-visualizar</TabsTrigger>
           <TabsTrigger value="sdr">SDR</TabsTrigger>
         </TabsList>
@@ -163,6 +165,9 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
             agent={local}
             onRefresh={() => qc.invalidateQueries({ queryKey: ["whatsapp-agent", portfolioId] })}
           />
+        </TabsContent>
+        <TabsContent value="conversas">
+          <ConversasTab portfolioId={portfolioId} />
         </TabsContent>
         <TabsContent value="preview">
           <PreviewTab agent={local} />
