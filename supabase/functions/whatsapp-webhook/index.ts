@@ -103,7 +103,7 @@ function buildSystemPrompt(agent: any): string {
     agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
     "\nMEMÓRIA: As mensagens anteriores desta conversa (últimas 24h) estão no histórico abaixo. SEMPRE leia e use esse histórico para lembrar o que o cliente já disse — nome, pedidos, dúvidas, contexto. Se a pessoa perguntar 'lembra do que eu te falei?', responda baseado no que está no histórico.",
-    "Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA.",
+    "\nFORMATO DE RESPOSTA: Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA. Se precisar dizer mais de uma frase, separe as mensagens usando ||| (três pipes) entre os pedaços — assim cada parte vira uma mensagem curta enviada em sequência. Cada parte deve caber em 2-3 linhas.",
   ].filter(Boolean).join("\n");
 }
 
