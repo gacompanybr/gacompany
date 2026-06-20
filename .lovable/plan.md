@@ -1,141 +1,103 @@
+# Sub-aba SDR — Prospecção Ativa
 
-## Objetivo
+## Decisões assumidas (avise se quiser mudar)
+- **Fonte da planilha**: upload `.xlsx`/`.csv` + colar link do Google Sheets **público / "qualquer um com link"** (lê via CSV export, sem OAuth). Sem fluxo OAuth por usuário nesta v1.
+- **Motor**: edge function `sdr-worker` disparada a cada minuto via `pg_cron`. Cobre disparo inicial, follow-ups de 24h/48h e respeita pausar/retomar.
+- **Inbound**: o `whatsapp-webhook` existente reconhece se o telefone pertence a um lead SDR ativo e injeta o system prompt do SDR (com `motivo_contato`) só para aquela conversa — isolamento total.
+- **Geração da abertura**: 1 chamada curta ao Lovable AI (Gemini) por lead, retornando bolhas separadas por `|||`, reaproveitando o `splitMessage` + delay de 8s do Prompt 1.
+- **Quebra/delay**: reusa o pipeline da Parte 1 (já enviando bolha-a-bolha com 8s entre elas).
+- **Instagram**: campo salvo, sem análise nesta v1 (tooltip avisa).
 
-Criar **1 workflow funcional no n8n do seu PC** que:
-1. Busca produtos do Mercado Livre (ofertas / mais vendidos / novidades por categoria).
-2. Para cada produto, gera o link de afiliado (`meli.la/...`) usando o cookie + CSRF que acabamos de validar.
-3. Grava tudo numa planilha Google Sheets (uma linha por produto, deduplicado por `product_id`).
+## Estrutura de dados (migração)
 
-Sem depender da n8n da VPS. Sem Lovable Cloud nesse fluxo — é um workflow standalone, exportável (JSON) pra você importar no n8n local.
+Tabelas novas em `public`:
 
-## Fontes de busca (qual API o n8n vai chamar)
+- `sdr_campaigns` — uma campanha por upload.
+  - `portfolio_id`, `nome`, `status` (`draft|running|paused|finished`), `rate_per_hour` (int, default 30), `total_leads`, `created_at`, `finished_at`.
+- `sdr_leads` — uma linha por número da planilha.
+  - `campaign_id`, `portfolio_id`, `telefone` (E.164), `nome` (raw), `nome_resolvido`, `nicho`, `instagram`, `motivo_contato`, `enviado` (bool), `status` (`pendente|enviado|respondeu|reuniao_confirmada|rejeitou|ia_detectada|aguardando_humano|sem_resposta`), `follow_up_count` (0..2), `ultima_mensagem_em`, `primeira_mensagem_em`, `cooldown_ate`, `mensagens_trocadas`.
+  - Índices: (`campaign_id`, `status`), (`portfolio_id`, `telefone`).
+- Coluna em `whatsapp_conversas`: `sdr_lead_id uuid null` para marcar conversas SDR (badge na aba Conversas).
 
-O ML não tem endpoint público "mais vendidos do dia". A combinação que funciona bem é:
+RLS por `portfolio_id` reusando `has_portfolio_access`. GRANTs para `authenticated` e `service_role`.
 
-| Tipo | Endpoint | Observação |
-|---|---|---|
-| **Ofertas do dia** | `https://api.mercadolibre.com/sites/MLB/search?q=&category=MLB1574&sort=price_asc&condition=new` filtrado por `original_price` (tem desconto) | Pega itens com preço promocional |
-| **Mais vendidos por categoria** | `https://api.mercadolibre.com/highlights/MLB/category/{cat}` | Retorna top vendidos oficial do ML |
-| **Novidades** | `https://api.mercadolibre.com/sites/MLB/search?category={cat}&sort=date_desc` | Itens recém-publicados |
-| **Busca por palavra** | `https://api.mercadolibre.com/sites/MLB/search?q=perfume&sort=sold_quantity_desc` | Mais vendidos pra uma keyword |
+## Backend
 
-Esses endpoints são **públicos, não precisam de cookie/token** pra ler. O cookie/CSRF só entra na hora de transformar o `permalink` em link de afiliado.
+### Edge function `sdr-upload` (síncrona)
+- Recebe linhas já parseadas no client (`{campaignName, ratePerHour, rows[]}`), valida `telefone/nicho/motivo_contato`, normaliza telefone para `+55...`, cria `sdr_campaigns` em `draft` e insere `sdr_leads` em batch.
+- Retorna contagem inserida + linhas rejeitadas.
 
-## Estrutura do workflow (nodes)
+### Edge function `sdr-control`
+- Ações: `start`, `pause`, `resume`, `finish`. Atualiza `status` da campanha.
+- `finish` libera o export.
 
-```text
-[Schedule Trigger]                  ← roda 1x/dia (ou manual)
-        │
-[Set: Config]                       ← define categorias, modo, limite por categoria
-        │
-[Split In Batches: categorias]      ← itera nas categorias configuradas
-        │
-[HTTP Request: ML highlights]       ← GET /highlights/MLB/category/{cat}
-        │
-[Code: normaliza]                   ← extrai id, title, price, permalink, thumbnail
-        │
-[Split In Batches: produtos]
-        │
-[HTTP Request: createLink ML]       ← POST cookie+CSRF, vira meli.la/...
-        │
-[IF: deu meli.la?]
-   ├─ true  → [Set: monta linha]
-   │              │
-   │       [Google Sheets: appendOrUpdate]   ← chave = product_id
-   │
-   └─ false → [Code: log erro] → (continua)
+### Edge function `sdr-worker` (chamada por cron)
+Loop por campanha `running`:
+1. Calcula budget = `rate_per_hour / 60` por minuto (mínimo 1).
+2. Pega próximos leads `pendente` daquela campanha, dentro do budget.
+3. Para cada um:
+   - Resolve nome: se `nome` vazio, tenta `/chat/findContacts` da Evolution; fallback `"você"`.
+   - Gera abertura com Gemini (prompt curto e barato, retorno `|||`). Contexto contém SOMENTE `{nome, nicho, motivo_contato}` daquele lead.
+   - Espera `8–16s` aleatório.
+   - Envia via mesma rotina `sendText` (split + 8s entre bolhas) reusada do Prompt 1.
+   - Marca `status=enviado`, `enviado=true`, `primeira_mensagem_em=now()`, `ultima_mensagem_em=now()`.
+4. Follow-ups: para leads `enviado` sem resposta há ≥24h com `follow_up_count=0` → enviar follow-up leve, incrementar contador. Para `follow_up_count=1` com >48h desde último → enviar fechamento gentil, marcar `sem_resposta`.
+5. Respeita `cooldown_ate` (IA detectada → +2h).
+
+Agendamento via `pg_cron`:
+```sql
+select cron.schedule('sdr-worker-1min', '* * * * *', $$
+  select net.http_post(
+    url:='<edge>/sdr-worker',
+    headers:='{"Content-Type":"application/json","apikey":"<anon>"}'::jsonb,
+    body:='{}'::jsonb
+  );
+$$);
 ```
+(Inserido via insert tool, não migração — contém chave anon.)
 
-## Detalhe dos nodes principais
+### `whatsapp-webhook` (extensão)
+Antes de chamar a IA com o prompt padrão:
+1. Procura `sdr_leads` por `telefone = phone` (last 11 dígitos) com status ativo.
+2. Se achar:
+   - Salva conversa com `sdr_lead_id`.
+   - Atualiza `status` do lead (`enviado→respondeu` na primeira resposta), incrementa `mensagens_trocadas`, atualiza `ultima_mensagem_em`.
+   - System prompt = base do agente + bloco `[MODO SDR ATIVO]` com `nome/nicho/motivo_contato` **daquele lead apenas**.
+   - Detecção simples de gatilhos (regex + heurística no texto da IA): "marcado/agendado/confirma" → `reuniao_confirmada` e dispara `send-report` (Parte 1). "humano/atendente/pessoa" → `aguardando_humano`. "não tenho interesse/não quero/parar" → `rejeitou`. IA detectada (respostas <2s + padrão genérico) → manda mensagem padrão + `cooldown_ate=now()+2h` + `status=ia_detectada`.
+3. Se não achar lead SDR → fluxo atual sem mudança.
 
-### 1. Set: Config
-JSON com:
-```json
-{
-  "modo": "highlights",
-  "categorias": ["MLB1574", "MLB1648", "MLB1051"],
-  "limite_por_categoria": 20,
-  "ml_cookie": "{{ $env.ML_COOKIE }}",
-  "ml_csrf": "{{ $env.ML_CSRF }}",
-  "ml_tag": "adrianacarlabuenocavassani"
-}
-```
-(você pode salvar `ML_COOKIE` e `ML_CSRF` como **Credentials** ou variáveis de ambiente no n8n local).
+## Frontend
 
-### 2. HTTP Request: highlights
-- URL: `https://api.mercadolibre.com/highlights/MLB/category/{{ $json.category }}`
-- Method: GET
-- Response: JSON.
+Nova aba **SDR** em `src/modules/WhatsappAgent/SdrTab.tsx`, registrada em `WhatsappAgent/index.tsx` ao lado de Conversas/Analytics (a aba "Conversas/Analytics" será verificada — só adiciono a SDR sem mexer nas existentes).
 
-### 3. Code: normaliza
-```js
-const out = [];
-for (const item of $json.content || []) {
-  if (item.type !== "ITEM" || !item.id) continue;
-  out.push({
-    product_id: item.id,
-    title: item.title,
-    price: item.price,
-    original_price: item.original_price ?? null,
-    discount: item.original_price ? Math.round((1 - item.price/item.original_price)*100) : 0,
-    permalink: item.permalink,
-    thumbnail: item.thumbnail,
-    category_id: $json.id,
-  });
-}
-return out.map(json => ({ json }));
-```
+Componentes:
+- `SdrUpload.tsx`: dropzone (xlsx via `xlsx`, csv via parser próprio) + campo de link do Sheets (resolve para `https://docs.google.com/spreadsheets/d/{id}/export?format=csv&gid=...`). Auto-detecta colunas; se faltar, abre mapper (select por coluna). Preview das 5 primeiras linhas com badges de validação por linha.
+- `SdrDashboard.tsx`: cards com os 9 indicadores pedidos, polling a cada 5s via React Query enquanto a campanha estiver `running`/`paused`.
+- `SdrControls.tsx`: botões Iniciar/Pausar/Retomar/Encerrar + chip de status + input "máx. disparos por hora".
+- `SdrReport.tsx`: botão "Exportar Relatório" (só após `finished`) — gera `.xlsx` no client com `xlsx` (telefone, nome_resolvido, nicho, status, primeira_mensagem_em, mensagens_trocadas, motivo_contato).
 
-### 4. HTTP Request: createLink
-- URL: `https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink`
-- Method: POST
-- Headers:
-  - `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/141`
-  - `Content-Type: application/json`
-  - `Origin: https://www.mercadolivre.com.br`
-  - `Referer: https://www.mercadolivre.com.br/afiliados/linkbuilder`
-  - `x-csrf-token: {{ $('Set: Config').first().json.ml_csrf }}`
-  - `Cookie: {{ $('Set: Config').first().json.ml_cookie }}`
-- Body (JSON):
-```json
-{ "urls": ["{{ $json.permalink }}"], "tag": "{{ $('Set: Config').first().json.ml_tag }}" }
-```
-- Continue on Fail: ON (pra não quebrar o batch inteiro se 1 falhar).
+Badge "SDR" na lista de conversas: na aba Conversas existente, se a mensagem tiver `sdr_lead_id`, mostrar pill laranja "SDR" (alteração mínima, isolada).
 
-### 5. Google Sheets: appendOrUpdate
-- Operation: **Append or Update Row**
-- Sheet: aba `Produtos`
-- Matching column: `product_id`
-- Colunas:
-  - `product_id`
-  - `title`
-  - `price`
-  - `original_price`
-  - `discount_%`
-  - `permalink`
-  - `affiliate_link` ← `{{ $json.urls[0].short_url }}`
-  - `thumbnail`
-  - `category_id`
-  - `updated_at` ← `{{ $now }}`
+## Pontos técnicos importantes
 
-Assim cada execução **atualiza** os produtos que já existem e **adiciona** os novos — sem duplicar.
+- **Isolamento de contexto**: o system prompt do SDR é construído por mensagem, lendo o lead pelo telefone — nunca um "lote" de leads no mesmo prompt.
+- **Telefone normalizado**: salvo já como dígitos (`5547...`), comparação no webhook por sufixo (últimos 11) para casar com `@s.whatsapp.net` e `@lid`.
+- **Não duplicar com agente principal**: enquanto houver `sdr_lead_id` ativo para o telefone, a resposta usa o prompt SDR. Quando a campanha encerra, o telefone volta a ser tratado pelo agente padrão.
+- **Pausar**: o worker pula campanhas `paused`. Conversas já iniciadas continuam respondendo normalmente (a pausa só afeta novos disparos e follow-ups).
+- **Rate limit**: configurável por campanha (default 30/h). Budget por minuto + jitter 8–16s entre envios garante distribuição.
 
-## Pré-requisitos no n8n do PC
+## Fora do escopo desta v1 (confirmar)
+- OAuth Google para Sheets privadas.
+- Análise de Instagram (só salva o link).
+- Múltiplas campanhas SDR rodando em paralelo no mesmo portfólio (vou permitir só 1 ativa por vez — qualquer outra precisa ser encerrada antes; muito mais simples e seguro).
+- Edição de leads depois do upload (re-upload para alterar).
 
-1. **Credential Google Sheets OAuth2** — conectar sua conta Google no n8n (Settings → Credentials → New → Google Sheets OAuth2).
-2. **Planilha vazia no Drive** com 1 aba `Produtos` e a linha 1 com os headers acima.
-3. **Variáveis de ambiente** (ou hardcoded no node Set): `ML_COOKIE` e `ML_CSRF` que validamos hoje.
+## Ordem de execução
+1. Migração (tabelas + coluna em `whatsapp_conversas` + GRANTs + RLS).
+2. Edge functions `sdr-upload`, `sdr-control`, `sdr-worker`.
+3. Cron job via insert.
+4. Patch no `whatsapp-webhook` (lookup SDR + system prompt + detecção de gatilhos + envio de relatório).
+5. UI: nova aba + componentes + badge nas conversas.
+6. Smoke test com 2 leads fake.
 
-## O que eu entrego
-
-Um arquivo **`ml-scraper.json`** pronto pra você importar no n8n (menu **⋯ → Import from File**). Você só:
-1. Cria a planilha.
-2. Conecta a credential do Google Sheets no node correspondente.
-3. Cola cookie/CSRF/tag.
-4. Aperta **Execute Workflow**.
-
-## Antes de eu gerar o JSON — me confirma 3 coisas
-
-1. **Quais categorias** começar? Sugestão default: `MLB1574` (Casa, Móveis e Decoração), `MLB1648` (Informática), `MLB1051` (Celulares). Ou me passa um nicho específico.
-2. **Modo de busca inicial**: `highlights` (mais vendidos por categoria — meu padrão) ou busca livre por palavra-chave (ex.: "perfume", "tênis")?
-3. **Frequência**: roda manual no botão ou agendado (ex.: todo dia 8h)?
+Posso seguir com esse plano?
