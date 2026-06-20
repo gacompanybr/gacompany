@@ -357,20 +357,30 @@ async function processPayload(payload: any) {
     };
     const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
 
+    // System prompt: padrão OU SDR (com contexto isolado por lead)
+    let systemPrompt = buildSystemPrompt(agent);
+    if (sdrLead) {
+      systemPrompt = [
+        buildSystemPrompt(agent),
+        ``,
+        `[MODO SDR ATIVO]`,
+        `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
+        `Nicho: ${sdrLead.nicho}`,
+        `Motivo de contato: ${sdrLead.motivo_contato}`,
+        `Seu objetivo nesta conversa é conduzir até o agendamento de uma call de 15 minutos.`,
+        `Você iniciou o contato — seja ativo, não espere o lead puxar o assunto.`,
+        `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
+      ].join("\n");
+    }
+
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: buildSystemPrompt(agent) },
-          ...recent.map((m) => ({
-            role: m.role === "assistant" ? "assistant" : "user",
-            content: m.mensagem,
-          })),
+          { role: "system", content: systemPrompt },
+          ...recent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
         ],
         temperature: agent.temperatura ?? 0.7,
         max_tokens: Math.min(Number(agent.max_tokens ?? 400), 600),
@@ -398,10 +408,70 @@ async function processPayload(payload: any) {
         contato_nome: pushName,
         role: r.role,
         mensagem: r.mensagem,
+        sdr_lead_id: sdrLead?.id ?? null,
       })));
+    }
+
+    // === Detecção de gatilhos (SDR) ===
+    if (sdrLead && sent.length) {
+      const lower = (text + " " + reply).toLowerCase();
+      const userLower = text.toLowerCase();
+      let newStatus: string | null = null;
+      let trigger: "meeting_confirmed" | "human_requested" | null = null;
+
+      if (/(agendad|marcad|confirmad|combinad|fechad|pode ser|vamos marcar|t[aá] marcado)/i.test(lower)) {
+        newStatus = "reuniao_confirmada";
+        trigger = "meeting_confirmed";
+      } else if (/(falar com (humano|pessoa|atendente|respons[aá]vel|gerente)|quero (humano|atendente)|atendimento humano)/i.test(userLower)) {
+        newStatus = "aguardando_humano";
+        trigger = "human_requested";
+      } else if (/(n[aã]o (tenho|temos)?\s*interesse|n[aã]o quero|n[aã]o me interessa|parar de receber|n[aã]o entre em contato)/i.test(userLower)) {
+        newStatus = "rejeitou";
+      }
+
+      // Detecção simples de IA do outro lado (resposta muito rápida + padrão genérico)
+      const isLikelyBot = /(sou (uma )?intelig[eê]ncia artificial|sou um (bot|assistente virtual|rob[oô])|assistente virtual)/i.test(userLower);
+      if (isLikelyBot) {
+        newStatus = "ia_detectada";
+        await admin.from("sdr_leads")
+          .update({ status: newStatus, cooldown_ate: new Date(Date.now() + 2 * 3600 * 1000).toISOString() })
+          .eq("id", sdrLead.id);
+      } else if (newStatus) {
+        await admin.from("sdr_leads").update({ status: newStatus }).eq("id", sdrLead.id);
+      }
+
+      // Dispara o relatório no grupo quando há gatilho
+      if (trigger) {
+        const { data: agentRow } = await admin
+          .from("whatsapp_agents")
+          .select("report_group_id, report_group_name")
+          .eq("portfolio_id", portfolioId)
+          .maybeSingle();
+        if (agentRow?.report_group_id) {
+          const triggerLabel = trigger === "meeting_confirmed" ? "✅ Reunião confirmada" : "🙋 Solicitou falar com humano";
+          const reportText = [
+            `📋 *NOVO LEAD — GA COMPANY*`,
+            `_${triggerLabel}_`,
+            ``,
+            `👤 *Lead:* ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "—"}`,
+            `📱 *WhatsApp:* +${sdrLead.telefone}`,
+            `🏢 *Empresa:* ${sdrLead.nome ?? "—"}`,
+            `📂 *Segmento:* ${sdrLead.nicho}`,
+            `🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`,
+            `💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`,
+            sdrLead.instagram ? `📷 *Instagram:* ${sdrLead.instagram}` : "",
+          ].filter(Boolean).join("\n");
+          fetch(`${EVO_URL}/message/sendText/${instance}`, {
+            method: "POST",
+            headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ number: agentRow.report_group_id, text: reportText }),
+          }).catch((e) => console.error("send-report SDR fail", e));
+        }
+      }
     }
   }
 }
+
 
 
 Deno.serve(async (req) => {
