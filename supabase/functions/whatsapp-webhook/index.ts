@@ -260,10 +260,27 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // === SDR lookup: telefone pertence a um lead ativo? ===
+    const phoneDigits = phone.replace(/\D/g, "");
+    const phoneSuffix = phoneDigits.slice(-11);
+    let sdrLead: any = null;
+    if (phoneSuffix) {
+      const { data: leads } = await admin
+        .from("sdr_leads")
+        .select("*, sdr_campaigns!inner(status)")
+        .eq("portfolio_id", portfolioId)
+        .not("status", "in", "(sem_resposta,rejeitou)")
+        .order("ultima_mensagem_em", { ascending: false })
+        .limit(50);
+      sdrLead = (leads ?? []).find((l: any) => {
+        const d = String(l.telefone).replace(/\D/g, "");
+        return d.slice(-11) === phoneSuffix && ["draft", "running", "paused", "finished"].includes(l.sdr_campaigns?.status);
+      }) ?? null;
+    }
+
     // Gate manual: só responde se o agente estiver explicitamente ativo
     if (agent.status !== "active") {
       console.log("agente inativo, ignorando mensagem", { portfolioId, status: agent.status });
-      // Ainda salva a mensagem do usuário para histórico
       await admin.from("whatsapp_conversas").insert({
         portfolio_id: portfolioId,
         instance_name: instance,
@@ -271,11 +288,12 @@ async function processPayload(payload: any) {
         contato_nome: pushName,
         role: "user",
         mensagem: text,
+        sdr_lead_id: sdrLead?.id ?? null,
       });
       continue;
     }
 
-    // Salvar mensagem do usuário
+    // Salvar mensagem do usuário (com vínculo SDR se aplicável)
     await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,
       instance_name: instance,
@@ -283,7 +301,20 @@ async function processPayload(payload: any) {
       contato_nome: pushName,
       role: "user",
       mensagem: text,
+      sdr_lead_id: sdrLead?.id ?? null,
     });
+
+    // Se é lead SDR: atualiza status (primeira resposta vira "respondeu") e métricas
+    if (sdrLead) {
+      const patch: Record<string, unknown> = {
+        ultima_mensagem_em: new Date().toISOString(),
+        mensagens_trocadas: (sdrLead.mensagens_trocadas ?? 0) + 1,
+      };
+      if (sdrLead.status === "enviado") patch.status = "respondeu";
+      await admin.from("sdr_leads").update(patch).eq("id", sdrLead.id);
+      sdrLead = { ...sdrLead, ...patch };
+    }
+
 
     // Fora do horário → mensagem padrão (se houver)
     if (!dentroDoHorario(agent)) {
