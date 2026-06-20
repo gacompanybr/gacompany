@@ -103,7 +103,7 @@ function buildSystemPrompt(agent: any): string {
     agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
     "\nMEMÓRIA: As mensagens anteriores desta conversa (últimas 24h) estão no histórico abaixo. SEMPRE leia e use esse histórico para lembrar o que o cliente já disse — nome, pedidos, dúvidas, contexto. Se a pessoa perguntar 'lembra do que eu te falei?', responda baseado no que está no histórico.",
-    "Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA.",
+    "\nFORMATO DE RESPOSTA: Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA. Se precisar dizer mais de uma frase, separe as mensagens usando ||| (três pipes) entre os pedaços — assim cada parte vira uma mensagem curta enviada em sequência. Cada parte deve caber em 2-3 linhas.",
   ].filter(Boolean).join("\n");
 }
 
@@ -125,27 +125,68 @@ function dentroDoHorario(agent: any): boolean {
   }
 }
 
-async function sendText(instance: string, targets: string[], text: string) {
+function splitMessage(text: string): string[] {
+  const raw = (text ?? "").trim();
+  if (!raw) return [];
+  // Separador explícito do modelo
+  if (raw.includes("|||")) {
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean);
+  }
+  // Quebra por parágrafo duplo
+  const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (byParagraph.length > 1) return byParagraph;
+  // Curta o suficiente — manda em uma única mensagem
+  const lineCount = raw.split(/\n/).length;
+  if (raw.length <= 250 && lineCount <= 3) return [raw];
+  // Quebra por fim de frase
+  const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
+  const chunks: string[] = [];
+  let current = "";
+  for (const s of sentences) {
+    if ((current + s).length > 200 && current.length > 0) {
+      chunks.push(current.trim());
+      current = s;
+    } else {
+      current += s;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter(Boolean);
+}
+
+async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
   for (const [index, target] of targets.entries()) {
     const body = { number: target, text };
-    const r = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
     const responseText = await r.text();
     let responseJson: any = null;
     try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
     const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
     console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-    // PENDING também é sucesso (Evolution aceitou e vai entregar). Parar aqui evita duplicar a mensagem em outro target.
     if (r.ok) return true;
   }
-
   return false;
 }
+
+const SPLIT_DELAY_MS = 8000;
+
+async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
+  const parts = splitMessage(text);
+  const sent: string[] = [];
+  const failed: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const ok = await sendOnce(instance, targets, parts[i]);
+    if (ok) sent.push(parts[i]); else failed.push(parts[i]);
+    if (i < parts.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, SPLIT_DELAY_MS));
+    }
+  }
+  return { sent, failed };
+}
+
+
 
 async function processPayload(payload: any) {
   const event = payload.event ?? payload.eventName;
@@ -247,15 +288,21 @@ async function processPayload(payload: any) {
     // Fora do horário → mensagem padrão (se houver)
     if (!dentroDoHorario(agent)) {
       if (agent.fora_horario_msg) {
-        const sent = await sendText(instance, sendTargets, agent.fora_horario_msg);
-        await admin.from("whatsapp_conversas").insert({
-          portfolio_id: portfolioId,
-          instance_name: instance,
-          contato_telefone: phone,
-          contato_nome: pushName,
-          role: "assistant",
-          mensagem: sent ? agent.fora_horario_msg : `[FALHA AO ENVIAR] ${agent.fora_horario_msg}`,
-        });
+        const { sent, failed } = await sendText(instance, sendTargets, agent.fora_horario_msg);
+        const rows = [
+          ...sent.map((m) => ({ role: "assistant" as const, mensagem: m })),
+          ...failed.map((m) => ({ role: "assistant" as const, mensagem: `[FALHA AO ENVIAR] ${m}` })),
+        ];
+        if (rows.length) {
+          await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
+            portfolio_id: portfolioId,
+            instance_name: instance,
+            contato_telefone: phone,
+            contato_nome: pushName,
+            role: r.role,
+            mensagem: r.mensagem,
+          })));
+        }
       }
       continue;
     }
@@ -307,17 +354,24 @@ async function processPayload(payload: any) {
     const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
     if (!reply) continue;
 
-    const sent = await sendText(instance, sendTargets, reply);
-    await admin.from("whatsapp_conversas").insert({
-      portfolio_id: portfolioId,
-      instance_name: instance,
-      contato_telefone: phone,
-      contato_nome: pushName,
-      role: "assistant",
-      mensagem: sent ? reply : `[FALHA AO ENVIAR] ${reply}`,
-    });
+    const { sent, failed } = await sendText(instance, sendTargets, reply);
+    const rows = [
+      ...sent.map((m) => ({ role: "assistant" as const, mensagem: m })),
+      ...failed.map((m) => ({ role: "assistant" as const, mensagem: `[FALHA AO ENVIAR] ${m}` })),
+    ];
+    if (rows.length) {
+      await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
+        portfolio_id: portfolioId,
+        instance_name: instance,
+        contato_telefone: phone,
+        contato_nome: pushName,
+        role: r.role,
+        mensagem: r.mensagem,
+      })));
+    }
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

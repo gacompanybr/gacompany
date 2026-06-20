@@ -206,7 +206,8 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, portfolioId, instanceName: requestedInstanceName, phone, testText } = await req.json();
+    const reqBody = await req.json();
+    const { action, portfolioId, instanceName: requestedInstanceName, phone, testText, reportGroupId, reportGroupName, reportPayload, trigger } = reqBody;
     if (!action || !portfolioId) return json({ error: "action e portfolioId obrigatórios" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -446,7 +447,91 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "list-groups") {
+      const instanceName = existing?.instance_name;
+      if (!instanceName) return json({ error: "WhatsApp não conectado" }, 409);
+      const r = await evo(`/group/fetchAllGroups/${instanceName}?getParticipants=false`);
+      if (!r.ok) return json({ error: "Falha ao buscar grupos", status: r.status, raw: r.body }, 502);
+      const rows = Array.isArray(r.body) ? r.body : (Array.isArray(r.body?.groups) ? r.body.groups : []);
+      const groups = rows.map((g: any) => ({
+        id: String(g.id ?? g.remoteJid ?? g.jid ?? ""),
+        name: String(g.subject ?? g.name ?? g.id ?? "(sem nome)"),
+        participants_count: Number(g.size ?? g.participantsCount ?? (Array.isArray(g.participants) ? g.participants.length : 0)) || 0,
+        avatar_url: g.pictureUrl ?? g.profilePicUrl ?? g.picture ?? null,
+      })).filter((g: any) => g.id);
+      groups.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      return json({ groups });
+    }
+
+    if (action === "save-report-group") {
+      if (!reportGroupId) {
+        await admin.from("whatsapp_agents")
+          .update({ report_group_id: null, report_group_name: null })
+          .eq("portfolio_id", portfolioId);
+        return json({ ok: true, cleared: true });
+      }
+      await admin.from("whatsapp_agents")
+        .update({ report_group_id: reportGroupId, report_group_name: reportGroupName ?? null })
+        .eq("portfolio_id", portfolioId);
+      return json({ ok: true });
+    }
+
+    if (action === "send-report") {
+      const instanceName = existing?.instance_name;
+      if (!instanceName) return json({ error: "WhatsApp não conectado" }, 409);
+      const { data: ag } = await admin
+        .from("whatsapp_agents")
+        .select("report_group_id, report_group_name")
+        .eq("portfolio_id", portfolioId)
+        .maybeSingle();
+      if (!ag?.report_group_id) return json({ error: "Nenhum grupo de relatórios configurado" }, 400);
+
+      const allowedTriggers = ["meeting_confirmed", "human_requested"];
+      if (!trigger || !allowedTriggers.includes(String(trigger))) {
+        return json({ error: "Gatilho inválido. Use meeting_confirmed ou human_requested." }, 400);
+      }
+
+      const p = reportPayload ?? {};
+      const required = ["nome", "whatsapp", "empresa", "segmento", "faturamento", "investimento", "servicos_interesse", "area_prioritaria"];
+      const missing = required.filter((k) => {
+        const v = p[k];
+        if (Array.isArray(v)) return v.length === 0;
+        return v === undefined || v === null || String(v).trim() === "";
+      });
+      if (missing.length) return json({ error: "Campos obrigatórios ausentes", missing }, 400);
+
+      const servicos = Array.isArray(p.servicos_interesse) ? p.servicos_interesse.join(", ") : String(p.servicos_interesse);
+      const triggerLabel = trigger === "meeting_confirmed" ? "✅ Reunião confirmada" : "🙋 Solicitou falar com humano";
+      const text = [
+        `📋 *NOVO LEAD — GA COMPANY*`,
+        `_${triggerLabel}_`,
+        ``,
+        `👤 *Lead:* ${p.nome}`,
+        `📱 *WhatsApp:* ${p.whatsapp}`,
+        `🏢 *Empresa:* ${p.empresa}`,
+        `📂 *Segmento:* ${p.segmento}`,
+        `💰 *Faturamento Mensal:* ${p.faturamento}`,
+        `💵 *Disponível para Investir:* ${p.investimento}`,
+        `🎯 *Serviços de Interesse:* ${servicos}`,
+        `🔥 *Área Prioritária:* ${p.area_prioritaria}`,
+        p.momento_negocio ? `📊 *Momento do Negócio:* ${p.momento_negocio}` : "",
+        p.objecao_principal ? `⚠️ *Objeção Principal:* ${p.objecao_principal}` : "",
+        p.nivel_interesse ? `🌡️ *Nível de Interesse:* ${p.nivel_interesse}` : "",
+        typeof p.guardrail_ativado === "boolean" ? `🛑 *Guardrail Ativado?* ${p.guardrail_ativado ? "sim" : "não"}` : "",
+        p.proximo_passo ? `📅 *Próximo Passo:* ${p.proximo_passo}` : "",
+      ].filter(Boolean).join("\n");
+
+      const r = await evo(`/message/sendText/${instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({ number: ag.report_group_id, text }),
+      });
+      console.log("send-report", JSON.stringify({ instanceName, group: ag.report_group_id, status: r.status, ok: r.ok }));
+      if (!r.ok) return json({ error: "Falha ao enviar relatório", status: r.status, raw: r.body }, 502);
+      return json({ ok: true, group: ag.report_group_name ?? ag.report_group_id });
+    }
+
     return json({ error: "action inválido" }, 400);
+
   } catch (e) {
     console.error("whatsapp-connection error", e);
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

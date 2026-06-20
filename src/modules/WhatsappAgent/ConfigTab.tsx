@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Info } from "lucide-react";
 import { TOM_OPTIONS, DIAS, type WhatsappAgent } from "./types";
+import { ReportGroupCard } from "./ReportGroupCard";
 
 export function ConfigTab({
   agent, onChange,
@@ -126,6 +127,9 @@ export function ConfigTab({
           </p>
         </div>
       </Card>
+
+      <ReportGroupCard agent={agent} onChange={onChange} />
     </div>
   );
 }
+

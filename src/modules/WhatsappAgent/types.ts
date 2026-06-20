@@ -17,6 +17,8 @@ export type WhatsappAgent = {
   modelo_ia: "gemini" | "openai";
   temperatura: number;
   max_tokens: number;
+  report_group_id: string | null;
+  report_group_name: string | null;
 };
 
 export type Faq = { pergunta: string; resposta: string };
@@ -69,5 +71,7 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     modelo_ia: "gemini",
     temperatura: 0.7,
     max_tokens: 500,
+    report_group_id: null,
+    report_group_name: null,
   };
 }
