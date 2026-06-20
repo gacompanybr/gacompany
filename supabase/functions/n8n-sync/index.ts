@@ -433,6 +433,7 @@ function buildScrapperWorkflow(job: any) {
     .trim();
   const shopeeAppId = normalizeShopeeCredential(cfg.shopee_app_id);
   const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
+  const shopeePages = Math.max(1, Math.min(20, Number(cfg.shopee_pages ?? 20)));
   const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
   const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
   const mlAffiliateId = normalizeShopeeCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
@@ -460,6 +461,7 @@ const TERMOS = ${JSON.stringify(termos)};
 const CATEGORIAS = ${JSON.stringify(categorias)};
 const SHOPEE_APP_ID = ${JSON.stringify(shopeeAppId)};
 const SHOPEE_SECRET = ${JSON.stringify(shopeeSecret)};
+const SHOPEE_PAGES = ${shopeePages};
 const ML_COOKIE = ${JSON.stringify(mlCookie)};
 const ML_CSRF = ${JSON.stringify(mlCsrf)};
 const ML_AFFILIATE_ID = ${JSON.stringify(mlAffiliateId)};
@@ -585,10 +587,10 @@ async function deleteRow(tableId, rowId) {
   return false;
 }
 
-async function shopeeSearch(keyword) {
+async function shopeeSearch(keyword, page = 1) {
   const url = "https://open-api.affiliate.shopee.com.br/graphql";
   const kw = String(keyword).replace(/"/g, "");
-  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: 1, sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName sales ratingStar}}}";
+  const query = "{productOfferV2(keyword: \\"" + kw + "\\", limit: 50, page: " + page + ", sortType: 2) {nodes {commissionRate commission imageUrl shopName price priceDiscountRate productLink offerLink productName sales ratingStar}}}";
   const payload = JSON.stringify({ query });
   const ts = String(Math.floor(Date.now() / 1000));
   const sig = sha256(SHOPEE_APP_ID + ts + payload + SHOPEE_SECRET);
@@ -691,32 +693,44 @@ try {
 
   if (PLATAFORMA === "shopee") {
     if (!SHOPEE_APP_ID || !SHOPEE_SECRET) throw new Error("Faltam credenciais Shopee.");
-    // Mescla termos + categorias preservando ordem definida pelo usuário (sem shuffle)
     let keywords = Array.from(new Set([...(TERMOS || []), ...(CATEGORIAS || [])].map((k) => String(k).trim()).filter(Boolean)));
     if (!keywords.length) throw new Error("Defina pelo menos um termo ou categoria.");
-    // 1) Busca todos os keywords primeiro (sortType=2 = popular/CTR na API Shopee Affiliate)
-    const buckets = [];
-    for (const kw of keywords) {
-      if (timeUp()) { debug.push({ stopped: "time_up_fetch", total }); break; }
-      const r = await shopeeSearch(kw);
-      // Ordena cada bucket pelos "melhores" primeiro: prioriza vendas, depois rating, depois comissão
-      const sorted = (r.nodes || []).slice().sort((a, b) => {
-        const sa = Number(a.sales ?? 0), sb = Number(b.sales ?? 0);
-        if (sb !== sa) return sb - sa;
-        const ra = Number(a.ratingStar ?? 0), rb = Number(b.ratingStar ?? 0);
-        if (rb !== ra) return rb - ra;
-        const ca = Number(a.commission ?? 0), cb = Number(b.commission ?? 0);
-        return cb - ca;
-      });
-      debug.push({ keyword: kw, status: r.status, found: sorted.length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
-      buckets.push({ kw, nodes: sorted });
-    }
-    // 2) Round-robin: 1 produto de cada termo, ciclando até esgotar/atingir limites
-    outerShopee: while (buckets.some((b) => b.nodes.length > 0)) {
+
+    const buckets = keywords.map(kw => ({ kw, nodes: [], page: 1, exhausted: false }));
+    
+    // Round-robin: 1 produto de cada termo, buscando novas páginas conforme necessário
+    outerShopee: while (buckets.some((b) => !b.exhausted || b.nodes.length > 0)) {
       for (const b of buckets) {
-        if (!b.nodes.length) continue;
         if (MAX_PRODUCTS && total >= MAX_PRODUCTS) { debug.push({ stopped: "max_products reached", total }); break outerShopee; }
         if (timeUp()) { debug.push({ stopped: "time_up", total }); break outerShopee; }
+        
+        // Se o bucket está vazio, busca a próxima página
+        if (b.nodes.length === 0 && !b.exhausted) {
+          if (b.page > SHOPEE_PAGES) {
+            b.exhausted = true;
+            continue;
+          }
+          const r = await shopeeSearch(b.kw, b.page);
+          const sorted = (r.nodes || []).slice().sort((a, b) => {
+            const sa = Number(a.sales ?? 0), sb = Number(b.sales ?? 0);
+            if (sb !== sa) return sb - sa;
+            const ra = Number(a.ratingStar ?? 0), rb = Number(b.ratingStar ?? 0);
+            if (rb !== ra) return rb - ra;
+            return 0;
+          });
+          debug.push({ keyword: b.kw, page: b.page, status: r.status, found: sorted.length, apiErrors: r.apiErrors || null, httpErr: r.httpErr || null, raw: r.raw || null, authDebug: r.authDebug || null });
+          b.nodes = sorted;
+          b.page++;
+          if (sorted.length === 0) {
+            b.exhausted = true;
+            continue;
+          }
+          // Pequeno delay entre requisições de página para não ser bloqueado
+          await new Promise((res) => setTimeout(res, 500));
+        }
+
+        if (b.nodes.length === 0) continue;
+
         const it = b.nodes.shift();
         try {
           const price = Number(it.price ?? it.priceMin ?? 0);
@@ -725,14 +739,17 @@ try {
           const sales = Number(it.sales ?? 0);
           const rating = Number(it.ratingStar ?? 0);
           const nameKey = normName(it.productName);
-          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; continue; }
-          if (isSimilar(it.productName, it.shopName)) { dupSkipped++; debug.push({ skipped: "similar", kw: b.kw, item: it.productName, shop: it.shopName }); continue; }
-          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", kw: b.kw, item: it.productName, commissionValue }); continue; }
-          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", kw: b.kw, item: it.productName, sales, rating }); continue; }
+
+          if (nameKey && existingNames.has(nameKey)) { dupSkipped++; debug.push({ skipped: "duplicate", kw: b.kw, page: b.page - 1, item: it.productName }); continue; }
+          if (isSimilar(it.productName, it.shopName)) { dupSkipped++; debug.push({ skipped: "similar", kw: b.kw, page: b.page - 1, item: it.productName, shop: it.shopName }); continue; }
+          if (commissionValue < MIN_COMMISSION_VALUE) { debug.push({ skipped: "commission<min", kw: b.kw, page: b.page - 1, item: it.productName, commissionValue }); continue; }
+          if (!passesQualityFilter(sales, rating)) { debug.push({ skipped: "quality<min", kw: b.kw, page: b.page - 1, item: it.productName, sales, rating }); continue; }
+
           const discRate = Number(it.priceDiscountRate) || 0;
           const priceOriginal = (price > 0 && discRate > 0 && discRate < 100)
             ? Math.round((price / (1 - discRate / 100)) * 100) / 100
             : price;
+
           await insertRow(tableId, {
             productname: it.productName,
             price,
@@ -747,18 +764,20 @@ try {
             sales,
             rating,
           });
+
           if (nameKey) {
             existingNames.add(nameKey);
             existingEntries.push({ shop: normName(it.shopName), tokens: new Set(tokenize(it.productName)) });
           }
           total++;
-          const delayMs = Math.floor(Math.random() * (800 - 200 + 1)) + 200;
+          const delayMs = Math.floor(Math.random() * (400 - 150 + 1)) + 150;
           await new Promise((res) => setTimeout(res, delayMs));
         } catch (e) {
           debug.push({ insertError: e.message || String(e), item: it.productName });
         }
       }
     }
+
   } else if (PLATAFORMA === "mercado_livre" || PLATAFORMA === "mercadolivre") {
     if (!ML_AFFILIATE_ID) throw new Error("Faltam credenciais ML (Affiliate ID / matt_word).");
     if (!ML_COOKIE || !ML_CSRF) throw new Error("Faltam credenciais ML (Cookie / x-csrf-token). Edite o job e cole as credenciais.");
