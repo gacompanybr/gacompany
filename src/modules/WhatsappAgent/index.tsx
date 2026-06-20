@@ -11,6 +11,7 @@ import { ConfigTab } from "./ConfigTab";
 import { FaqsTab } from "./FaqsTab";
 import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
+import { SdrTab } from "./SdrTab";
 import { emptyAgent, type WhatsappAgent } from "./types";
 
 export default function WhatsappAgentModule({ portfolioId }: { portfolioId: string }) {
