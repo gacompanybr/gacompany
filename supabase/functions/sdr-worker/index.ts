@@ -104,13 +104,23 @@ async function resolveName(instance: string, lead: any): Promise<string> {
   return "você";
 }
 
-async function aiOpening(nome: string, nicho: string, motivo: string): Promise<string> {
+function buildIdentidade(nomeAtendente: string | null): string {
+  const n = nomeAtendente?.trim();
+  return n
+    ? `Seu nome é ${n}. Apresente-se com esse nome quando fizer sentido (ex: "Sou ${n} da GA Company"). NUNCA use placeholders entre colchetes ou chaves como [Seu Nome], [Nome], {nome}, etc. — se faltar algum dado, simplesmente omita.`
+    : `Não invente nome próprio para você. Apresente-se apenas como "da GA Company". NUNCA use placeholders entre colchetes ou chaves como [Seu Nome], [Nome], etc.`;
+}
+
+const PLACEHOLDER_RE = /\[[^\]]{1,40}\]|\{[^}]{1,40}\}/;
+
+async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtendente: string | null): Promise<string> {
   const prompt =
-    `Você é um SDR da GA Company. Gere uma abertura natural de WhatsApp para ${nome} do segmento ${nicho}.\n` +
+    `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\n` +
+    `Gere uma abertura natural de WhatsApp para ${nome} do segmento ${nicho}.\n` +
     `Use este motivo como base: ${motivo}.\n` +
     `Quebre em 3 a 4 mensagens curtas de 1-2 linhas cada, separadas por |||.\n` +
     `Seja direto, humano, sem parecer script. Termine com CTA para call de 15 min.\n` +
-    `Retorne APENAS as mensagens separadas por |||. Sem explicação.`;
+    `Retorne APENAS as mensagens separadas por |||. Sem explicação e SEM placeholders entre colchetes/chaves.`;
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -125,23 +135,25 @@ async function aiOpening(nome: string, nicho: string, motivo: string): Promise<s
     if (!r.ok) throw new Error(`ai ${r.status}`);
     const j = await r.json();
     const txt = j.choices?.[0]?.message?.content?.trim();
-    if (txt) return txt;
+    if (txt && !PLACEHOLDER_RE.test(txt)) return txt;
+    if (txt) console.warn("aiOpening retornou placeholder, indo pro fallback:", txt.slice(0, 140));
   } catch (e) {
     console.error("aiOpening fail", e);
   }
   // Fallback determinístico
+  const eu = nomeAtendente?.trim() ? `Sou ${nomeAtendente.trim()} da GA Company` : `Aqui é da GA Company`;
   return [
     `Oi ${nome}! Tudo bem?`,
-    `Sou da GA Company — agência especializada em crescimento pra ${nicho}.`,
+    `${eu} — agência especializada em crescimento pra ${nicho}.`,
     `${motivo.slice(0, 180)}`,
     `Topa uma call rápida de 15 minutos pra te mostrar como podemos ajudar?`,
   ].join("|||");
 }
 
-async function aiFollowup(nome: string, nicho: string, motivo: string, isFinal: boolean): Promise<string> {
+async function aiFollowup(nome: string, nicho: string, motivo: string, isFinal: boolean, nomeAtendente: string | null): Promise<string> {
   const prompt = isFinal
-    ? `Você é um SDR. Escreva um follow-up FINAL e gentil de WhatsApp para ${nome} (${nicho}) que não respondeu. Tom leve, sem cobrança, encerrando o contato mas deixando porta aberta. Motivo original: ${motivo}. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens.`
-    : `Você é um SDR. Escreva um follow-up curto e simpático de WhatsApp para ${nome} (${nicho}) que não respondeu. Motivo original: ${motivo}. Reforce brevemente o valor e proponha de novo a call de 15 min. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens.`;
+    ? `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\nEscreva um follow-up FINAL e gentil de WhatsApp para ${nome} (${nicho}) que não respondeu. Tom leve, sem cobrança, encerrando o contato mas deixando porta aberta. Motivo original: ${motivo}. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens, sem placeholders entre colchetes/chaves.`
+    : `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\nEscreva um follow-up curto e simpático de WhatsApp para ${nome} (${nicho}) que não respondeu. Motivo original: ${motivo}. Reforce brevemente o valor e proponha de novo a call de 15 min. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens, sem placeholders entre colchetes/chaves.`;
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -156,7 +168,8 @@ async function aiFollowup(nome: string, nicho: string, motivo: string, isFinal: 
     if (r.ok) {
       const j = await r.json();
       const txt = j.choices?.[0]?.message?.content?.trim();
-      if (txt) return txt;
+      if (txt && !PLACEHOLDER_RE.test(txt)) return txt;
+      if (txt) console.warn("aiFollowup retornou placeholder, indo pro fallback:", txt.slice(0, 140));
     }
   } catch { /* ignore */ }
   return isFinal
@@ -178,6 +191,14 @@ async function processCampaign(campaign: any) {
   const now = new Date();
   const nowIso = now.toISOString();
 
+  // Busca o nome do atendente configurado no Agente IA do portfólio
+  const { data: agentRow } = await admin
+    .from("whatsapp_agents")
+    .select("nome_atendente")
+    .eq("portfolio_id", campaign.portfolio_id)
+    .maybeSingle();
+  const nomeAtendente: string | null = agentRow?.nome_atendente?.trim() || null;
+
   // === Follow-ups ===
   // Follow-up 1: enviado, sem resposta há ≥24h, follow_up_count=0
   const fu1Cutoff = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
@@ -192,7 +213,7 @@ async function processCampaign(campaign: any) {
 
   for (const lead of fu1 ?? []) {
     if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
-    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false);
+    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
     const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
     await logAssistant(lead, instance, sent, failed);
     if (sent.length) {
@@ -218,7 +239,7 @@ async function processCampaign(campaign: any) {
 
   for (const lead of fu2 ?? []) {
     if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
-    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true);
+    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true, nomeAtendente);
     const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
     await logAssistant(lead, instance, sent, failed);
     await admin.from("sdr_leads").update({
@@ -242,7 +263,7 @@ async function processCampaign(campaign: any) {
   let dispatched = 0;
   for (const lead of pending ?? []) {
     const nameResolved = await resolveName(instance, lead);
-    const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato);
+    const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
     await sleep(rand(8000, 16000));
     const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
     await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, sent, failed);
