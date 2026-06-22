@@ -304,6 +304,14 @@ async function processPayload(payload: any) {
 
     // === SDR lookup: telefone pertence a um lead ativo? ===
     let sdrLead: any = null;
+    let sdrMatchReason: string = "not_found";
+    console.log("[SDR-MATCH] start", JSON.stringify({
+      portfolioId,
+      instance,
+      remoteJid,
+      phoneCandidates,
+      phoneSuffixList,
+    }));
     if (phoneSuffixList.length) {
       const { data: leads } = await admin
         .from("sdr_leads")
@@ -312,9 +320,16 @@ async function processPayload(payload: any) {
         .not("status", "in", "(sem_resposta,rejeitou)")
         .order("ultima_mensagem_em", { ascending: false })
         .limit(50);
+      console.log("[SDR-MATCH] status_lookup", JSON.stringify({
+        leadsFound: (leads ?? []).length,
+        leadTelefones: (leads ?? []).map((l: any) => l.telefone),
+      }));
       sdrLead = (leads ?? []).find((l: any) => {
         return matchesPhone(l.telefone, phoneSuffixList) && ["draft", "running", "paused", "finished"].includes(l.sdr_campaigns?.status);
       }) ?? null;
+      if (sdrLead) sdrMatchReason = "matched_by_status_lookup";
+    } else {
+      console.log("[SDR-MATCH] skipped_no_suffixes");
     }
 
     // Fallback essencial: se a conversa já tem vínculo SDR salvo, usa esse vínculo mesmo
@@ -327,6 +342,10 @@ async function processPayload(payload: any) {
         .not("sdr_lead_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(250);
+      console.log("[SDR-MATCH] conversation_fallback_scan", JSON.stringify({
+        linkedConversations: (linkedConversations ?? []).length,
+        sampleTelefones: (linkedConversations ?? []).slice(0, 10).map((r: any) => r.contato_telefone),
+      }));
       const linked = (linkedConversations ?? []).find((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
       if (linked?.sdr_lead_id) {
         const { data: leadByConversation } = await admin
@@ -335,8 +354,21 @@ async function processPayload(payload: any) {
           .eq("id", linked.sdr_lead_id)
           .maybeSingle();
         sdrLead = leadByConversation ?? null;
+        if (sdrLead) sdrMatchReason = "matched_by_conversation_fallback";
       }
     }
+
+    console.log("[SDR-MATCH] result", JSON.stringify({
+      portfolioId,
+      remoteJid,
+      phoneSuffixList,
+      reason: sdrMatchReason,
+      sdrLeadId: sdrLead?.id ?? null,
+      sdrLeadTelefone: sdrLead?.telefone ?? null,
+      sdrLeadStatus: sdrLead?.status ?? null,
+      sdrCampaignStatus: sdrLead?.sdr_campaigns?.status ?? null,
+    }));
+
 
     // Gate manual: só responde se o agente estiver explicitamente ativo
     if (agent.status !== "active") {
