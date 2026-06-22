@@ -78,6 +78,41 @@ function getMessageText(msg: any): string {
   ).trim();
 }
 
+function normalizePhoneDigits(raw: unknown): string {
+  const value = typeof raw === "string" ? raw : String(raw ?? "");
+  if (!value || value.includes("@lid")) return "";
+  const digits = value.split("@")[0].replace(/\D/g, "");
+  // Telefones WhatsApp internacionais normalmente ficam entre 8 e 15 dígitos.
+  if (digits.length < 8 || digits.length > 15) return "";
+  return digits;
+}
+
+function getPhoneCandidates(msg: any, remoteJid: string, phone: string, sendTargets: string[]): string[] {
+  const key = msg.key ?? {};
+  const values = [
+    phone,
+    remoteJid,
+    ...sendTargets,
+    asText(key.senderPn),
+    asText(key.participantPn),
+    asText(key.remoteJidAlt),
+    asText(msg.remoteJidAlt),
+    asText(msg.data?.key?.senderPn),
+    asText(msg.data?.key?.remoteJidAlt),
+  ];
+  return Array.from(new Set(values.map(normalizePhoneDigits).filter(Boolean)));
+}
+
+function phoneSuffixes(candidates: string[]): string[] {
+  return Array.from(new Set(candidates.map((phone) => phone.slice(-11)).filter((phone) => phone.length >= 8)));
+}
+
+function matchesPhone(value: unknown, suffixes: string[]): boolean {
+  const digits = normalizePhoneDigits(value);
+  if (!digits || !suffixes.length) return false;
+  return suffixes.some((suffix) => digits.endsWith(suffix) || suffix.endsWith(digits));
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
