@@ -214,6 +214,7 @@ const PREFIX: Record<string, string> = {
   shopee: "SHOPEE",
   mercado_livre: "ML",
   amazon: "AMZ",
+  dup: "DUP",
 };
 
 function JobDialog({
