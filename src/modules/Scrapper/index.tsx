@@ -442,7 +442,62 @@ function JobDialog({
           ) : (
             <div>
               <Label>Identificador</Label>
-              <Input value={plataforma} onChange={(e) => setPlataforma(e.target.value)} placeholder="custom" />
+              <Input
+                value={plataforma}
+                onChange={(e) => setPlataforma(e.target.value)}
+                placeholder="custom · use 'dup' p/ espelhar grupo"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Use <code>dup</code> para espelhar ofertas de um grupo WhatsApp para a sua data table.
+              </p>
+            </div>
+          )}
+          {plataforma === "dup" && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <div className="text-xs font-semibold uppercase text-primary">
+                Espelhamento de grupo (DUP)
+              </div>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Label>Grupo de origem</Label>
+                  <Select value={grupoOrigemJid} onValueChange={setGrupoOrigemJid}>
+                    <SelectTrigger><SelectValue placeholder="Selecione um grupo" /></SelectTrigger>
+                    <SelectContent>
+                      {grupoOrigemJid && !grupos.find((g) => g.id === grupoOrigemJid) && (
+                        <SelectItem value={grupoOrigemJid}>{grupoOrigemJid}</SelectItem>
+                      )}
+                      {grupos.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={carregarGruposDup} disabled={loadingGrupos}>
+                  {loadingGrupos ? <Loader2 size={12} className="animate-spin" /> : "Carregar grupos"}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Toda mensagem deste grupo será lida pelo webhook, o link convertido para afiliado
+                (quando for Mercado Livre) e gravada na data table abaixo. O agente nunca responde
+                neste grupo.
+              </p>
+              <div>
+                <Label>Cookie do Mercado Livre</Label>
+                <textarea
+                  className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                  value={mlCookie}
+                  onChange={(e) => setMlCookie(e.target.value)}
+                  placeholder="_d2id=...; orguserid=...; ..."
+                />
+              </div>
+              <div>
+                <Label>x-csrf-token</Label>
+                <Input value={mlCsrf} onChange={(e) => setMlCsrf(e.target.value)} />
+              </div>
+              <div>
+                <Label>Affiliate ID (matt_word)</Label>
+                <Input value={mlTag} onChange={(e) => setMlTag(e.target.value)} placeholder="hp20251103211257" />
+              </div>
             </div>
           )}
           {plataforma === "shopee" && (
