@@ -239,7 +239,7 @@ async function processCampaign(campaign: any) {
 
   for (const lead of fu2 ?? []) {
     if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
-    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true);
+    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true, nomeAtendente);
     const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
     await logAssistant(lead, instance, sent, failed);
     await admin.from("sdr_leads").update({
