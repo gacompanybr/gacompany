@@ -19,6 +19,38 @@ const N8N_KEY = Deno.env.get("N8N_API_KEY") ?? "";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+function dupWebhookPath(jobId: string): string {
+  return `dup-${String(jobId).slice(0, 8)}`;
+}
+
+async function forwardDupToN8n(payload: any, remoteJid: string) {
+  const { data: job, error } = await admin
+    .from("scrapper_jobs")
+    .select("id, n8n_workflow_id, status")
+    .eq("status", "ativo")
+    .eq("plataforma", "dup")
+    .eq("grupo_origem_jid", remoteJid)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[DUP] lookup fail", error.message);
+    return { ok: false, skipped: "db error", error: error.message };
+  }
+  if (!job) return { ok: true, skipped: "no matching DUP job" };
+  if (!N8N_BASE) return { ok: false, skipped: "N8N_BASE_URL missing", jobId: job.id };
+
+  const n8nHost = N8N_BASE.replace(/\/api\/v\d+$/, "");
+  const url = `${n8nHost}/webhook/${dupWebhookPath(job.id)}`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const text = await r.text().catch(() => "");
+  console.log("[DUP] forwarded to n8n", JSON.stringify({ jobId: job.id, workflowId: job.n8n_workflow_id, status: r.status, ok: r.ok, preview: text.slice(0, 200) }));
+  return { ok: r.ok, jobId: job.id, status: r.status, preview: text.slice(0, 200) };
+}
+
 // ============================================================================
 // DUP — Espelhamento de grupos de origem
 // ============================================================================
@@ -400,10 +432,15 @@ async function processPayload(payload: any) {
     const remoteJid = getRemoteJid(msg);
     if (!remoteJid) continue;
 
-    // Mensagens de grupo são tratadas pelo workflow n8n do agente, que faz
-    // fan-out para o dup-dispatcher. Aqui no webhook só atende 1:1.
+    // Mensagens de grupo: se o grupo for origem de um DUP ativo, encaminha
+    // direto para o webhook do workflow DUP no n8n. Assim funciona mesmo
+    // quando a Evolution está apontada para este webhook local do sistema.
     if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) {
-      console.log("ignorando grupo/broadcast", remoteJid);
+      if (remoteJid.endsWith("@g.us")) {
+        await forwardDupToN8n(payload, remoteJid);
+      } else {
+        console.log("ignorando grupo/broadcast", remoteJid);
+      }
       continue;
     }
 
