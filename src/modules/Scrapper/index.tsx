@@ -631,36 +631,40 @@ function JobDialog({
               </div>
             </div>
           )}
-          <div>
-            <Label>Termos de busca (separados por vírgula)</Label>
-            <Input
-              value={termos}
-              onChange={(e) => setTermos(e.target.value)}
-              placeholder="calcinha, lingerie, sutiã"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              O scrapper só vai buscar produtos com estes termos.
-            </p>
-          </div>
-          <div>
-            <Label>Categorias (opcional, separadas por vírgula)</Label>
-            <Input
-              value={categorias}
-              onChange={(e) => setCategorias(e.target.value)}
-              placeholder="moda íntima, lingerie feminina"
-            />
-          </div>
-          <div>
-            <Label>Frequência</Label>
-            <Select value={String(intervaloHoras)} onValueChange={(v) => setIntervaloHoras(Number(v))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {INTERVALOS.map((i) => (
-                  <SelectItem key={i.v} value={String(i.v)}>{i.l}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {plataforma !== "dup" && (
+            <>
+              <div>
+                <Label>Termos de busca (separados por vírgula)</Label>
+                <Input
+                  value={termos}
+                  onChange={(e) => setTermos(e.target.value)}
+                  placeholder="calcinha, lingerie, sutiã"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  O scrapper só vai buscar produtos com estes termos.
+                </p>
+              </div>
+              <div>
+                <Label>Categorias (opcional, separadas por vírgula)</Label>
+                <Input
+                  value={categorias}
+                  onChange={(e) => setCategorias(e.target.value)}
+                  placeholder="moda íntima, lingerie feminina"
+                />
+              </div>
+              <div>
+                <Label>Frequência</Label>
+                <Select value={String(intervaloHoras)} onValueChange={(v) => setIntervaloHoras(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INTERVALOS.map((i) => (
+                      <SelectItem key={i.v} value={String(i.v)}>{i.l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
           <div>
             <Label>Data table no n8n (destino dos produtos)</Label>
             <Input
