@@ -103,6 +103,17 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
 
   async function toggle(j: Job) {
     const ativar = j.status !== "ativo";
+    // DUP não tem workflow no n8n — é acionado pelo webhook em tempo real.
+    if (j.plataforma === "dup") {
+      const { error } = await supabase
+        .from("scrapper_jobs")
+        .update({ status: ativar ? "ativo" : "inativo" })
+        .eq("id", j.id);
+      if (error) return toast.error(error.message);
+      toast.success(ativar ? "Job DUP ativado!" : "Job DUP pausado");
+      qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] });
+      return;
+    }
     if (ativar && !j.n8n_workflow_id) {
       return toast.error("Salve o job antes de ativar (workflow n8n ainda não criado).");
     }
