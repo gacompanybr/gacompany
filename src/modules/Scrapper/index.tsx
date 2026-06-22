@@ -247,6 +247,10 @@ function JobDialog({
   const [maxProducts, setMaxProducts] = useState(0);
   const [busy, setBusy] = useState(false);
   const [shopeePages, setShopeePages] = useState(20);
+  // DUP — espelhamento de grupo de origem
+  const [grupoOrigemJid, setGrupoOrigemJid] = useState<string>("");
+  const [grupos, setGrupos] = useState<Array<{ id: string; nome: string }>>([]);
+  const [loadingGrupos, setLoadingGrupos] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -272,7 +276,30 @@ function JobDialog({
     setMinProducts(editing?.config?.min_products ?? 0);
     setMaxProducts(editing?.config?.max_products ?? 0);
     setShopeePages(editing?.config?.shopee_pages ?? 20);
+    setGrupoOrigemJid(editing?.grupo_origem_jid ?? "");
+    setGrupos([]);
   }, [open, editing, categoria]);
+
+  async function carregarGruposDup() {
+    setLoadingGrupos(true);
+    const { data: agent } = await supabase
+      .from("whatsapp_agents")
+      .select("id")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (!agent?.id) {
+      setLoadingGrupos(false);
+      return toast.error("Conecte um agente WhatsApp neste portfolio antes de carregar grupos");
+    }
+    const { data, error } = await supabase.functions.invoke("evolution-instance", {
+      body: { action: "groups", agentId: agent.id },
+    });
+    setLoadingGrupos(false);
+    if (error) return toast.error(error.message);
+    const gs = (data?.groups ?? []) as Array<{ id: string; nome: string }>;
+    setGrupos(gs);
+    if (!gs.length) toast.warning("Nenhum grupo encontrado nessa instância");
+  }
 
   // sugere nome da data table
   useEffect(() => {
