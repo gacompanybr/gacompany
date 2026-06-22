@@ -75,11 +75,14 @@ function buildWorkflow(opts: {
   webhookPath: string;
   systemPrompt: string;
   model: string;
-  temperature: number;
   maxTokens: number;
+  temperature: number;
   evoUrl: string;
+  dupDispatcherUrl: string;
+  dupSecret: string;
 }) {
-  const { name, webhookPath, systemPrompt, model, temperature, maxTokens, evoUrl } = opts;
+  const { name, webhookPath, systemPrompt, model, temperature, maxTokens, evoUrl, dupDispatcherUrl, dupSecret } = opts;
+
 
   const filterCode = `
 const raw = $input.first().json;
