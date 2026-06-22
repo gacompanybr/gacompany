@@ -78,7 +78,7 @@ async function logAssistant(lead: any, instance: string, parts: string[], failed
   await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
     portfolio_id: lead.portfolio_id,
     instance_name: instance,
-    contato_telefone: lead.telefone.replace(/^55/, ""),
+    contato_telefone: String(lead.telefone).replace(/\D/g, ""),
     contato_nome: lead.nome_resolvido ?? lead.nome ?? null,
     role: r.role,
     mensagem: r.mensagem,

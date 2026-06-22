@@ -338,16 +338,30 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: últimas 24h da conversa com esse contato (até 60 mensagens)
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: history } = await admin
-      .from("whatsapp_conversas")
-      .select("role, mensagem")
-      .eq("portfolio_id", portfolioId)
-      .eq("contato_telefone", phone)
-      .gte("created_at", since24h)
-      .order("created_at", { ascending: false })
-      .limit(60);
+    // Memória: para SDR, busca TODO o histórico do lead (sem janela de tempo, sem depender do formato do telefone)
+    // Para conversas normais: últimas 24h por telefone
+    let history: { role: string; mensagem: string }[] | null = null;
+    if (sdrLead) {
+      const { data } = await admin
+        .from("whatsapp_conversas")
+        .select("role, mensagem")
+        .eq("portfolio_id", portfolioId)
+        .eq("sdr_lead_id", sdrLead.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      history = data;
+    } else {
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await admin
+        .from("whatsapp_conversas")
+        .select("role, mensagem")
+        .eq("portfolio_id", portfolioId)
+        .eq("contato_telefone", phone)
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(60);
+      history = data;
+    }
 
     const recent = (history ?? []).reverse();
 
@@ -368,7 +382,7 @@ async function processPayload(payload: any) {
         `Nicho: ${sdrLead.nicho}`,
         `Motivo de contato: ${sdrLead.motivo_contato}`,
         `Seu objetivo nesta conversa é conduzir até o agendamento de uma call de 15 minutos.`,
-        `Você iniciou o contato — seja ativo, não espere o lead puxar o assunto.`,
+        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca pergunte "sobre o que você quer falar?" nem aja como se não soubesse o assunto: você sabe, foi você quem abordou. Retome o pitch, responda a objeção/pergunta do lead, e empurre para a call de 15 min.`,
         `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
       ].join("\n");
     }
