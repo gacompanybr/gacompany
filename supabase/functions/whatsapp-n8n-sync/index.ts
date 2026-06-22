@@ -404,6 +404,8 @@ Deno.serve(async (req) => {
     const webhookPath = agent.n8n_webhook_path || `wa-${portfolioId}`;
     const workflowName = `WhatsApp Agent — ${agent.nome_atendente || agent.nome || portfolioId.slice(0, 8)}`;
 
+    const dupDispatcherUrl = `${SUPABASE_URL}/functions/v1/dup-dispatcher`;
+    const dupSecret = Deno.env.get("SCRAPPER_API_SECRET") ?? "";
     const wf = buildWorkflow({
       name: workflowName,
       webhookPath,
@@ -412,7 +414,10 @@ Deno.serve(async (req) => {
       temperature: Number(agent.temperatura ?? 0.7),
       maxTokens: Number(agent.max_tokens ?? 500),
       evoUrl: EVO_URL,
+      dupDispatcherUrl,
+      dupSecret,
     });
+
 
     let workflowId = agent.n8n_workflow_id as string | null;
     let exists = false;
