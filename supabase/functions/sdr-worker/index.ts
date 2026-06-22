@@ -191,6 +191,14 @@ async function processCampaign(campaign: any) {
   const now = new Date();
   const nowIso = now.toISOString();
 
+  // Busca o nome do atendente configurado no Agente IA do portfólio
+  const { data: agentRow } = await admin
+    .from("whatsapp_agents")
+    .select("nome_atendente")
+    .eq("portfolio_id", campaign.portfolio_id)
+    .maybeSingle();
+  const nomeAtendente: string | null = agentRow?.nome_atendente?.trim() || null;
+
   // === Follow-ups ===
   // Follow-up 1: enviado, sem resposta há ≥24h, follow_up_count=0
   const fu1Cutoff = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
