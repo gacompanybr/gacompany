@@ -32,6 +32,7 @@ type Job = {
   n8n_workflow_id: string | null;
   ultimo_erro: string | null;
   ultima_affiliate_errors: number | null;
+  grupo_origem_jid: string | null;
   config: any;
 };
 
