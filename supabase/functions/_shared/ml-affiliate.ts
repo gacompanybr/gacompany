@@ -20,6 +20,88 @@ export function isMercadoLivreUrl(url: string): boolean {
   return /(?:^|\.)mercadolivre\.com\.br|mercadolibre\.com|produto\.mercadolivre|mercadolivre\.com|meli\.la/i.test(url);
 }
 
+function htmlDecode(s: string): string {
+  return String(s || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function unwrapTrackedUrl(u: string): string {
+  let s = htmlDecode(String(u || "").trim());
+  const paramM = s.match(/[?&](?:url|go)=([^&]+)/i);
+  if (paramM) { try { s = decodeURIComponent(paramM[1]); } catch { /* keep */ } }
+  const clickM = s.match(/click1\.mercadolivre\.com\.br\/mclics\/[^/]+\/(https?:\/\/[^\s"']+)/i);
+  if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch { s = clickM[1]; } }
+  return htmlDecode(s);
+}
+
+function sanitizeProductUrl(u: string): string {
+  let s = unwrapTrackedUrl(u);
+  if (/^\/\//.test(s)) s = "https:" + s;
+  try {
+    const url = new URL(s, "https://www.mercadolivre.com.br");
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return s.split("#")[0].split("?")[0];
+  }
+}
+
+function isMlProductUrl(url: string): boolean {
+  const s = String(url || "");
+  return /\/p\/MLB\d+/i.test(s)
+    || /produto\.mercadolivre\.com\.br\/MLB-?\d+/i.test(s)
+    || /\/MLB-?\d+/i.test(s);
+}
+
+function extractProductUrlFromHtml(html: string, baseUrl: string): string | null {
+  const raw = String(html || "");
+  const hrefRe = /href=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = hrefRe.exec(raw))) {
+    const candidate = sanitizeProductUrl(m[1]);
+    if (isMlProductUrl(candidate)) return candidate;
+  }
+  const productM = raw.match(/product_id["']?\s*[:=]\s*["'](MLB\d+)["']/i);
+  if (productM) return `https://www.mercadolivre.com.br/p/${productM[1]}`;
+  const metaM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\s]+)/i);
+  if (metaM) {
+    try {
+      const candidate = sanitizeProductUrl(new URL(htmlDecode(metaM[1]), baseUrl).toString());
+      if (isMlProductUrl(candidate)) return candidate;
+    } catch { /* keep */ }
+  }
+  const canM = raw.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+  if (canM) {
+    const candidate = sanitizeProductUrl(canM[1]);
+    if (isMlProductUrl(candidate)) return candidate;
+  }
+  return null;
+}
+
+async function resolveMlProductUrl(startUrl: string): Promise<string | null> {
+  const first = sanitizeProductUrl(startUrl);
+  if (isMlProductUrl(first)) return first;
+  try {
+    const resp = await fetch(startUrl, {
+      method: "GET",
+      redirect: "follow",
+      headers: { "user-agent": UA, "accept-language": "pt-BR,pt;q=0.9" },
+    });
+    const finalUrl = resp.url || startUrl;
+    const html = await resp.text().catch(() => "");
+    const product = extractProductUrlFromHtml(html, finalUrl);
+    if (product) return product;
+    const cleaned = sanitizeProductUrl(finalUrl);
+    if (isMlProductUrl(cleaned)) return cleaned;
+  } catch { /* keep */ }
+  return null;
+}
+
 export async function generateAffiliateLink(
   permalink: string,
   creds: AffiliateCreds,
@@ -29,10 +111,11 @@ export async function generateAffiliateLink(
   if (!creds.cookie || !creds.csrf || !creds.affiliateId) {
     return { ok: false, error: "MISSING_CREDS" };
   }
-  // Se já é um meli.la, devolve como está
-  if (/^https?:\/\/meli\.la\//i.test(url)) return { ok: true, shortUrl: url };
 
-  const payload = JSON.stringify({ urls: [url], tag: creds.affiliateId });
+  const productUrl = await resolveMlProductUrl(url);
+  if (!productUrl) return { ok: false, error: "INVALID_PERMALINK", detail: { reason: "not_product_url", url } };
+
+  const payload = JSON.stringify({ urls: [productUrl], tag: creds.affiliateId });
   let lastErr: unknown = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
