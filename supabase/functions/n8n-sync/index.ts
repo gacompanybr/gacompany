@@ -1291,13 +1291,13 @@ function unwrapTrackedUrl(u) {
   let s = htmlDecode(String(u || "").trim());
   const paramM = s.match(/[?&](?:url|go)=([^&]+)/i);
   if (paramM) { try { s = decodeURIComponent(paramM[1]); } catch (_) {} }
-  const clickM = s.match(/click1\.mercadolivre\.com\.br\/mclics\/[^\/]+\/(https?:\/\/[^\s"']+)/i);
+  const clickM = s.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s"']+)/i);
   if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch (_) { s = clickM[1]; } }
   return htmlDecode(s);
 }
 function sanitizeProductUrl(u) {
   let s = unwrapTrackedUrl(u);
-  if (/^\/\//.test(s)) s = "https:" + s;
+  if (/^\\/\\//.test(s)) s = "https:" + s;
   try {
     const url = new URL(s, "https://www.mercadolivre.com.br");
     url.search = "";
@@ -1309,9 +1309,9 @@ function sanitizeProductUrl(u) {
 }
 function isMlProductUrl(url) {
   const s = String(url || "");
-  return /\/p\/MLB\d+/i.test(s)
-    || /produto\.mercadolivre\.com\.br\/MLB-?\d+/i.test(s)
-    || /\/MLB-?\d+/i.test(s);
+  return /\\/p\\/MLB\\d+/i.test(s)
+    || /produto\\.mercadolivre\\.com\\.br\\/MLB-?\\d+/i.test(s)
+    || /\\/MLB-?\\d+/i.test(s);
 }
 function extractProductUrlFromHtml(html, baseUrl) {
   const raw = String(html || "");
@@ -1321,9 +1321,9 @@ function extractProductUrlFromHtml(html, baseUrl) {
     const candidate = sanitizeProductUrl(m[1]);
     if (isMlProductUrl(candidate)) return candidate;
   }
-  const productM = raw.match(/product_id["']?\s*[:=]\s*["'](MLB\d+)["']/i);
+  const productM = raw.match(/product_id["']?\\s*[:=]\\s*["'](MLB\\d+)["']/i);
   if (productM) return "https://www.mercadolivre.com.br/p/" + productM[1];
-  const metaM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\s]+)/i);
+  const metaM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\\s]+)/i);
   if (metaM) {
     try {
       const candidate = sanitizeProductUrl(new URL(htmlDecode(metaM[1]), baseUrl).toString());
