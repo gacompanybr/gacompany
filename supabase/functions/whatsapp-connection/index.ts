@@ -130,7 +130,7 @@ async function ensureSettings(instanceName: string) {
     body: JSON.stringify({
       rejectCall: false,
       msgCall: "",
-      groupsIgnore: true,
+      groupsIgnore: false,
       alwaysOnline: true,
       readMessages: true,
       readStatus: true,
