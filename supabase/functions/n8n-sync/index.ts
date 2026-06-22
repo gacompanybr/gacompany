@@ -1644,8 +1644,9 @@ Deno.serve(async (req) => {
         if (!datatableId) throw new Error(`Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}`);
       }
 
-      // 2. Monta e faz upsert do workflow
-      const wf = buildScrapperWorkflow(job);
+      // 2. Monta e faz upsert do workflow (DUP usa builder próprio)
+      const wf = job.plataforma === "dup" ? buildDupWorkflow(job) : buildScrapperWorkflow(job);
+
       let result: any;
       if (job.n8n_workflow_id) {
         try {
