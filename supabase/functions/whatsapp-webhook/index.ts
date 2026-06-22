@@ -382,7 +382,7 @@ async function processPayload(payload: any) {
         `Nicho: ${sdrLead.nicho}`,
         `Motivo de contato: ${sdrLead.motivo_contato}`,
         `Seu objetivo nesta conversa é conduzir até o agendamento de uma call de 15 minutos.`,
-        `Você iniciou o contato — seja ativo, não espere o lead puxar o assunto.`,
+        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca pergunte "sobre o que você quer falar?" nem aja como se não soubesse o assunto: você sabe, foi você quem abordou. Retome o pitch, responda a objeção/pergunta do lead, e empurre para a call de 15 min.`,
         `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
       ].join("\n");
     }
