@@ -1279,6 +1279,65 @@ function extract(payload) {
   return { text: (text || "").trim(), imageUrl, remoteJid };
 }
 
+function htmlDecode(s) {
+  return String(s || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+function unwrapTrackedUrl(u) {
+  let s = htmlDecode(String(u || "").trim());
+  const paramM = s.match(/[?&](?:url|go)=([^&]+)/i);
+  if (paramM) { try { s = decodeURIComponent(paramM[1]); } catch (_) {} }
+  const clickM = s.match(/click1\.mercadolivre\.com\.br\/mclics\/[^\/]+\/(https?:\/\/[^\s"']+)/i);
+  if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch (_) { s = clickM[1]; } }
+  return htmlDecode(s);
+}
+function sanitizeProductUrl(u) {
+  let s = unwrapTrackedUrl(u);
+  if (/^\/\//.test(s)) s = "https:" + s;
+  try {
+    const url = new URL(s, "https://www.mercadolivre.com.br");
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch (_) {
+    return s.split("#")[0].split("?")[0];
+  }
+}
+function isMlProductUrl(url) {
+  const s = String(url || "");
+  return /\/p\/MLB\d+/i.test(s)
+    || /produto\.mercadolivre\.com\.br\/MLB-?\d+/i.test(s)
+    || /\/MLB-?\d+/i.test(s);
+}
+function extractProductUrlFromHtml(html, baseUrl) {
+  const raw = String(html || "");
+  const hrefRe = /href=["']([^"']+)["']/gi;
+  let m;
+  while ((m = hrefRe.exec(raw))) {
+    const candidate = sanitizeProductUrl(m[1]);
+    if (isMlProductUrl(candidate)) return candidate;
+  }
+  const productM = raw.match(/product_id["']?\s*[:=]\s*["'](MLB\d+)["']/i);
+  if (productM) return "https://www.mercadolivre.com.br/p/" + productM[1];
+  const metaM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\s]+)/i);
+  if (metaM) {
+    try {
+      const candidate = sanitizeProductUrl(new URL(htmlDecode(metaM[1]), baseUrl).toString());
+      if (isMlProductUrl(candidate)) return candidate;
+    } catch (_) {}
+  }
+  const canM = raw.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+  if (canM) {
+    const candidate = sanitizeProductUrl(canM[1]);
+    if (isMlProductUrl(candidate)) return candidate;
+  }
+  return null;
+}
+
 async function resolveFinalUrl(startUrl) {
   // 1) fetch nativo segue redirects e expõe a URL final em response.url
   try {
