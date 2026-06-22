@@ -1748,10 +1748,15 @@ Deno.serve(async (req) => {
           if (job.status === "ativo") throw e;
         }
       }
+      let evolutionCapture: any = null;
+      if (job.plataforma === "dup") {
+        evolutionCapture = await ensureDupEvolutionCapture(admin, job.portfolio_id);
+      }
+
       await admin.from("scrapper_jobs")
         .update({ n8n_workflow_id: workflowId, n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
-      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation });
+      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation, evolutionCapture });
     }
 
     if (action === "activate" || action === "deactivate") {
