@@ -32,6 +32,7 @@ type Job = {
   n8n_workflow_id: string | null;
   ultimo_erro: string | null;
   ultima_affiliate_errors: number | null;
+  grupo_origem_jid: string | null;
   config: any;
 };
 
@@ -102,6 +103,17 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
 
   async function toggle(j: Job) {
     const ativar = j.status !== "ativo";
+    // DUP não tem workflow no n8n — é acionado pelo webhook em tempo real.
+    if (j.plataforma === "dup") {
+      const { error } = await supabase
+        .from("scrapper_jobs")
+        .update({ status: ativar ? "ativo" : "inativo" })
+        .eq("id", j.id);
+      if (error) return toast.error(error.message);
+      toast.success(ativar ? "Job DUP ativado!" : "Job DUP pausado");
+      qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] });
+      return;
+    }
     if (ativar && !j.n8n_workflow_id) {
       return toast.error("Salve o job antes de ativar (workflow n8n ainda não criado).");
     }
@@ -213,6 +225,7 @@ const PREFIX: Record<string, string> = {
   shopee: "SHOPEE",
   mercado_livre: "ML",
   amazon: "AMZ",
+  dup: "DUP",
 };
 
 function JobDialog({
@@ -246,6 +259,10 @@ function JobDialog({
   const [maxProducts, setMaxProducts] = useState(0);
   const [busy, setBusy] = useState(false);
   const [shopeePages, setShopeePages] = useState(20);
+  // DUP — espelhamento de grupo de origem
+  const [grupoOrigemJid, setGrupoOrigemJid] = useState<string>("");
+  const [grupos, setGrupos] = useState<Array<{ id: string; nome: string }>>([]);
+  const [loadingGrupos, setLoadingGrupos] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -271,7 +288,30 @@ function JobDialog({
     setMinProducts(editing?.config?.min_products ?? 0);
     setMaxProducts(editing?.config?.max_products ?? 0);
     setShopeePages(editing?.config?.shopee_pages ?? 20);
+    setGrupoOrigemJid(editing?.grupo_origem_jid ?? "");
+    setGrupos([]);
   }, [open, editing, categoria]);
+
+  async function carregarGruposDup() {
+    setLoadingGrupos(true);
+    const { data: agent } = await supabase
+      .from("whatsapp_agents")
+      .select("id")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    if (!agent?.id) {
+      setLoadingGrupos(false);
+      return toast.error("Conecte um agente WhatsApp neste portfolio antes de carregar grupos");
+    }
+    const { data, error } = await supabase.functions.invoke("evolution-instance", {
+      body: { action: "groups", agentId: agent.id },
+    });
+    setLoadingGrupos(false);
+    if (error) return toast.error(error.message);
+    const gs = (data?.groups ?? []) as Array<{ id: string; nome: string }>;
+    setGrupos(gs);
+    if (!gs.length) toast.warning("Nenhum grupo encontrado nessa instância");
+  }
 
   // sugere nome da data table
   useEffect(() => {
@@ -288,10 +328,16 @@ function JobDialog({
     if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
       return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre");
     }
+    if (plataforma === "dup") {
+      if (!grupoOrigemJid) return toast.error("Selecione o grupo de origem");
+      if (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim()) {
+        return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre (para encurtar os links)");
+      }
+    }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
     const catsArr = categorias.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!termosArr.length && !catsArr.length) {
+    if (plataforma !== "dup" && !termosArr.length && !catsArr.length) {
       return toast.error("Informe pelo menos um termo ou categoria");
     }
 
@@ -302,12 +348,14 @@ function JobDialog({
       config.shopee_pages = shopeePages;
       config.shopee_secret = shopeeSecret.trim();
     }
-    if (plataforma === "mercado_livre") {
+    if (plataforma === "mercado_livre" || plataforma === "dup") {
       config.ml_cookie = mlCookie.trim();
       config.ml_csrf_token = mlCsrf.trim();
       config.ml_affiliate_id = mlTag.trim();
       config.ml_affiliate_tag = mlTag.trim(); // back-compat
       config.ml_tool_id = mlToolId.trim();
+    }
+    if (plataforma === "mercado_livre") {
       config.ml_pages = mlPages;
       config.ml_min_discount = mlMinDiscount;
       config.ml_default_commission_rate = mlDefaultCommissionRate;
@@ -328,6 +376,7 @@ function JobDialog({
       config,
       intervalo_horas: intervaloHoras,
       data_table_name: dataTableName.trim(),
+      grupo_origem_jid: plataforma === "dup" ? grupoOrigemJid : null,
       // cron com horário fixo (evita "deslize" quando o n8n reinicia)
       // 24h -> todo dia 07:00 BRT (10:00 UTC); sub-diário -> a cada N horas
       agendamento_cron: intervaloHoras >= 24 ? "0 10 * * *" : `0 */${intervaloHoras} * * *`,
@@ -342,6 +391,16 @@ function JobDialog({
         .from("scrapper_jobs").insert(payload).select("id").single();
       if (error) { setBusy(false); return toast.error(error.message); }
       jobId = (inserted as any).id;
+    }
+
+    // DUP não precisa de workflow no n8n — o webhook que faz o trabalho.
+    // O usuário pode usar "Recriar data table" no viewer para criar a tabela.
+    if (plataforma === "dup") {
+      setBusy(false);
+      toast.success("Job DUP salvo! Abra a data table para criá-la no n8n e ative o job.");
+      onOpenChange(false);
+      onSaved();
+      return;
     }
 
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
@@ -383,7 +442,62 @@ function JobDialog({
           ) : (
             <div>
               <Label>Identificador</Label>
-              <Input value={plataforma} onChange={(e) => setPlataforma(e.target.value)} placeholder="custom" />
+              <Input
+                value={plataforma}
+                onChange={(e) => setPlataforma(e.target.value)}
+                placeholder="custom · use 'dup' p/ espelhar grupo"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Use <code>dup</code> para espelhar ofertas de um grupo WhatsApp para a sua data table.
+              </p>
+            </div>
+          )}
+          {plataforma === "dup" && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <div className="text-xs font-semibold uppercase text-primary">
+                Espelhamento de grupo (DUP)
+              </div>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 min-w-0">
+                  <Label>Grupo de origem</Label>
+                  <Select value={grupoOrigemJid} onValueChange={setGrupoOrigemJid}>
+                    <SelectTrigger><SelectValue placeholder="Selecione um grupo" /></SelectTrigger>
+                    <SelectContent>
+                      {grupoOrigemJid && !grupos.find((g) => g.id === grupoOrigemJid) && (
+                        <SelectItem value={grupoOrigemJid}>{grupoOrigemJid}</SelectItem>
+                      )}
+                      {grupos.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={carregarGruposDup} disabled={loadingGrupos}>
+                  {loadingGrupos ? <Loader2 size={12} className="animate-spin" /> : "Carregar grupos"}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Toda mensagem deste grupo será lida pelo webhook, o link convertido para afiliado
+                (quando for Mercado Livre) e gravada na data table abaixo. O agente nunca responde
+                neste grupo.
+              </p>
+              <div>
+                <Label>Cookie do Mercado Livre</Label>
+                <textarea
+                  className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
+                  value={mlCookie}
+                  onChange={(e) => setMlCookie(e.target.value)}
+                  placeholder="_d2id=...; orguserid=...; ..."
+                />
+              </div>
+              <div>
+                <Label>x-csrf-token</Label>
+                <Input value={mlCsrf} onChange={(e) => setMlCsrf(e.target.value)} />
+              </div>
+              <div>
+                <Label>Affiliate ID (matt_word)</Label>
+                <Input value={mlTag} onChange={(e) => setMlTag(e.target.value)} placeholder="hp20251103211257" />
+              </div>
             </div>
           )}
           {plataforma === "shopee" && (
@@ -517,36 +631,40 @@ function JobDialog({
               </div>
             </div>
           )}
-          <div>
-            <Label>Termos de busca (separados por vírgula)</Label>
-            <Input
-              value={termos}
-              onChange={(e) => setTermos(e.target.value)}
-              placeholder="calcinha, lingerie, sutiã"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              O scrapper só vai buscar produtos com estes termos.
-            </p>
-          </div>
-          <div>
-            <Label>Categorias (opcional, separadas por vírgula)</Label>
-            <Input
-              value={categorias}
-              onChange={(e) => setCategorias(e.target.value)}
-              placeholder="moda íntima, lingerie feminina"
-            />
-          </div>
-          <div>
-            <Label>Frequência</Label>
-            <Select value={String(intervaloHoras)} onValueChange={(v) => setIntervaloHoras(Number(v))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {INTERVALOS.map((i) => (
-                  <SelectItem key={i.v} value={String(i.v)}>{i.l}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {plataforma !== "dup" && (
+            <>
+              <div>
+                <Label>Termos de busca (separados por vírgula)</Label>
+                <Input
+                  value={termos}
+                  onChange={(e) => setTermos(e.target.value)}
+                  placeholder="calcinha, lingerie, sutiã"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  O scrapper só vai buscar produtos com estes termos.
+                </p>
+              </div>
+              <div>
+                <Label>Categorias (opcional, separadas por vírgula)</Label>
+                <Input
+                  value={categorias}
+                  onChange={(e) => setCategorias(e.target.value)}
+                  placeholder="moda íntima, lingerie feminina"
+                />
+              </div>
+              <div>
+                <Label>Frequência</Label>
+                <Select value={String(intervaloHoras)} onValueChange={(v) => setIntervaloHoras(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INTERVALOS.map((i) => (
+                      <SelectItem key={i.v} value={String(i.v)}>{i.l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
           <div>
             <Label>Data table no n8n (destino dos produtos)</Label>
             <Input

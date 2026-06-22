@@ -1170,6 +1170,7 @@ export type Database = {
           config: Json
           created_at: string
           data_table_name: string | null
+          grupo_origem_jid: string | null
           id: string
           intervalo_horas: number
           n8n_datatable_id: string | null
@@ -1191,6 +1192,7 @@ export type Database = {
           config?: Json
           created_at?: string
           data_table_name?: string | null
+          grupo_origem_jid?: string | null
           id?: string
           intervalo_horas?: number
           n8n_datatable_id?: string | null
@@ -1212,6 +1214,7 @@ export type Database = {
           config?: Json
           created_at?: string
           data_table_name?: string | null
+          grupo_origem_jid?: string | null
           id?: string
           intervalo_horas?: number
           n8n_datatable_id?: string | null
