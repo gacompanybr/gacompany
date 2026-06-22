@@ -213,7 +213,7 @@ async function processCampaign(campaign: any) {
 
   for (const lead of fu1 ?? []) {
     if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
-    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false);
+    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
     const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
     await logAssistant(lead, instance, sent, failed);
     if (sent.length) {
