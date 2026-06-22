@@ -78,6 +78,44 @@ function getMessageText(msg: any): string {
   ).trim();
 }
 
+function normalizePhoneDigits(raw: unknown): string {
+  const value = typeof raw === "string" ? raw : String(raw ?? "");
+  if (!value || value.includes("@lid")) return "";
+  const digits = value.split("@")[0].replace(/\D/g, "");
+  // Telefones WhatsApp internacionais normalmente ficam entre 8 e 15 dígitos.
+  if (digits.length < 8 || digits.length > 15) return "";
+  return digits;
+}
+
+function getPhoneCandidates(msg: any, remoteJid: string, phone: string, sendTargets: string[]): string[] {
+  const key = msg.key ?? {};
+  const values = [
+    phone,
+    remoteJid,
+    ...sendTargets,
+    asText(key.previousRemoteJid),
+    asText(msg.previousRemoteJid),
+    asText(msg.data?.key?.previousRemoteJid),
+    asText(key.senderPn),
+    asText(key.participantPn),
+    asText(key.remoteJidAlt),
+    asText(msg.remoteJidAlt),
+    asText(msg.data?.key?.senderPn),
+    asText(msg.data?.key?.remoteJidAlt),
+  ];
+  return Array.from(new Set(values.map(normalizePhoneDigits).filter(Boolean)));
+}
+
+function phoneSuffixes(candidates: string[]): string[] {
+  return Array.from(new Set(candidates.map((phone) => phone.slice(-11)).filter((phone) => phone.length >= 8)));
+}
+
+function matchesPhone(value: unknown, suffixes: string[]): boolean {
+  const digits = normalizePhoneDigits(value);
+  if (!digits || !suffixes.length) return false;
+  return suffixes.some((suffix) => digits.endsWith(suffix) || suffix.endsWith(digits));
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -102,7 +140,7 @@ function buildSystemPrompt(agent: any): string {
     `Tom de voz: ${tom}.`,
     agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
-    "\nMEMÓRIA: As mensagens anteriores desta conversa (últimas 24h) estão no histórico abaixo. SEMPRE leia e use esse histórico para lembrar o que o cliente já disse — nome, pedidos, dúvidas, contexto. Se a pessoa perguntar 'lembra do que eu te falei?', responda baseado no que está no histórico.",
+    "\nMEMÓRIA: As mensagens anteriores desta conversa estão no histórico abaixo. SEMPRE leia e use esse histórico antes de responder para lembrar contexto, abordagem, objeções, pedidos e onde a conversa parou. Se não houver contexto útil, aí sim responda em modo receptivo normal.",
     "\nFORMATO DE RESPOSTA: Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA. Se precisar dizer mais de uma frase, separe as mensagens usando ||| (três pipes) entre os pedaços — assim cada parte vira uma mensagem curta enviada em sequência. Cada parte deve caber em 2-3 linhas.",
   ].filter(Boolean).join("\n");
 }
@@ -219,6 +257,9 @@ async function processPayload(payload: any) {
 
     const phone = getContactPhone(msg, remoteJid);
     const sendTargets = getSendTargets(msg, remoteJid);
+    const phoneCandidates = getPhoneCandidates(msg, remoteJid, phone, sendTargets);
+    const phoneSuffixList = phoneSuffixes(phoneCandidates);
+    const storagePhone = phoneCandidates[0] || normalizePhoneDigits(phone) || phone;
     const pushName: string | null = msg.pushName ?? null;
     console.log("messageTargetContext", JSON.stringify({
       instance,
@@ -227,6 +268,7 @@ async function processPayload(payload: any) {
       previousRemoteJid: asText(msg.key?.previousRemoteJid),
       remoteJidAlt: asText(msg.key?.remoteJidAlt) || asText(msg.remoteJidAlt),
       sendTargets,
+      phoneCandidates,
     }));
 
     // Resolver portfolio_id pela instância
@@ -261,10 +303,8 @@ async function processPayload(payload: any) {
     }
 
     // === SDR lookup: telefone pertence a um lead ativo? ===
-    const phoneDigits = phone.replace(/\D/g, "");
-    const phoneSuffix = phoneDigits.slice(-11);
     let sdrLead: any = null;
-    if (phoneSuffix) {
+    if (phoneSuffixList.length) {
       const { data: leads } = await admin
         .from("sdr_leads")
         .select("*, sdr_campaigns!inner(status)")
@@ -273,9 +313,29 @@ async function processPayload(payload: any) {
         .order("ultima_mensagem_em", { ascending: false })
         .limit(50);
       sdrLead = (leads ?? []).find((l: any) => {
-        const d = String(l.telefone).replace(/\D/g, "");
-        return d.slice(-11) === phoneSuffix && ["draft", "running", "paused", "finished"].includes(l.sdr_campaigns?.status);
+        return matchesPhone(l.telefone, phoneSuffixList) && ["draft", "running", "paused", "finished"].includes(l.sdr_campaigns?.status);
       }) ?? null;
+    }
+
+    // Fallback essencial: se a conversa já tem vínculo SDR salvo, usa esse vínculo mesmo
+    // quando o WhatsApp chega por @lid ou com outro formato de telefone.
+    if (!sdrLead && phoneSuffixList.length) {
+      const { data: linkedConversations } = await admin
+        .from("whatsapp_conversas")
+        .select("sdr_lead_id, contato_telefone, created_at")
+        .eq("portfolio_id", portfolioId)
+        .not("sdr_lead_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(250);
+      const linked = (linkedConversations ?? []).find((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
+      if (linked?.sdr_lead_id) {
+        const { data: leadByConversation } = await admin
+          .from("sdr_leads")
+          .select("*, sdr_campaigns(status)")
+          .eq("id", linked.sdr_lead_id)
+          .maybeSingle();
+        sdrLead = leadByConversation ?? null;
+      }
     }
 
     // Gate manual: só responde se o agente estiver explicitamente ativo
@@ -284,7 +344,7 @@ async function processPayload(payload: any) {
       await admin.from("whatsapp_conversas").insert({
         portfolio_id: portfolioId,
         instance_name: instance,
-        contato_telefone: phone,
+        contato_telefone: storagePhone,
         contato_nome: pushName,
         role: "user",
         mensagem: text,
@@ -297,7 +357,7 @@ async function processPayload(payload: any) {
     await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,
       instance_name: instance,
-      contato_telefone: phone,
+      contato_telefone: storagePhone,
       contato_nome: pushName,
       role: "user",
       mensagem: text,
@@ -328,18 +388,19 @@ async function processPayload(payload: any) {
           await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
             portfolio_id: portfolioId,
             instance_name: instance,
-            contato_telefone: phone,
+            contato_telefone: storagePhone,
             contato_nome: pushName,
             role: r.role,
             mensagem: r.mensagem,
+            sdr_lead_id: sdrLead?.id ?? null,
           })));
         }
       }
       continue;
     }
 
-    // Memória: para SDR, busca TODO o histórico do lead (sem janela de tempo, sem depender do formato do telefone)
-    // Para conversas normais: últimas 24h por telefone
+    // Memória: sempre tenta reconstruir a conversa atual inteira.
+    // SDR: histórico completo por lead. Normal: histórico recente por qualquer formato conhecido do telefone.
     let history: { role: string; mensagem: string }[] | null = null;
     if (sdrLead) {
       const { data } = await admin
@@ -351,16 +412,13 @@ async function processPayload(payload: any) {
         .limit(100);
       history = data;
     } else {
-      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data } = await admin
         .from("whatsapp_conversas")
-        .select("role, mensagem")
+        .select("role, mensagem, contato_telefone, created_at")
         .eq("portfolio_id", portfolioId)
-        .eq("contato_telefone", phone)
-        .gte("created_at", since24h)
         .order("created_at", { ascending: false })
-        .limit(60);
-      history = data;
+        .limit(160);
+      history = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList)).slice(0, 80);
     }
 
     const recent = (history ?? []).reverse();
@@ -381,8 +439,9 @@ async function processPayload(payload: any) {
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
         `Nicho: ${sdrLead.nicho}`,
         `Motivo de contato: ${sdrLead.motivo_contato}`,
-        `Seu objetivo nesta conversa é conduzir até o agendamento de uma call de 15 minutos.`,
-        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca pergunte "sobre o que você quer falar?" nem aja como se não soubesse o assunto: você sabe, foi você quem abordou. Retome o pitch, responda a objeção/pergunta do lead, e empurre para a call de 15 min.`,
+        `Seu objetivo nesta conversa é vender o serviço da GA Company e conduzir até o agendamento de uma call de 15 minutos.`,
+        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca abra com "Olá, como posso ajudar?", nunca pergunte "sobre o que você quer falar?" e nunca aja como se fosse a primeira mensagem.`,
+        `Se o lead responder com objeção, desinteresse ou dúvida, responda usando o contexto da abordagem anterior, trate a objeção e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
         `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
       ].join("\n");
     }
@@ -418,7 +477,7 @@ async function processPayload(payload: any) {
       await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
         portfolio_id: portfolioId,
         instance_name: instance,
-        contato_telefone: phone,
+        contato_telefone: storagePhone,
         contato_nome: pushName,
         role: r.role,
         mensagem: r.mensagem,
