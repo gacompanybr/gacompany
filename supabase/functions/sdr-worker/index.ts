@@ -263,7 +263,7 @@ async function processCampaign(campaign: any) {
   let dispatched = 0;
   for (const lead of pending ?? []) {
     const nameResolved = await resolveName(instance, lead);
-    const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato);
+    const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
     await sleep(rand(8000, 16000));
     const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
     await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, sent, failed);
