@@ -1339,22 +1339,25 @@ function extractProductUrlFromHtml(html, baseUrl) {
 }
 
 async function resolveFinalUrl(startUrl) {
-  // 1) fetch nativo segue redirects e expõe a URL final em response.url
+  const first = sanitizeProductUrl(startUrl);
+  if (isMlProductUrl(first)) return first;
+
+  // 1) segue redirects, mas não aceita /social com afiliado antigo como URL final.
+  // A página intermediária contém o href real do produto no card/botão.
   try {
     const r = await fetch(startUrl, {
       method: "GET", redirect: "follow",
       headers: { "User-Agent": UA, "accept-language": "pt-BR,pt;q=0.9" },
     });
-    let finalUrl = r.url || startUrl;
-    if (finalUrl && !/^https?:\\/\\/meli\\.la\\//i.test(finalUrl)) return finalUrl;
-    // ainda meli.la? tenta meta-refresh ou canonical no HTML
+    const finalUrl = r.url || startUrl;
     const html = await r.text().catch(() => "");
-    const metaM = html.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\\s]+)/i);
-    if (metaM) { try { return (new URL(metaM[1], finalUrl)).toString(); } catch (_) {} }
-    const canM = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
-    if (canM && !/meli\\.la/i.test(canM[1])) return canM[1];
+    const productFromHtml = extractProductUrlFromHtml(html, finalUrl);
+    if (productFromHtml) return productFromHtml;
+    const cleanedFinal = sanitizeProductUrl(finalUrl);
+    if (isMlProductUrl(cleanedFinal)) return cleanedFinal;
   } catch (_) {}
-  // 2) fallback: chain manual via httpRequest
+
+  // 2) fallback: chain manual via httpRequest e lê o HTML do último destino.
   let cur = startUrl;
   for (let i = 0; i < 8; i++) {
     let resp = null;
@@ -1362,7 +1365,7 @@ async function resolveFinalUrl(startUrl) {
       resp = await http({
         method: "GET", url: cur,
         followRedirect: false, returnFullResponse: true,
-        headers: { "User-Agent": UA },
+        headers: { "User-Agent": UA, "accept-language": "pt-BR,pt;q=0.9" },
       });
     } catch (e) {
       resp = (e && e.response) || (e && e.cause && e.cause.response) || null;
@@ -1376,9 +1379,13 @@ async function resolveFinalUrl(startUrl) {
       try { cur = (new URL(loc, cur)).toString(); } catch (_) { cur = loc; }
       continue;
     }
+    const raw = resp.body !== undefined ? resp.body : resp;
+    const html = typeof raw === "string" ? raw : JSON.stringify(raw || "");
+    const productFromHtml = extractProductUrlFromHtml(html, cur);
+    if (productFromHtml) return productFromHtml;
     break;
   }
-  return cur;
+  return sanitizeProductUrl(cur);
 }
 
 async function generateAffiliate(permalink) {
