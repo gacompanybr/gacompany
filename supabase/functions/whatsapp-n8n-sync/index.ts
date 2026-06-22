@@ -285,15 +285,51 @@ return [{ json: { instance: prev.instance, number, text: prev.text } }];
     },
   ];
 
+  // Nó paralelo: encaminha mensagens de grupo (@g.us) para o dup-dispatcher
+  // que decide se aquele grupo é origem de um job DUP ativo e roteia para o
+  // workflow DUP correto. Sempre retorna [] (terminal).
+  const fanOutCode = `
+const raw = $input.first().json;
+const body = raw.body || raw;
+const eventName = String(body.event || body.eventName || '').toLowerCase();
+if (eventName && !eventName.includes('messages.upsert') && !eventName.includes('messages_upsert')) return [];
+const data = body.data || {};
+const msg = Array.isArray(data.messages) ? data.messages[0] : data;
+const key = (msg && msg.key) || {};
+const jid = String(key.remoteJid || msg.remoteJid || msg.chatId || '');
+if (!jid.endsWith('@g.us')) return [];
+try {
+  await this.helpers.httpRequest({
+    method: 'POST',
+    url: ${JSON.stringify(dupDispatcherUrl)},
+    headers: { 'Content-Type': 'application/json', 'x-dup-secret': ${JSON.stringify(dupSecret)} },
+    body: raw, json: true,
+  });
+} catch (e) { /* swallow — dispatcher loga */ }
+return [];
+`.trim();
+
+  nodes.push({
+    parameters: { jsCode: fanOutCode },
+    id: "node-dup-fanout",
+    name: "Fan-out DUP",
+    type: "n8n-nodes-base.code",
+    typeVersion: 2,
+    position: [480, 520],
+  });
 
   const connections = {
-    "Evolution Webhook": { main: [[{ node: "Filtrar mensagem", type: "main", index: 0 }]] },
+    "Evolution Webhook": { main: [[
+      { node: "Filtrar mensagem", type: "main", index: 0 },
+      { node: "Fan-out DUP", type: "main", index: 0 },
+    ]] },
     "Filtrar mensagem": { main: [[{ node: "Lovable AI", type: "main", index: 0 }]] },
     "Lovable AI": { main: [[{ node: "Preparar envio", type: "main", index: 0 }]] },
     "Preparar envio": { main: [[{ node: "Resolver JID", type: "main", index: 0 }]] },
     "Resolver JID": { main: [[{ node: "Usar JID resolvido", type: "main", index: 0 }]] },
     "Usar JID resolvido": { main: [[{ node: "Enviar WhatsApp", type: "main", index: 0 }]] },
   };
+
 
 
   return {
