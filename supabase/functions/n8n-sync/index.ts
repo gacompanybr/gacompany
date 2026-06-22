@@ -38,6 +38,82 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
   return data;
 }
 
+async function evolutionFetch(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${EVO_URL}${path}`, {
+    ...init,
+    headers: {
+      apikey: EVO_KEY,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  const text = await res.text();
+  let body: any = text;
+  try { body = JSON.parse(text); } catch { /* keep */ }
+  return { ok: res.ok, status: res.status, body };
+}
+
+async function ensureDupEvolutionCapture(admin: ReturnType<typeof createClient>, portfolioId: string) {
+  const { data: conn } = await admin
+    .from("whatsapp_connections")
+    .select("instance_name")
+    .eq("portfolio_id", portfolioId)
+    .maybeSingle();
+  let instanceName = conn?.instance_name ?? "";
+  if (!instanceName) {
+    const { data: agent } = await admin
+      .from("whatsapp_agents")
+      .select("instancia_id")
+      .eq("portfolio_id", portfolioId)
+      .maybeSingle();
+    instanceName = agent?.instancia_id ?? "";
+  }
+  if (!instanceName) return { ok: false, skipped: "no whatsapp instance" };
+
+  const settings = await evolutionFetch(`/settings/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      rejectCall: false,
+      msgCall: "",
+      groupsIgnore: false,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: false,
+    }),
+  });
+
+  const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+  const webhook = await evolutionFetch(`/webhook/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: false,
+        webhook_by_events: false,
+        byEvents: false,
+        base64: false,
+        webhookBase64: false,
+        webhook_base64: false,
+        events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "SEND_MESSAGE_UPDATE", "CONNECTION_UPDATE"],
+      },
+      enabled: true,
+      url: webhookUrl,
+      webhookByEvents: false,
+      webhook_by_events: false,
+      webhookBase64: false,
+      webhook_base64: false,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "SEND_MESSAGE_UPDATE", "CONNECTION_UPDATE"],
+    }),
+  });
+
+  console.log("DUP evolution capture", JSON.stringify({ instanceName, settings: settings.status, webhook: webhook.status }));
+  return { ok: settings.ok && webhook.ok, instanceName, settings: settings.status, webhook: webhook.status };
+}
+
 const MARKETPLACE_PREFIX: Record<string, string> = {
   shopee: "SHOPEE",
   mercadolivre: "ML",
