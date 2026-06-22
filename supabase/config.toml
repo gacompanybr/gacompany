@@ -30,6 +30,11 @@ verify_jwt = false
 [functions.sdr-worker]
 verify_jwt = false
 
+[functions.dup-dispatcher]
+verify_jwt = false
+
+
+
 
 
 

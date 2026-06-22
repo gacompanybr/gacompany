@@ -103,17 +103,10 @@ function JobList({ portfolioId, categoria }: { portfolioId: string; categoria: s
 
   async function toggle(j: Job) {
     const ativar = j.status !== "ativo";
-    // DUP não tem workflow no n8n — é acionado pelo webhook em tempo real.
-    if (j.plataforma === "dup") {
-      const { error } = await supabase
-        .from("scrapper_jobs")
-        .update({ status: ativar ? "ativo" : "inativo" })
-        .eq("id", j.id);
-      if (error) return toast.error(error.message);
-      toast.success(ativar ? "Job DUP ativado!" : "Job DUP pausado");
-      qc.invalidateQueries({ queryKey: ["scrapper", portfolioId, categoria] });
-      return;
+    if (ativar && !j.n8n_workflow_id) {
+      return toast.error("Salve o job antes de ativar (workflow n8n ainda não criado).");
     }
+
     if (ativar && !j.n8n_workflow_id) {
       return toast.error("Salve o job antes de ativar (workflow n8n ainda não criado).");
     }
@@ -393,15 +386,8 @@ function JobDialog({
       jobId = (inserted as any).id;
     }
 
-    // DUP não precisa de workflow no n8n — o webhook que faz o trabalho.
-    // O usuário pode usar "Recriar data table" no viewer para criar a tabela.
-    if (plataforma === "dup") {
-      setBusy(false);
-      toast.success("Job DUP salvo! Abra a data table para criá-la no n8n e ative o job.");
-      onOpenChange(false);
-      onSaved();
-      return;
-    }
+    // DUP agora também cria workflow n8n (com trigger webhook + parser + afiliado ML)
+
 
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
       body: { action: "upsert_scrapper_workflow", jobId },
