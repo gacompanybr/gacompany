@@ -1465,6 +1465,9 @@ try {
       if (/^https?:\\/\\/meli\\.la\\//i.test(realUrl)) {
         throw new Error("não conseguiu expandir meli.la: " + original);
       }
+      if (!isMlProductUrl(realUrl)) {
+        throw new Error("link resolvido ainda não é produto ML: " + realUrl);
+      }
       // limpa querystring (remove tag de afiliado de terceiros, matt_*, etc.)
       let clean = realUrl;
       try {
