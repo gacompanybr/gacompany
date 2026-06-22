@@ -386,15 +386,8 @@ function JobDialog({
       jobId = (inserted as any).id;
     }
 
-    // DUP não precisa de workflow no n8n — o webhook que faz o trabalho.
-    // O usuário pode usar "Recriar data table" no viewer para criar a tabela.
-    if (plataforma === "dup") {
-      setBusy(false);
-      toast.success("Job DUP salvo! Abra a data table para criá-la no n8n e ative o job.");
-      onOpenChange(false);
-      onSaved();
-      return;
-    }
+    // DUP agora também cria workflow n8n (com trigger webhook + parser + afiliado ML)
+
 
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
       body: { action: "upsert_scrapper_workflow", jobId },
