@@ -432,10 +432,15 @@ async function processPayload(payload: any) {
     const remoteJid = getRemoteJid(msg);
     if (!remoteJid) continue;
 
-    // Mensagens de grupo são tratadas pelo workflow n8n do agente, que faz
-    // fan-out para o dup-dispatcher. Aqui no webhook só atende 1:1.
+    // Mensagens de grupo: se o grupo for origem de um DUP ativo, encaminha
+    // direto para o webhook do workflow DUP no n8n. Assim funciona mesmo
+    // quando a Evolution está apontada para este webhook local do sistema.
     if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) {
-      console.log("ignorando grupo/broadcast", remoteJid);
+      if (remoteJid.endsWith("@g.us")) {
+        await forwardDupToN8n(payload, remoteJid);
+      } else {
+        console.log("ignorando grupo/broadcast", remoteJid);
+      }
       continue;
     }
 
