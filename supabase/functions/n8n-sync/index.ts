@@ -1279,9 +1279,25 @@ function extract(payload) {
   return { text: (text || "").trim(), imageUrl, remoteJid };
 }
 
-async function followRedirects(startUrl) {
+async function resolveFinalUrl(startUrl) {
+  // 1) fetch nativo segue redirects e expõe a URL final em response.url
+  try {
+    const r = await fetch(startUrl, {
+      method: "GET", redirect: "follow",
+      headers: { "User-Agent": UA, "accept-language": "pt-BR,pt;q=0.9" },
+    });
+    let finalUrl = r.url || startUrl;
+    if (finalUrl && !/^https?:\\/\\/meli\\.la\\//i.test(finalUrl)) return finalUrl;
+    // ainda meli.la? tenta meta-refresh ou canonical no HTML
+    const html = await r.text().catch(() => "");
+    const metaM = html.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\\s]+)/i);
+    if (metaM) { try { return (new URL(metaM[1], finalUrl)).toString(); } catch (_) {} }
+    const canM = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
+    if (canM && !/meli\\.la/i.test(canM[1])) return canM[1];
+  } catch (_) {}
+  // 2) fallback: chain manual via httpRequest
   let cur = startUrl;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     let resp = null;
     try {
       resp = await http({
@@ -1290,8 +1306,7 @@ async function followRedirects(startUrl) {
         headers: { "User-Agent": UA },
       });
     } catch (e) {
-      resp = (e && e.response) || null;
-      if (!resp && e && e.cause && e.cause.response) resp = e.cause.response;
+      resp = (e && e.response) || (e && e.cause && e.cause.response) || null;
     }
     if (!resp) break;
     const status = resp.statusCode || resp.status || 0;
@@ -1309,7 +1324,8 @@ async function followRedirects(startUrl) {
 
 async function generateAffiliate(permalink) {
   if (!ML_COOKIE || !ML_CSRF || !ML_AFFILIATE_ID) return null;
-  if (/^https?:\\/\\/meli\\.la\\//i.test(permalink)) return permalink;
+  // NUNCA aceitar meli.la como entrada — precisa ser a URL real do produto
+  if (/^https?:\\/\\/meli\\.la\\//i.test(permalink)) return null;
   const url = "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink";
   const payload = { urls: [permalink], tag: ML_AFFILIATE_ID };
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -1372,26 +1388,31 @@ try {
       const tableId = await findTableId(TABLE_NAME);
       if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n.");
 
-      // se for link Mercado Livre, segue redirects + gera afiliado
-      let finalLink = offer.offerlink;
-      const isML = /(?:^|\\.)mercadolivre\\.com\\.br|mercadolibre\\.com|meli\\.la/i.test(finalLink);
-      if (isML) {
-        try {
-          const realUrl = await followRedirects(finalLink);
-          // limpa querystring de afiliado de terceiros
-          let clean = realUrl;
-          try {
-            const u = new URL(realUrl);
-            u.search = "";
-            clean = u.toString();
-          } catch (_) {}
-          const aff = await generateAffiliate(clean);
-          if (aff) finalLink = aff;
-          else debug.push({ affiliateErr: true, realUrl: clean });
-        } catch (e) {
-          debug.push({ redirectErr: e && e.message ? e.message : String(e) });
-        }
+      // Resolve link real do produto e converte para a MINHA tag de afiliado.
+      // Nunca grava meli.la de terceiros — se algo falhar, erro.
+      const original = offer.offerlink;
+      const isML = /(?:^|\\.)mercadolivre\\.com\\.br|mercadolibre\\.com|meli\\.la/i.test(original);
+      if (!isML) throw new Error("link não é Mercado Livre: " + original);
+
+      const realUrl = await resolveFinalUrl(original);
+      debug.push({ realUrl });
+      if (/^https?:\\/\\/meli\\.la\\//i.test(realUrl)) {
+        throw new Error("não conseguiu expandir meli.la: " + original);
       }
+      // limpa querystring (remove tag de afiliado de terceiros, matt_*, etc.)
+      let clean = realUrl;
+      try {
+        const u = new URL(realUrl);
+        u.search = ""; u.hash = "";
+        clean = u.toString();
+      } catch (_) {}
+      debug.push({ cleanUrl: clean });
+
+      const myAff = await generateAffiliate(clean);
+      if (!myAff) throw new Error("createLink falhou (cookie/csrf/affiliate_id?) p/ " + clean);
+      const finalLink = myAff;
+      debug.push({ myAffiliate: finalLink });
+
 
       const row = {
         productname: offer.productname + (offer.cupom ? " | Cupom: " + offer.cupom : ""),
