@@ -314,13 +314,34 @@ async function processPayload(payload: any) {
       }) ?? null;
     }
 
+    // Fallback essencial: se a conversa já tem vínculo SDR salvo, usa esse vínculo mesmo
+    // quando o WhatsApp chega por @lid ou com outro formato de telefone.
+    if (!sdrLead && phoneSuffixList.length) {
+      const { data: linkedConversations } = await admin
+        .from("whatsapp_conversas")
+        .select("sdr_lead_id, contato_telefone, created_at")
+        .eq("portfolio_id", portfolioId)
+        .not("sdr_lead_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(250);
+      const linked = (linkedConversations ?? []).find((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
+      if (linked?.sdr_lead_id) {
+        const { data: leadByConversation } = await admin
+          .from("sdr_leads")
+          .select("*, sdr_campaigns(status)")
+          .eq("id", linked.sdr_lead_id)
+          .maybeSingle();
+        sdrLead = leadByConversation ?? null;
+      }
+    }
+
     // Gate manual: só responde se o agente estiver explicitamente ativo
     if (agent.status !== "active") {
       console.log("agente inativo, ignorando mensagem", { portfolioId, status: agent.status });
       await admin.from("whatsapp_conversas").insert({
         portfolio_id: portfolioId,
         instance_name: instance,
-        contato_telefone: phone,
+        contato_telefone: storagePhone,
         contato_nome: pushName,
         role: "user",
         mensagem: text,
@@ -333,7 +354,7 @@ async function processPayload(payload: any) {
     await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,
       instance_name: instance,
-      contato_telefone: phone,
+      contato_telefone: storagePhone,
       contato_nome: pushName,
       role: "user",
       mensagem: text,
