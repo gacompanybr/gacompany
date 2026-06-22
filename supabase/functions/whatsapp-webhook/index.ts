@@ -396,8 +396,8 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: para SDR, busca TODO o histórico do lead (sem janela de tempo, sem depender do formato do telefone)
-    // Para conversas normais: últimas 24h por telefone
+    // Memória: sempre tenta reconstruir a conversa atual inteira.
+    // SDR: histórico completo por lead. Normal: histórico recente por qualquer formato conhecido do telefone.
     let history: { role: string; mensagem: string }[] | null = null;
     if (sdrLead) {
       const { data } = await admin
@@ -409,16 +409,13 @@ async function processPayload(payload: any) {
         .limit(100);
       history = data;
     } else {
-      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data } = await admin
         .from("whatsapp_conversas")
-        .select("role, mensagem")
+        .select("role, mensagem, contato_telefone, created_at")
         .eq("portfolio_id", portfolioId)
-        .eq("contato_telefone", phone)
-        .gte("created_at", since24h)
         .order("created_at", { ascending: false })
-        .limit(60);
-      history = data;
+        .limit(160);
+      history = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList)).slice(0, 80);
     }
 
     const recent = (history ?? []).reverse();
@@ -439,8 +436,9 @@ async function processPayload(payload: any) {
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
         `Nicho: ${sdrLead.nicho}`,
         `Motivo de contato: ${sdrLead.motivo_contato}`,
-        `Seu objetivo nesta conversa é conduzir até o agendamento de uma call de 15 minutos.`,
-        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca pergunte "sobre o que você quer falar?" nem aja como se não soubesse o assunto: você sabe, foi você quem abordou. Retome o pitch, responda a objeção/pergunta do lead, e empurre para a call de 15 min.`,
+        `Seu objetivo nesta conversa é vender o serviço da GA Company e conduzir até o agendamento de uma call de 15 minutos.`,
+        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca abra com "Olá, como posso ajudar?", nunca pergunte "sobre o que você quer falar?" e nunca aja como se fosse a primeira mensagem.`,
+        `Se o lead responder com objeção, desinteresse ou dúvida, responda usando o contexto da abordagem anterior, trate a objeção e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
         `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
       ].join("\n");
     }
@@ -476,7 +474,7 @@ async function processPayload(payload: any) {
       await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
         portfolio_id: portfolioId,
         instance_name: instance,
-        contato_telefone: phone,
+        contato_telefone: storagePhone,
         contato_nome: pushName,
         role: r.role,
         mensagem: r.mensagem,
