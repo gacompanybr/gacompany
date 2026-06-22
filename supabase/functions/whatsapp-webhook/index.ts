@@ -93,6 +93,9 @@ function getPhoneCandidates(msg: any, remoteJid: string, phone: string, sendTarg
     phone,
     remoteJid,
     ...sendTargets,
+    asText(key.previousRemoteJid),
+    asText(msg.previousRemoteJid),
+    asText(msg.data?.key?.previousRemoteJid),
     asText(key.senderPn),
     asText(key.participantPn),
     asText(key.remoteJidAlt),
@@ -256,7 +259,7 @@ async function processPayload(payload: any) {
     const sendTargets = getSendTargets(msg, remoteJid);
     const phoneCandidates = getPhoneCandidates(msg, remoteJid, phone, sendTargets);
     const phoneSuffixList = phoneSuffixes(phoneCandidates);
-    const storagePhone = phoneCandidates[0] ?? normalizePhoneDigits(phone) ?? phone;
+    const storagePhone = phoneCandidates[0] || normalizePhoneDigits(phone) || phone;
     const pushName: string | null = msg.pushName ?? null;
     console.log("messageTargetContext", JSON.stringify({
       instance,
