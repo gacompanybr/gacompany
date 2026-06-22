@@ -316,10 +316,16 @@ function JobDialog({
     if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
       return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre");
     }
+    if (plataforma === "dup") {
+      if (!grupoOrigemJid) return toast.error("Selecione o grupo de origem");
+      if (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim()) {
+        return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre (para encurtar os links)");
+      }
+    }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
     const catsArr = categorias.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!termosArr.length && !catsArr.length) {
+    if (plataforma !== "dup" && !termosArr.length && !catsArr.length) {
       return toast.error("Informe pelo menos um termo ou categoria");
     }
 
@@ -330,12 +336,14 @@ function JobDialog({
       config.shopee_pages = shopeePages;
       config.shopee_secret = shopeeSecret.trim();
     }
-    if (plataforma === "mercado_livre") {
+    if (plataforma === "mercado_livre" || plataforma === "dup") {
       config.ml_cookie = mlCookie.trim();
       config.ml_csrf_token = mlCsrf.trim();
       config.ml_affiliate_id = mlTag.trim();
       config.ml_affiliate_tag = mlTag.trim(); // back-compat
       config.ml_tool_id = mlToolId.trim();
+    }
+    if (plataforma === "mercado_livre") {
       config.ml_pages = mlPages;
       config.ml_min_discount = mlMinDiscount;
       config.ml_default_commission_rate = mlDefaultCommissionRate;
@@ -356,6 +364,7 @@ function JobDialog({
       config,
       intervalo_horas: intervaloHoras,
       data_table_name: dataTableName.trim(),
+      grupo_origem_jid: plataforma === "dup" ? grupoOrigemJid : null,
       // cron com horário fixo (evita "deslize" quando o n8n reinicia)
       // 24h -> todo dia 07:00 BRT (10:00 UTC); sub-diário -> a cada N horas
       agendamento_cron: intervaloHoras >= 24 ? "0 10 * * *" : `0 */${intervaloHoras} * * *`,
@@ -370,6 +379,16 @@ function JobDialog({
         .from("scrapper_jobs").insert(payload).select("id").single();
       if (error) { setBusy(false); return toast.error(error.message); }
       jobId = (inserted as any).id;
+    }
+
+    // DUP não precisa de workflow no n8n — o webhook que faz o trabalho.
+    // O usuário pode usar "Recriar data table" no viewer para criar a tabela.
+    if (plataforma === "dup") {
+      setBusy(false);
+      toast.success("Job DUP salvo! Abra a data table para criá-la no n8n e ative o job.");
+      onOpenChange(false);
+      onSaved();
+      return;
     }
 
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("n8n-sync", {
