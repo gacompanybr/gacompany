@@ -400,22 +400,13 @@ async function processPayload(payload: any) {
     const remoteJid = getRemoteJid(msg);
     if (!remoteJid) continue;
 
-    // Ignorar grupos (terminam em @g.us) — exceto se for grupo de origem DUP
+    // Mensagens de grupo são tratadas pelo workflow n8n do agente, que faz
+    // fan-out para o dup-dispatcher. Aqui no webhook só atende 1:1.
     if (remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) {
-      if (remoteJid.endsWith("@g.us")) {
-        const dupJob = await lookupDupJob(remoteJid);
-        if (dupJob) {
-          try {
-            await processDupMessage(msg, remoteJid, dupJob);
-          } catch (e) {
-            console.error("[DUP] processDupMessage error", e instanceof Error ? e.message : String(e));
-          }
-          continue;
-        }
-      }
       console.log("ignorando grupo/broadcast", remoteJid);
       continue;
     }
+
 
     const text = getMessageText(msg);
     if (!text || !text.trim()) continue;
