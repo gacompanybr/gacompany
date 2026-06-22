@@ -254,6 +254,9 @@ async function processPayload(payload: any) {
 
     const phone = getContactPhone(msg, remoteJid);
     const sendTargets = getSendTargets(msg, remoteJid);
+    const phoneCandidates = getPhoneCandidates(msg, remoteJid, phone, sendTargets);
+    const phoneSuffixList = phoneSuffixes(phoneCandidates);
+    const storagePhone = phoneCandidates[0] ?? normalizePhoneDigits(phone) ?? phone;
     const pushName: string | null = msg.pushName ?? null;
     console.log("messageTargetContext", JSON.stringify({
       instance,
@@ -262,6 +265,7 @@ async function processPayload(payload: any) {
       previousRemoteJid: asText(msg.key?.previousRemoteJid),
       remoteJidAlt: asText(msg.key?.remoteJidAlt) || asText(msg.remoteJidAlt),
       sendTargets,
+      phoneCandidates,
     }));
 
     // Resolver portfolio_id pela instância
@@ -296,10 +300,8 @@ async function processPayload(payload: any) {
     }
 
     // === SDR lookup: telefone pertence a um lead ativo? ===
-    const phoneDigits = phone.replace(/\D/g, "");
-    const phoneSuffix = phoneDigits.slice(-11);
     let sdrLead: any = null;
-    if (phoneSuffix) {
+    if (phoneSuffixList.length) {
       const { data: leads } = await admin
         .from("sdr_leads")
         .select("*, sdr_campaigns!inner(status)")
@@ -308,8 +310,7 @@ async function processPayload(payload: any) {
         .order("ultima_mensagem_em", { ascending: false })
         .limit(50);
       sdrLead = (leads ?? []).find((l: any) => {
-        const d = String(l.telefone).replace(/\D/g, "");
-        return d.slice(-11) === phoneSuffix && ["draft", "running", "paused", "finished"].includes(l.sdr_campaigns?.status);
+        return matchesPhone(l.telefone, phoneSuffixList) && ["draft", "running", "paused", "finished"].includes(l.sdr_campaigns?.status);
       }) ?? null;
     }
 
