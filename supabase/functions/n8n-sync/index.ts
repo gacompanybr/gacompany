@@ -1661,10 +1661,21 @@ Deno.serve(async (req) => {
         result = await n8nFetch("/workflows", { method: "POST", body: JSON.stringify(wf) });
       }
       const workflowId = result?.id ?? result?.data?.id;
+      let activation: any = null;
+      if (workflowId) {
+        try {
+          activation = await n8nFetch(`/workflows/${workflowId}/${job.status === "ativo" ? "activate" : "deactivate"}`, {
+            method: "POST",
+          });
+        } catch (e) {
+          console.warn("sync workflow activation failed:", e);
+          if (job.status === "ativo") throw e;
+        }
+      }
       await admin.from("scrapper_jobs")
         .update({ n8n_workflow_id: workflowId, n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
-      return j({ ok: true, workflowId, datatableId, tableName });
+      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation });
     }
 
     if (action === "activate" || action === "deactivate") {
