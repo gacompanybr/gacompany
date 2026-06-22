@@ -338,16 +338,30 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: últimas 24h da conversa com esse contato (até 60 mensagens)
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: history } = await admin
-      .from("whatsapp_conversas")
-      .select("role, mensagem")
-      .eq("portfolio_id", portfolioId)
-      .eq("contato_telefone", phone)
-      .gte("created_at", since24h)
-      .order("created_at", { ascending: false })
-      .limit(60);
+    // Memória: para SDR, busca TODO o histórico do lead (sem janela de tempo, sem depender do formato do telefone)
+    // Para conversas normais: últimas 24h por telefone
+    let history: { role: string; mensagem: string }[] | null = null;
+    if (sdrLead) {
+      const { data } = await admin
+        .from("whatsapp_conversas")
+        .select("role, mensagem")
+        .eq("portfolio_id", portfolioId)
+        .eq("sdr_lead_id", sdrLead.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      history = data;
+    } else {
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await admin
+        .from("whatsapp_conversas")
+        .select("role, mensagem")
+        .eq("portfolio_id", portfolioId)
+        .eq("contato_telefone", phone)
+        .gte("created_at", since24h)
+        .order("created_at", { ascending: false })
+        .limit(60);
+      history = data;
+    }
 
     const recent = (history ?? []).reverse();
 
