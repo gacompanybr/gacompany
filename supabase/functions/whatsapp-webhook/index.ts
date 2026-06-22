@@ -1,6 +1,8 @@
 // Recebe webhook MESSAGES_UPSERT da Evolution e auto-responde via agente IA
-// Apenas conversas 1-a-1 (ignora grupos). Mantém histórico em whatsapp_conversas.
+// 1-a-1: aciona o agente. Grupos: ignorados, exceto quando o grupo é origem
+// de um job DUP (espelhamento de ofertas para a data table do n8n).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { generateAffiliateLink, isMercadoLivreUrl, parseOfferMessage } from "../_shared/ml-affiliate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,8 +14,160 @@ const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const N8N_BASE = (Deno.env.get("N8N_BASE_URL") ?? "").replace(/\/+$/, "");
+const N8N_KEY = Deno.env.get("N8N_API_KEY") ?? "";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+// ============================================================================
+// DUP — Espelhamento de grupos de origem
+// ============================================================================
+type DupJob = {
+  id: string;
+  config: any;
+  n8n_datatable_id: string | null;
+  data_table_name: string | null;
+};
+
+const DUP_CACHE_TTL_MS = 60_000;
+const dupCache = new Map<string, { value: DupJob | null; expiresAt: number }>();
+
+async function lookupDupJob(remoteJid: string): Promise<DupJob | null> {
+  const now = Date.now();
+  const cached = dupCache.get(remoteJid);
+  if (cached && cached.expiresAt > now) return cached.value;
+  const { data } = await admin
+    .from("scrapper_jobs")
+    .select("id, config, n8n_datatable_id, data_table_name")
+    .eq("status", "ativo")
+    .eq("plataforma", "dup")
+    .eq("grupo_origem_jid", remoteJid)
+    .maybeSingle();
+  const value = (data ?? null) as DupJob | null;
+  dupCache.set(remoteJid, { value, expiresAt: now + DUP_CACHE_TTL_MS });
+  return value;
+}
+
+function extractMessageImageUrl(msg: any): string | null {
+  // Não baixamos a imagem (precisaria descriptografar Whisper). Só repassa URL
+  // pública/jpegThumbnail se estiver presente.
+  const img = msg?.message?.imageMessage;
+  if (!img) return null;
+  const url = img.url || img.directPath || null;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+}
+
+async function findDataTableIdByName(name: string): Promise<string | null> {
+  if (!N8N_BASE || !N8N_KEY || !name) return null;
+  const paths = ["/data-tables", "/data-tables?includeProject=true"];
+  try {
+    const projsRes = await fetch(`${N8N_BASE}/projects`, { headers: { "X-N8N-API-KEY": N8N_KEY } });
+    if (projsRes.ok) {
+      const projs = await projsRes.json();
+      const list = (projs?.data || projs) || [];
+      for (const p of list) if (p?.id) paths.push(`/projects/${p.id}/data-tables`);
+    }
+  } catch { /* ignore */ }
+  for (const path of paths) {
+    try {
+      const r = await fetch(`${N8N_BASE}${path}`, { headers: { "X-N8N-API-KEY": N8N_KEY } });
+      if (!r.ok) continue;
+      const body = await r.json();
+      const arr = (body?.data || body) || [];
+      const found = (Array.isArray(arr) ? arr : []).find((t: any) => String(t?.name || "").trim() === name);
+      if (found?.id) return String(found.id);
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+async function insertN8nRow(tableId: string, row: Record<string, unknown>): Promise<boolean> {
+  if (!N8N_BASE || !N8N_KEY) return false;
+  try {
+    const r = await fetch(`${N8N_BASE}/data-tables/${tableId}/rows`, {
+      method: "POST",
+      headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ data: [row] }),
+    });
+    if (!r.ok) {
+      console.log("[DUP] insertN8nRow fail", r.status, (await r.text()).slice(0, 300));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.log("[DUP] insertN8nRow throw", e instanceof Error ? e.message : String(e));
+    return false;
+  }
+}
+
+async function processDupMessage(msg: any, remoteJid: string, job: DupJob) {
+  const text =
+    (typeof msg?.message?.conversation === "string" ? msg.message.conversation : "") ||
+    (typeof msg?.message?.extendedTextMessage?.text === "string" ? msg.message.extendedTextMessage.text : "") ||
+    (typeof msg?.message?.imageMessage?.caption === "string" ? msg.message.imageMessage.caption : "") ||
+    (typeof msg?.message?.videoMessage?.caption === "string" ? msg.message.videoMessage.caption : "") ||
+    "";
+  const parsed = parseOfferMessage(text);
+  if (!parsed) {
+    console.log("[DUP] parse fail", { jid: remoteJid, jobId: job.id, preview: String(text).slice(0, 120) });
+    return;
+  }
+
+  // Resolver tableId (cache via n8n_datatable_id se já gravado, senão lookup por nome)
+  let tableId = job.n8n_datatable_id ?? null;
+  if (!tableId && job.data_table_name) {
+    tableId = await findDataTableIdByName(job.data_table_name);
+    if (tableId) {
+      await admin.from("scrapper_jobs").update({ n8n_datatable_id: tableId }).eq("id", job.id);
+    }
+  }
+  if (!tableId) {
+    console.log("[DUP] sem data table id/name", { jobId: job.id });
+    return;
+  }
+
+  // Gera link de afiliado se for ML
+  let finalLink = parsed.offerlink;
+  if (isMercadoLivreUrl(parsed.offerlink)) {
+    const creds = {
+      cookie: String(job.config?.ml_cookie ?? "").trim(),
+      csrf: String(job.config?.ml_csrf_token ?? "").trim(),
+      affiliateId: String(job.config?.ml_affiliate_id ?? job.config?.ml_affiliate_tag ?? "").trim(),
+    };
+    const aff = await generateAffiliateLink(parsed.offerlink, creds);
+    if (aff.ok) finalLink = aff.shortUrl;
+    else console.log("[DUP] affiliate fail", { jobId: job.id, reason: aff.error, detail: aff.detail });
+  }
+
+  const productname = parsed.cupom
+    ? `${parsed.productname} (Cupom: ${parsed.cupom})`
+    : parsed.productname;
+
+  const row: Record<string, unknown> = {
+    productname,
+    price: parsed.price,
+    priceoriginal: parsed.priceoriginal,
+    pricediscountrate: parsed.pricediscountrate,
+    shopname: parsed.shopname || "",
+    offerlink: finalLink,
+    imageUrl: extractMessageImageUrl(msg) ?? "",
+    sending: false,
+    commission_rate: 0,
+    commission_value: 0,
+    sales: 0,
+    rating: 0,
+  };
+  const ok = await insertN8nRow(tableId, row);
+  console.log("[DUP] mirrored", {
+    jobId: job.id,
+    jid: remoteJid,
+    ok,
+    productname: productname.slice(0, 80),
+    price: parsed.price,
+    cupom: parsed.cupom,
+    link: finalLink,
+  });
+}
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value : "";
