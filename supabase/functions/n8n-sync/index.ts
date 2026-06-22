@@ -53,7 +53,7 @@ async function evolutionFetch(path: string, init: RequestInit = {}) {
   return { ok: res.ok, status: res.status, body };
 }
 
-async function ensureDupEvolutionCapture(admin: ReturnType<typeof createClient>, portfolioId: string) {
+async function ensureDupEvolutionCapture(admin: any, portfolioId: string) {
   const { data: conn } = await admin
     .from("whatsapp_connections")
     .select("instance_name")
