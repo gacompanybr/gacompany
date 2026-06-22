@@ -1100,6 +1100,296 @@ return [{ json: { total, erro, table: TABLE_NAME, dupSkipped, debug } }];
   };
 }
 
+// ============================================================================
+// buildDupWorkflow — workflow n8n para espelhamento de grupo (DUP).
+// Trigger: webhook (path = dup-{shortJobId}). Recebe payload da Evolution
+// reencaminhado pelo dup-dispatcher. Em UM Code node faz:
+//   1. parse do payload Evolution → texto + imageUrl
+//   2. parse da mensagem de oferta → título, preço, cupom, link bruto
+//   3. segue redirects do link (meli.la → mercadolivre.com.br/...)
+//   4. chama API de afiliado ML com as credenciais do job → meli.la com a tag
+//      do usuário
+//   5. insere linha na data table do n8n (mesmas colunas do scrapper)
+// ============================================================================
+function dupWebhookPath(jobId: string): string {
+  return `dup-${String(jobId).slice(0, 8)}`;
+}
+
+function buildDupWorkflow(job: any) {
+  const cfg = job.config ?? {};
+  const normalize = (v: unknown) => String(v ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+  const mlCookie = normalize(cfg.ml_cookie);
+  const mlCsrf = normalize(cfg.ml_csrf_token);
+  const mlAffiliateId = normalize(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const grupoOrigemJid = String(job.grupo_origem_jid ?? "");
+  const dataTableName: string = job.data_table_name || `DUP_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
+  const webhookPath = dupWebhookPath(job.id);
+
+  const jsCode = `
+const N8N_BASE = ${JSON.stringify(N8N_BASE)};
+const N8N_KEY = ${JSON.stringify(N8N_KEY)};
+const ML_COOKIE = ${JSON.stringify(mlCookie)};
+const ML_CSRF = ${JSON.stringify(mlCsrf)};
+const ML_AFFILIATE_ID = ${JSON.stringify(mlAffiliateId)};
+const GRUPO_JID = ${JSON.stringify(grupoOrigemJid)};
+const TABLE_NAME = ${JSON.stringify(dataTableName)};
+const JOB_ID = ${JSON.stringify(job.id)};
+const SCRAPPER_API = ${JSON.stringify(SUPABASE_URL)} + "/functions/v1/scrapper-api";
+const SCRAPPER_SECRET = ${JSON.stringify(Deno.env.get("SCRAPPER_API_SECRET") ?? "")};
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+const http = this.helpers.httpRequest;
+
+function asText(v) { return typeof v === "string" ? v : ""; }
+function parseBrl(raw) {
+  const c = String(raw).replace(/\\s/g, "").replace(/\\./g, "").replace(",", ".");
+  const n = Number(c); return Number.isFinite(n) ? n : 0;
+}
+function stripMd(s) { return String(s || "").replace(/[*_~\`]+/g, "").trim(); }
+function parseOffer(text) {
+  if (!text) return null;
+  const linkM = text.match(/https?:\\/\\/[^\\s)]+/i);
+  if (!linkM) return null;
+  const offerlink = linkM[0].replace(/[.,;:!?]+$/, "");
+  let price = 0;
+  const porM = text.match(/por\\s*R\\$\\s*([\\d.]+,\\d{2})/i);
+  if (porM) price = parseBrl(porM[1]);
+  if (!price) { const m = text.match(/R\\$\\s*([\\d.]+,\\d{2})/i); if (m) price = parseBrl(m[1]); }
+  let priceoriginal = 0;
+  const deM = text.match(/de\\s*~?R\\$\\s*([\\d.]+,\\d{2})~?/i);
+  if (deM) priceoriginal = parseBrl(deM[1]);
+  if (!priceoriginal) priceoriginal = price;
+  const pricediscountrate = (priceoriginal > 0 && price > 0 && priceoriginal > price)
+    ? Math.round((1 - price / priceoriginal) * 100) : 0;
+  let cupom = null;
+  const cM = text.match(/cupom[:\\s]+\\*?([A-Z0-9_-]{3,30})\\*?/i);
+  if (cM) cupom = cM[1].toUpperCase();
+  let productname = "";
+  const lines = text.split(/\\r?\\n/).map(l => l.trim()).filter(Boolean);
+  for (const l of lines) {
+    const m = l.match(/^[✅✳️🛒🔥]*\\s*\\*(.+?)\\*\\s*$/);
+    if (m) { productname = stripMd(m[1]); break; }
+  }
+  if (!productname) {
+    for (const l of lines) {
+      if (/https?:/i.test(l)) continue;
+      if (/^R\\$/i.test(l) || /^por\\s+R\\$/i.test(l)) continue;
+      if (/cupom/i.test(l)) continue;
+      const cl = stripMd(l);
+      if (cl.length >= 8) { productname = cl; break; }
+    }
+  }
+  if (!productname) productname = "Oferta";
+  return { productname: productname.slice(0, 250), price, priceoriginal, pricediscountrate, offerlink, cupom };
+}
+
+function extract(payload) {
+  const body = (payload && payload.body) || payload || {};
+  const data = body.data || {};
+  const msg = Array.isArray(data.messages) ? data.messages[0] : data;
+  if (!msg) return null;
+  const key = msg.key || {};
+  const remoteJid = asText(key.remoteJid) || asText(msg.remoteJid) || asText(msg.chatId);
+  if (!remoteJid || remoteJid !== GRUPO_JID) return null;
+  if (key.fromMe || msg.fromMe || msg.messageStubType) return null;
+  const text = asText(msg.message && msg.message.conversation)
+    || asText(msg.message && msg.message.extendedTextMessage && msg.message.extendedTextMessage.text)
+    || asText(msg.message && msg.message.imageMessage && msg.message.imageMessage.caption)
+    || asText(msg.message && msg.message.videoMessage && msg.message.videoMessage.caption)
+    || asText(msg.text) || asText(msg.body);
+  const imageUrl = asText(msg.message && msg.message.imageMessage && msg.message.imageMessage.url) || null;
+  return { text: (text || "").trim(), imageUrl, remoteJid };
+}
+
+async function followRedirects(startUrl) {
+  let cur = startUrl;
+  for (let i = 0; i < 6; i++) {
+    let resp = null;
+    try {
+      resp = await http({
+        method: "GET", url: cur,
+        followRedirect: false, returnFullResponse: true,
+        headers: { "User-Agent": UA },
+      });
+    } catch (e) {
+      resp = (e && e.response) || null;
+      if (!resp && e && e.cause && e.cause.response) resp = e.cause.response;
+    }
+    if (!resp) break;
+    const status = resp.statusCode || resp.status || 0;
+    if (status >= 300 && status < 400) {
+      const h = resp.headers || {};
+      const loc = h.location || h.Location;
+      if (!loc) break;
+      try { cur = (new URL(loc, cur)).toString(); } catch (_) { cur = loc; }
+      continue;
+    }
+    break;
+  }
+  return cur;
+}
+
+async function generateAffiliate(permalink) {
+  if (!ML_COOKIE || !ML_CSRF || !ML_AFFILIATE_ID) return null;
+  if (/^https?:\\/\\/meli\\.la\\//i.test(permalink)) return permalink;
+  const url = "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink";
+  const payload = { urls: [permalink], tag: ML_AFFILIATE_ID };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await http({
+        method: "POST", url,
+        headers: {
+          "accept": "application/json, text/plain, */*",
+          "accept-language": "pt-BR,pt;q=0.9",
+          "content-type": "application/json",
+          "origin": "https://www.mercadolivre.com.br",
+          "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
+          "user-agent": UA,
+          "cookie": ML_COOKIE,
+          "x-csrf-token": ML_CSRF,
+        },
+        body: payload, json: true, returnFullResponse: true,
+      });
+      const status = r.statusCode || r.status || 200;
+      if (status === 401 || status === 403) return null;
+      const data = r.body || r;
+      const short = (data && data.urls && data.urls[0] && (data.urls[0].short_url || data.urls[0].shortUrl)) || data.short_url;
+      if (short && /^https?:\\/\\/meli\\.la\\//i.test(String(short))) return String(short);
+    } catch (_) {}
+    if (attempt < 3) await new Promise(r => setTimeout(r, 1200));
+  }
+  return null;
+}
+
+async function findTableId(name) {
+  const tries = ["/data-tables", "/data-tables?includeProject=true"];
+  try {
+    const projs = await http({ method: "GET", url: \`\${N8N_BASE}/projects\`, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+    const list = (projs && (projs.data || projs)) || [];
+    for (const p of list) if (p && p.id) tries.push(\`/projects/\${p.id}/data-tables\`);
+  } catch (_) {}
+  for (const path of tries) {
+    try {
+      const d = await http({ method: "GET", url: \`\${N8N_BASE}\${path}\`, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+      const arr = (d && (d.data || d)) || [];
+      const found = (Array.isArray(arr) ? arr : []).find(t => String(t.name || "").trim() === name);
+      if (found) return found.id;
+    } catch (_) {}
+  }
+  return null;
+}
+
+const debug = [];
+let inserted = 0;
+let erro = null;
+try {
+  const payload = $input.first().json;
+  const ev = extract(payload);
+  if (!ev) { debug.push({ skipped: "no event / wrong jid" }); }
+  else if (!ev.text) { debug.push({ skipped: "no text", remoteJid: ev.remoteJid }); }
+  else {
+    const offer = parseOffer(ev.text);
+    if (!offer) { debug.push({ skipped: "parse failed", preview: ev.text.slice(0, 120) }); }
+    else {
+      const tableId = await findTableId(TABLE_NAME);
+      if (!tableId) throw new Error("Data table \\"" + TABLE_NAME + "\\" não encontrada no n8n.");
+
+      // se for link Mercado Livre, segue redirects + gera afiliado
+      let finalLink = offer.offerlink;
+      const isML = /(?:^|\\.)mercadolivre\\.com\\.br|mercadolibre\\.com|meli\\.la/i.test(finalLink);
+      if (isML) {
+        try {
+          const realUrl = await followRedirects(finalLink);
+          // limpa querystring de afiliado de terceiros
+          let clean = realUrl;
+          try {
+            const u = new URL(realUrl);
+            u.search = "";
+            clean = u.toString();
+          } catch (_) {}
+          const aff = await generateAffiliate(clean);
+          if (aff) finalLink = aff;
+          else debug.push({ affiliateErr: true, realUrl: clean });
+        } catch (e) {
+          debug.push({ redirectErr: e && e.message ? e.message : String(e) });
+        }
+      }
+
+      const row = {
+        productname: offer.productname + (offer.cupom ? " | Cupom: " + offer.cupom : ""),
+        price: offer.price || 0,
+        priceoriginal: offer.priceoriginal || 0,
+        pricediscountrate: offer.pricediscountrate || 0,
+        shopname: "",
+        offerlink: finalLink,
+        imageUrl: ev.imageUrl || "",
+        sending: false,
+      };
+      try {
+        await http({
+          method: "POST",
+          url: \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+          headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+          body: { data: [row] }, json: true,
+        });
+        inserted = 1;
+        debug.push({ inserted: row.productname.slice(0, 80) });
+      } catch (e) {
+        throw new Error("insert row: " + (e && e.message ? e.message : String(e)));
+      }
+    }
+  }
+} catch (e) {
+  erro = e && e.message ? e.message : String(e);
+}
+
+try {
+  await http({
+    method: "POST", url: SCRAPPER_API,
+    headers: { "Authorization": "Bearer " + SCRAPPER_SECRET, "Content-Type": "application/json" },
+    body: { action: "update_job", id: JOB_ID, ultima_qtd: inserted, ultimo_erro: erro },
+    json: true,
+  });
+} catch (_) {}
+
+return [{ json: { inserted, erro, table: TABLE_NAME, debug } }];
+  `.trim();
+
+  return {
+    name: friendlyWorkflowName("SCRAPPER", { ...job, plataforma: "DUP" }),
+    nodes: [
+      {
+        parameters: {
+          httpMethod: "POST",
+          path: webhookPath,
+          responseMode: "onReceived",
+          options: {},
+        },
+        id: "trigger",
+        name: "DUP Webhook",
+        type: "n8n-nodes-base.webhook",
+        typeVersion: 2,
+        position: [250, 300],
+        webhookId: webhookPath,
+      },
+      {
+        parameters: { language: "javaScript", jsCode },
+        id: "code",
+        name: "Process",
+        type: "n8n-nodes-base.code",
+        typeVersion: 2,
+        position: [550, 300],
+      },
+    ],
+    connections: { "DUP Webhook": { main: [[{ node: "Process", type: "main", index: 0 }]] } },
+    settings: { executionOrder: "v1" },
+  };
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
