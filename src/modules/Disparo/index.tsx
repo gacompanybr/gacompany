@@ -514,37 +514,79 @@ function NovaCampanhaDialog({
             </div>
           </Card>
 
-          <Card className="p-3 space-y-2">
-            <Label>Ou importe uma planilha (XLSX, XLS ou CSV)</Label>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleFile(f);
-                e.target.value = "";
-              }}
-            />
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
-                <Upload size={14} /> Escolher arquivo
+          <Card className="p-3 space-y-3">
+            <Label>Importar planilha de contatos</Label>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant={importMode === "file" ? "default" : "outline"} onClick={() => setImportMode("file")} className="gap-2">
+                <Upload size={14} /> Arquivo
               </Button>
-              {arquivoNome && (
-                <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                  <FileSpreadsheet size={12} /> {arquivoNome} · {contatos.length} contatos
-                </span>
-              )}
-              {contatos.length > 0 && (
-                <Button type="button" size="sm" variant="ghost" onClick={() => { setContatos([]); setArquivoNome(""); }}>
-                  Remover
-                </Button>
-              )}
+              <Button type="button" size="sm" variant={importMode === "sheet" ? "default" : "outline"} onClick={() => setImportMode("sheet")} className="gap-2">
+                <Link2 size={14} /> Google Sheets
+              </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              <strong>Obrigatório:</strong> a planilha precisa ter uma coluna <code>nome</code> e uma coluna <code>numero</code> (ou <code>telefone</code>/<code>whatsapp</code>/<code>celular</code>). Demais colunas viram variáveis usáveis na mensagem como <code>{"{coluna}"}</code>.
-            </p>
+
+            {importMode === "file" ? (
+              <>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFile(f);
+                    e.target.value = "";
+                  }}
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="gap-2">
+                    <Upload size={14} /> Escolher arquivo
+                  </Button>
+                  {arquivoNome && (
+                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                      <FileSpreadsheet size={12} /> {arquivoNome} · {contatos.length} contatos
+                      {skipCount > 0 && <span className="text-amber-500"> · {skipCount} já enviados pulados</span>}
+                    </span>
+                  )}
+                  {contatos.length > 0 && (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => { setContatos([]); setArquivoNome(""); setSkipCount(0); }}>
+                      Remover
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    value={sheetUrl}
+                    onChange={(e) => setSheetUrl(e.target.value)}
+                    disabled={loadingSheet}
+                  />
+                  <Button type="button" onClick={handleSheet} disabled={loadingSheet || !sheetUrl} size="sm">
+                    {loadingSheet ? <Loader2 className="animate-spin" size={14} /> : "Carregar"}
+                  </Button>
+                </div>
+                {contatos.length > 0 && sheetUrl && (
+                  <div className="text-xs text-muted-foreground inline-flex items-center gap-2 flex-wrap">
+                    <FileSpreadsheet size={12} /> {contatos.length} contatos carregados
+                    {skipCount > 0 && <span className="text-amber-500">· {skipCount} já enviados pulados</span>}
+                    <Button type="button" size="sm" variant="ghost" onClick={handleSheet} className="h-6 px-2 gap-1">
+                      <RefreshCw size={10} /> Recarregar
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Planilha precisa estar como <strong>"Qualquer pessoa com o link"</strong> (visualização pública).
+                </p>
+              </>
+            )}
+
+            <div className="text-xs text-muted-foreground border-t border-border pt-2 space-y-1">
+              <p><strong>Template esperado:</strong> <code>nome</code> · <code>numero</code> · <code>nicho</code> (opcional) · <code>envio</code></p>
+              <p>Linhas com <code>envio = sim</code> são ignoradas (já disparadas). As demais (vazias ou <code>não</code>) viram contatos. Contatos duplicados por telefone são deduplicados automaticamente, então reimportar o mesmo link após novos disparos não duplica.</p>
+            </div>
           </Card>
 
           <div className="text-sm text-center p-2 rounded bg-muted/30">
