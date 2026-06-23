@@ -27,6 +27,57 @@ function slugify(s: string): string {
     .replace(/\s+/g, "-");
 }
 
+function cleanText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+}
+
+function extractAssignedString(input: string, names: string[]): string | null {
+  for (const name of names) {
+    const idx = input.search(new RegExp(`\\b${name}\\b`, "i"));
+    if (idx < 0) continue;
+    const eq = input.indexOf("=", idx);
+    if (eq < 0) continue;
+    let i = eq + 1;
+    while (/\s/.test(input[i] || "")) i++;
+    const quote = input[i];
+    if (!["'", '"', "`"].includes(quote)) continue;
+    i++;
+    let out = "";
+    for (; i < input.length; i++) {
+      const ch = input[i];
+      if (ch === "\\" && i + 1 < input.length) {
+        const next = input[++i];
+        out += next === "n" || next === "r" ? " " : next;
+        continue;
+      }
+      if (ch === quote) return out;
+      out += ch;
+    }
+  }
+  return null;
+}
+
+function sanitizeMlCredential(value: unknown, names: string[] = []): string {
+  let s = cleanText(value);
+  const assigned = names.length ? extractAssignedString(s, names) : null;
+  if (assigned != null) s = assigned;
+  const headerName = names.find((n) => /cookie|csrf|affiliate/i.test(n));
+  if (headerName) {
+    const headerRe = new RegExp(`(?:^|\\n|\\r|;)\\s*${headerName.replace(/_/g, "[-_]")}\\s*:\\s*([^\\r\\n]+)`, "i");
+    const m = s.match(headerRe);
+    if (m) s = m[1];
+  }
+  return s
+    .replace(/^['"`]|['"`]$/g, "")
+    .replace(/\r|\n/g, " ")
+    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
+    .replace(/\s+$/, "")
+    .trim();
+}
+
 function findNode(wf: AnyWorkflow, name: string): AnyNode | undefined {
   return wf.nodes.find((n: AnyNode) => n.name === name);
 }
@@ -281,9 +332,9 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   }
 
   // ---- CONFIG ML: credenciais + categorias + settings ----
-  const cookie = String(cfg.ml_cookie ?? "").replace(/^\uFEFF/, "").replace(/[\u200B-\u200D\u2060]/g, "").trim();
-  const csrf = String(cfg.ml_csrf_token ?? "").trim();
-  const affiliateTag = String(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag ?? "").trim();
+  const cookie = sanitizeMlCredential(cfg.ml_cookie, ["ML_COOKIE", "COOKIE"]);
+  const csrf = sanitizeMlCredential(cfg.ml_csrf_token, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
+  const affiliateTag = sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag, ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]);
 
   const settings = {
     min_discount: Math.max(0, Math.min(99, Number(cfg.ml_min_discount ?? 10))),
