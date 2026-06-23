@@ -70,7 +70,7 @@ function cleanImg(u) {
 }
 
 function titleFromBlock(block, link) {
-  const linkEsc = link ? link.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+  const linkEsc = link ? link.replace(/[.*+?^{}()|[\]\\$]/g, '\\$&') : '';
   const linkRe = linkEsc ? new RegExp('<a[^>]+href=["\\']' + linkEsc + '["\\'][^>]*>([\\s\\S]*?)<\\/a>', 'i') : null;
   const anchor = linkRe ? block.match(linkRe) : block.match(/<a[^>]+href=["'][^"']*(?:MLB|\/p\/|mercadolivre\.com\.br)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
   const candidates = [
