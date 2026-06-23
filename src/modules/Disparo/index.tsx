@@ -200,7 +200,10 @@ function NovaCampanhaDialog({
   );
 
   function normalizarTelefone(v: any): string {
-    return String(v ?? "").replace(/\D/g, "");
+    let p = String(v ?? "").replace(/\D/g, "");
+    // Garante DDI 55 para Brasil (10 ou 11 dígitos sem DDI)
+    if ((p.length === 10 || p.length === 11) && !p.startsWith("55")) p = "55" + p;
+    return p;
   }
 
   function parseRows(rows: Record<string, any>[]): { parsed: Contato[]; skipped: number } {
@@ -334,17 +337,20 @@ function NovaCampanhaDialog({
     // Junta contatos: selecionados do WA + da planilha
     const fromWa: Contato[] = waContacts
       .filter((c) => selectedJids.has(c.jid))
-      .map((c) => ({ nome: c.nome, telefone: c.phone, variaveis: {} }));
-    const todosContatos = [...fromWa, ...contatos];
+      .map((c) => ({ nome: c.nome, telefone: normalizarTelefone(c.phone), variaveis: {} }));
+    const todosContatos = [...fromWa, ...contatos.map((c) => ({ ...c, telefone: normalizarTelefone(c.telefone) }))];
 
-    // dedup por telefone
+    // dedup por telefone normalizado (com DDI)
     const dedup: Contato[] = [];
     const seen = new Set<string>();
+    let dupCount = 0;
     for (const c of todosContatos) {
-      if (!c.telefone || seen.has(c.telefone)) continue;
+      if (!c.telefone || c.telefone.length < 10) continue;
+      if (seen.has(c.telefone)) { dupCount++; continue; }
       seen.add(c.telefone);
       dedup.push(c);
     }
+    if (dupCount > 0) toast.info(`${dupCount} contato(s) duplicado(s) removido(s)`);
 
     if (!dedup.length) {
       return toast.error("Selecione contatos do WhatsApp ou importe uma planilha");
