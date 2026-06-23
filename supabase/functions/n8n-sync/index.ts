@@ -144,6 +144,50 @@ Por *R$ {price}* ✅ ({pricediscountrate}% OFF)
 
 👉 {offerlink}`;
 
+function extractAssignedString(input: string, names: string[]): string | null {
+  for (const name of names) {
+    const idx = input.search(new RegExp(`\\b${name}\\b`, "i"));
+    if (idx < 0) continue;
+    const eq = input.indexOf("=", idx);
+    if (eq < 0) continue;
+    let i = eq + 1;
+    while (/\s/.test(input[i] || "")) i++;
+    const quote = input[i];
+    if (!["'", '"', "`"].includes(quote)) continue;
+    i++;
+    let out = "";
+    for (; i < input.length; i++) {
+      const ch = input[i];
+      if (ch === "\\" && i + 1 < input.length) {
+        const next = input[++i];
+        out += next === "n" || next === "r" ? " " : next;
+        continue;
+      }
+      if (ch === quote) return out;
+      out += ch;
+    }
+  }
+  return null;
+}
+
+function normalizeCredential(value: unknown): string {
+  return String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+}
+
+function sanitizeMlCredential(value: unknown, names: string[] = []): string {
+  let s = normalizeCredential(value);
+  const assigned = names.length ? extractAssignedString(s, names) : null;
+  if (assigned != null) s = assigned;
+  return s
+    .replace(/^['"`]|['"`]$/g, "")
+    .replace(/\r|\n/g, " ")
+    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
+    .trim();
+}
+
 function buildEcommerceWorkflow(robo: any) {
   const tableId = robo.n8n_datatable_id;
   const destinos: string[] = Array.isArray(robo.destinos) ? robo.destinos : [];
