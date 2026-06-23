@@ -72,6 +72,7 @@ const MARKETPLACES = [
   { v: "shopee", l: "Shopee" },
   { v: "mercadolivre", l: "Mercado Livre" },
   { v: "amazon", l: "Amazon" },
+  { v: "dup", l: "DUP" },
 ];
 
 const DEFAULT_TEMPLATE = `🔥 *{productname}*
