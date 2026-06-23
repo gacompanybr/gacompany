@@ -62,7 +62,19 @@ function extractAssignedString(input: string, names: string[]): string | null {
 
 function sanitizeMlCredential(value: unknown, names: string[] = []): string {
   let s = cleanText(value);
-  const assigned = names.length ? extractAssignedString(s, names) : null;
+  let assigned: string | null = null;
+  if (names.some((n) => /COOKIE/i.test(n))) {
+    for (const name of names) {
+      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
+      if (idx < 0) continue;
+      const eq = s.indexOf("=", idx);
+      if (eq < 0) continue;
+      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
+      break;
+    }
+  } else {
+    assigned = names.length ? extractAssignedString(s, names) : null;
+  }
   if (assigned != null) s = assigned;
   const headerName = names.find((n) => /cookie|csrf|affiliate/i.test(n));
   if (headerName) {
