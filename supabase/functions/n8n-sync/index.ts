@@ -1333,8 +1333,10 @@ function sanitizeProductUrl(u) {
 function isMlProductUrl(url) {
   const s = String(url || "");
   return /\\/p\\/MLB\\d+/i.test(s)
+    || /\\/up\\/MLBU\\d+/i.test(s)
     || /produto\\.mercadolivre\\.com\\.br\\/MLB-?\\d+/i.test(s)
-    || /\\/MLB-?\\d+/i.test(s);
+    || /\\/MLB-?\\d+/i.test(s)
+    || !!itemIdFromText(s);
 }
 function extractProductUrlFromHtml(html, baseUrl) {
   const raw = String(html || "");
