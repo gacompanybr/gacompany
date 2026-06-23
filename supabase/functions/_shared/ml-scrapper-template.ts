@@ -304,6 +304,38 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     if (cfg.commission_rate != null) setConfigField(configNode, "commission_rate", String(cfg.commission_rate));
   }
 
+  // ---- Request/parse de listagem ML ----
+  // O HTML node nativo quebra quando o Mercado Livre muda classes; convertemos
+  // para Code node e extraímos direto do HTML. Também enviamos headers iguais
+  // ao navegador para evitar cair na página "suspicious traffic".
+  const requestHtml = findNode(wf, "Extrair HTML1");
+  if (requestHtml) {
+    requestHtml.parameters = {
+      url: "={{ $json.link }}",
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          { name: "cookie", value: "={{ $('Loop Over Items4').first().json.ml_cookie }}" },
+          { name: "accept", value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8" },
+          { name: "accept-language", value: "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7" },
+          { name: "cache-control", value: "no-cache" },
+          { name: "pragma", value: "no-cache" },
+          { name: "referer", value: "https://www.mercadolivre.com.br/" },
+          { name: "upgrade-insecure-requests", value: "1" },
+          { name: "user-agent", value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" },
+        ],
+      },
+      options: { response: { response: { fullResponse: false, responseFormat: "text" } } },
+    };
+  }
+
+  const htmlParser = findNode(wf, "HTML1");
+  if (htmlParser) {
+    htmlParser.type = "n8n-nodes-base.code";
+    htmlParser.typeVersion = 2;
+    htmlParser.parameters = { jsCode: ML_HTML_PARSER_CODE };
+  }
+
   // ---- Remove dependências de Google Sheets ----
   removeNode(wf, "Google Sheets Trigger1");
   removeNode(wf, "Get Existing IDs");
