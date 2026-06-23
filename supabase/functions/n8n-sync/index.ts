@@ -1,5 +1,6 @@
 // n8n-sync: cria, ativa, pausa e deleta workflows no n8n para cada robô
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildMlScrapperWorkflow } from "../_shared/ml-scrapper-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
