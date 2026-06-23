@@ -1298,12 +1298,12 @@ function decodeMlEscapes(s) {
     .replace(/\\"/g, '"');
 }
 function unwrapTrackedUrl(u) {
-  let s = htmlDecode(String(u || "").trim());
+  let s = decodeMlEscapes(String(u || "").trim());
   const paramM = s.match(/[?&](?:url|go)=([^&]+)/i);
   if (paramM) { try { s = decodeURIComponent(paramM[1]); } catch (_) {} }
   const clickM = s.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s"']+)/i);
   if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch (_) { s = clickM[1]; } }
-  return htmlDecode(s);
+  return decodeMlEscapes(s);
 }
 function sanitizeProductUrl(u) {
   let s = unwrapTrackedUrl(u);
