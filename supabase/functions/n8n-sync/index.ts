@@ -1643,10 +1643,11 @@ try {
       debug.push({ myAffiliate: finalLink });
 
       const product = await enrichProduct(clean, offer, ev.imageUrl || "");
-      debug.push({ enriched: { title: product.productname, price: product.price, original: product.priceoriginal, shop: product.shopname } });
+      debug.push({ enriched: { title: product.productname, price: product.price, original: product.priceoriginal, shop: product.shopname, cupom: product.cupom } });
 
+      const finalCupom = product.cupom || offer.cupom || null;
       const row = {
-        productname: product.productname + (offer.cupom ? " | Cupom: " + offer.cupom : ""),
+        productname: product.productname + (finalCupom ? " | Cupom: " + finalCupom : ""),
         price: product.price || 0,
         priceoriginal: product.priceoriginal || 0,
         pricediscountrate: product.pricediscountrate || 0,
