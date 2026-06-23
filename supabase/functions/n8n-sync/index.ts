@@ -1383,10 +1383,20 @@ function extractProductUrlFromHtml(html, baseUrl) {
   }
   return null;
 }
+async function itemPermalink(itemId) {
+  if (!itemId) return null;
+  try {
+    const r = await fetch("https://api.mercadolibre.com/items/" + String(itemId).replace(/-/g, ""));
+    if (!r.ok) return null;
+    const data = await r.json();
+    const permalink = typeof data.permalink === "string" ? sanitizeProductUrl(data.permalink) : "";
+    return isMlProductUrl(permalink) ? permalink : null;
+  } catch (_) { return null; }
+}
 
 async function resolveFinalUrl(startUrl) {
   const first = sanitizeProductUrl(startUrl);
-  if (isMlProductUrl(first)) return first;
+  if (isMlProductUrl(first)) return (await itemPermalink(itemIdFromText(first))) || first;
 
   // 1) segue redirects, mas não aceita /social com afiliado antigo como URL final.
   // A página intermediária contém o href real do produto no card/botão.
@@ -1398,9 +1408,9 @@ async function resolveFinalUrl(startUrl) {
     const finalUrl = r.url || startUrl;
     const html = await r.text().catch(() => "");
     const productFromHtml = extractProductUrlFromHtml(html, finalUrl);
-    if (productFromHtml) return productFromHtml;
+    if (productFromHtml) return (await itemPermalink(itemIdFromText(productFromHtml))) || productFromHtml;
     const cleanedFinal = sanitizeProductUrl(finalUrl);
-    if (isMlProductUrl(cleanedFinal)) return cleanedFinal;
+    if (isMlProductUrl(cleanedFinal)) return (await itemPermalink(itemIdFromText(cleanedFinal))) || cleanedFinal;
   } catch (_) {}
 
   // 2) fallback: chain manual via httpRequest e lê o HTML do último destino.
@@ -1428,10 +1438,11 @@ async function resolveFinalUrl(startUrl) {
     const raw = resp.body !== undefined ? resp.body : resp;
     const html = typeof raw === "string" ? raw : JSON.stringify(raw || "");
     const productFromHtml = extractProductUrlFromHtml(html, cur);
-    if (productFromHtml) return productFromHtml;
+    if (productFromHtml) return (await itemPermalink(itemIdFromText(productFromHtml))) || productFromHtml;
     break;
   }
-  return sanitizeProductUrl(cur);
+  const cleanedCur = sanitizeProductUrl(cur);
+  return (await itemPermalink(itemIdFromText(cleanedCur))) || cleanedCur;
 }
 
 async function generateAffiliate(permalink) {
