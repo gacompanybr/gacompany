@@ -1320,8 +1320,11 @@ function sanitizeProductUrl(u) {
   if (/^\\/\\//.test(s)) s = "https:" + s;
   try {
     const url = new URL(s, "https://www.mercadolivre.com.br");
-    url.search = "";
     url.hash = "";
+    const itemId = itemIdFromText(url.toString());
+    const pdpFilters = url.searchParams.get("pdp_filters") || "";
+    url.search = "";
+    if (itemId && /item_id\s*:/i.test(pdpFilters)) url.searchParams.set("pdp_filters", "item_id:" + itemId);
     return url.toString();
   } catch (_) {
     return s.split("#")[0].split("?")[0];
