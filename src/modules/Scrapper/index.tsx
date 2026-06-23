@@ -926,12 +926,14 @@ function MlCookieAlert({ job }: { job: Job }) {
   }
 
   // Cookie expirado / inválido — alerta forte com instruções.
-  const isExpired = status.error === "COOKIE_EXPIRED" || status.status_code === 401 || status.status_code === 403;
+  const errorText = String(status.error ?? "erro");
+  const shortError = errorText.length > 120 ? `${errorText.slice(0, 120)}…` : errorText;
+  const isExpired = errorText.startsWith("COOKIE_EXPIRED") || status.status_code === 401 || status.status_code === 403;
   return (
     <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-[12px] text-destructive space-y-2">
       <div className="flex items-center justify-between gap-2">
         <strong className="text-[13px]">
-          {isExpired ? "🚨 Cookie do Mercado Livre EXPIROU" : `🚨 Cookie ML inválido (${status.error ?? "erro"})`}
+          {isExpired ? "🚨 Cookie do Mercado Livre EXPIROU" : `🚨 Cookie ML inválido (${shortError})`}
         </strong>
         <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={recheck} disabled={checking}>
           {checking ? <Loader2 size={10} className="animate-spin" /> : "Re-checar"}
