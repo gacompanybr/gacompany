@@ -29,6 +29,58 @@ function htmlDecode(s: string): string {
     .replace(/&gt;/g, ">");
 }
 
+function extractAssignedString(input: string, names: string[]): string | null {
+  for (const name of names) {
+    const idx = input.search(new RegExp(`\\b${name}\\b`, "i"));
+    if (idx < 0) continue;
+    const eq = input.indexOf("=", idx);
+    if (eq < 0) continue;
+    let i = eq + 1;
+    while (/\s/.test(input[i] || "")) i++;
+    const quote = input[i];
+    if (!["'", '"', "`"].includes(quote)) continue;
+    i++;
+    let out = "";
+    for (; i < input.length; i++) {
+      const ch = input[i];
+      if (ch === "\\" && i + 1 < input.length) {
+        const next = input[++i];
+        out += next === "n" || next === "r" ? " " : next;
+        continue;
+      }
+      if (ch === quote) return out;
+      out += ch;
+    }
+  }
+  return null;
+}
+
+export function sanitizeMlCredential(value: unknown, names: string[] = []): string {
+  let s = String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+  let assigned: string | null = null;
+  if (names.some((n) => /COOKIE/i.test(n))) {
+    for (const name of names) {
+      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
+      if (idx < 0) continue;
+      const eq = s.indexOf("=", idx);
+      if (eq < 0) continue;
+      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
+      break;
+    }
+  } else {
+    assigned = names.length ? extractAssignedString(s, names) : null;
+  }
+  if (assigned != null) s = assigned;
+  return s
+    .replace(/^['"`]|['"`]$/g, "")
+    .replace(/\r|\n/g, " ")
+    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
+    .trim();
+}
+
 function decodeMlEscapes(s: string): string {
   return htmlDecode(String(s || ""))
     .replace(/\\u002F/gi, "/")
@@ -170,15 +222,18 @@ export async function generateAffiliateLink(
   creds: AffiliateCreds,
 ): Promise<AffiliateResult> {
   const url = String(permalink || "").trim();
+  const cookie = sanitizeMlCredential(creds.cookie, ["ML_COOKIE", "COOKIE"]);
+  const csrf = sanitizeMlCredential(creds.csrf, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
+  const affiliateId = sanitizeMlCredential(creds.affiliateId, ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]);
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: "INVALID_PERMALINK" };
-  if (!creds.cookie || !creds.csrf || !creds.affiliateId) {
+  if (!cookie || !csrf || !affiliateId) {
     return { ok: false, error: "MISSING_CREDS" };
   }
 
   const productUrl = await resolveMlProductUrl(url);
   if (!productUrl) return { ok: false, error: "INVALID_PERMALINK", detail: { reason: "not_product_url", url } };
 
-  const payload = JSON.stringify({ urls: [productUrl], tag: creds.affiliateId });
+  const payload = JSON.stringify({ urls: [productUrl], tag: affiliateId });
   let lastErr: unknown = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -193,8 +248,8 @@ export async function generateAffiliateLink(
             "origin": "https://www.mercadolivre.com.br",
             "referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
             "user-agent": UA,
-            "cookie": creds.cookie,
-            "x-csrf-token": creds.csrf,
+            "cookie": cookie,
+            "x-csrf-token": csrf,
           },
           body: payload,
         },

@@ -51,6 +51,58 @@ const INTERVALOS = [
   { v: 24, l: "Uma vez por dia" },
 ];
 
+function extractAssignedString(input: string, names: string[]) {
+  for (const name of names) {
+    const idx = input.search(new RegExp(`\\b${name}\\b`, "i"));
+    if (idx < 0) continue;
+    const eq = input.indexOf("=", idx);
+    if (eq < 0) continue;
+    let i = eq + 1;
+    while (/\s/.test(input[i] || "")) i++;
+    const quote = input[i];
+    if (!["'", '"', "`"].includes(quote)) continue;
+    i++;
+    let out = "";
+    for (; i < input.length; i++) {
+      const ch = input[i];
+      if (ch === "\\" && i + 1 < input.length) {
+        const next = input[++i];
+        out += next === "n" || next === "r" ? " " : next;
+        continue;
+      }
+      if (ch === quote) return out;
+      out += ch;
+    }
+  }
+  return null;
+}
+
+function sanitizeMlCredential(value: string, names: string[]) {
+  let s = String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\u2060]/g, "")
+    .trim();
+  let assigned: string | null = null;
+  if (names.some((n) => /COOKIE/i.test(n))) {
+    for (const name of names) {
+      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
+      if (idx < 0) continue;
+      const eq = s.indexOf("=", idx);
+      if (eq < 0) continue;
+      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
+      break;
+    }
+  } else {
+    assigned = extractAssignedString(s, names);
+  }
+  if (assigned != null) s = assigned;
+  return s
+    .replace(/^['"`]|['"`]$/g, "")
+    .replace(/\r|\n/g, " ")
+    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
+    .trim();
+}
+
 export default function ScrapperModule({ portfolioId }: { portfolioId: string }) {
   return (
     <div className="p-4 lg:p-6 max-w-5xl mx-auto space-y-4">
@@ -318,12 +370,16 @@ function JobDialog({
     if (plataforma === "shopee" && (!shopeeAppId.trim() || !shopeeSecret.trim())) {
       return toast.error("Informe App ID e Secret da Shopee");
     }
-    if (plataforma === "mercado_livre" && (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim())) {
+    const cleanMlCookie = sanitizeMlCredential(mlCookie, ["ML_COOKIE", "COOKIE"]);
+    const cleanMlCsrf = sanitizeMlCredential(mlCsrf, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
+    const cleanMlTag = sanitizeMlCredential(mlTag, ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]);
+
+    if (plataforma === "mercado_livre" && (!cleanMlCookie || !cleanMlCsrf || !cleanMlTag)) {
       return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre");
     }
     if (plataforma === "dup") {
       if (!grupoOrigemJid) return toast.error("Selecione o grupo de origem");
-      if (!mlCookie.trim() || !mlCsrf.trim() || !mlTag.trim()) {
+      if (!cleanMlCookie || !cleanMlCsrf || !cleanMlTag) {
         return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre (para encurtar os links)");
       }
     }
@@ -342,10 +398,10 @@ function JobDialog({
       config.shopee_secret = shopeeSecret.trim();
     }
     if (plataforma === "mercado_livre" || plataforma === "dup") {
-      config.ml_cookie = mlCookie.trim();
-      config.ml_csrf_token = mlCsrf.trim();
-      config.ml_affiliate_id = mlTag.trim();
-      config.ml_affiliate_tag = mlTag.trim(); // back-compat
+      config.ml_cookie = cleanMlCookie;
+      config.ml_csrf_token = cleanMlCsrf;
+      config.ml_affiliate_id = cleanMlTag;
+      config.ml_affiliate_tag = cleanMlTag; // back-compat
       config.ml_tool_id = mlToolId.trim();
     }
     if (plataforma === "mercado_livre") {
@@ -882,12 +938,14 @@ function MlCookieAlert({ job }: { job: Job }) {
   }
 
   // Cookie expirado / inválido — alerta forte com instruções.
-  const isExpired = status.error === "COOKIE_EXPIRED" || status.status_code === 401 || status.status_code === 403;
+  const errorText = String(status.error ?? "erro");
+  const shortError = errorText.length > 120 ? `${errorText.slice(0, 120)}…` : errorText;
+  const isExpired = errorText.startsWith("COOKIE_EXPIRED") || status.status_code === 401 || status.status_code === 403;
   return (
     <div className="mt-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-[12px] text-destructive space-y-2">
       <div className="flex items-center justify-between gap-2">
         <strong className="text-[13px]">
-          {isExpired ? "🚨 Cookie do Mercado Livre EXPIROU" : `🚨 Cookie ML inválido (${status.error ?? "erro"})`}
+          {isExpired ? "🚨 Cookie do Mercado Livre EXPIROU" : `🚨 Cookie ML inválido (${shortError})`}
         </strong>
         <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={recheck} disabled={checking}>
           {checking ? <Loader2 size={10} className="animate-spin" /> : "Re-checar"}
