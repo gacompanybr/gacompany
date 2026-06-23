@@ -31,6 +31,166 @@ function findNode(wf: AnyWorkflow, name: string): AnyNode | undefined {
   return wf.nodes.find((n: AnyNode) => n.name === name);
 }
 
+const ML_HTML_PARSER_CODE = String.raw`// Extrai produtos direto do HTML do Mercado Livre.
+// O node HTML do n8n costuma voltar vazio quando a página muda de classe
+// ou quando o ML devolve a tela de verificação/login.
+function decodeHtml(s) {
+  return String(s || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+}
+
+function stripTags(s) {
+  return decodeHtml(String(s || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim());
+}
+
+function absUrl(u) {
+  u = decodeHtml(String(u || '').trim());
+  if (!u) return '';
+  if (u.startsWith('//')) return 'https:' + u;
+  if (u.startsWith('/')) return 'https://www.mercadolivre.com.br' + u;
+  return u;
+}
+
+function cleanImg(u) {
+  u = absUrl(String(u || '').split(',')[0].trim().split(/\s+/)[0]);
+  if (!/^https?:\/\//i.test(u)) return '';
+  if (/logo|sprite|transparent|data:image/i.test(u)) return '';
+  return u;
+}
+
+function titleFromBlock(block, link) {
+  const linkEsc = link ? link.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+  const linkRe = linkEsc ? new RegExp('<a[^>]+href=["\\']' + linkEsc + '["\\'][^>]*>([\\s\\S]*?)<\\/a>', 'i') : null;
+  const anchor = linkRe ? block.match(linkRe) : block.match(/<a[^>]+href=["'][^"']*(?:MLB|\/p\/|mercadolivre\.com\.br)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
+  const candidates = [
+    anchor?.[1],
+    block.match(/<(?:h2|h3)[^>]*>([\s\S]*?)<\/(?:h2|h3)>/i)?.[1],
+    block.match(/(?:title|aria-label)=["']([^"']{8,180})["']/i)?.[1],
+    block.match(/<img[^>]+alt=["']([^"']{8,180})["']/i)?.[1],
+  ];
+  for (const c of candidates) {
+    const t = stripTags(c).replace(/^(?:Patrocinado|Novo|Usado)\s+/i, '').trim();
+    if (t && t.length >= 4 && !/^R\$/i.test(t) && !/mercado livre/i.test(t)) return t;
+  }
+  return '';
+}
+
+function imageFromBlock(block) {
+  const attrs = ['data-src', 'src', 'data-srcset', 'srcset'];
+  for (const attr of attrs) {
+    const re = new RegExp('<img[^>]+\\s' + attr + '=["\\']([^"\\']+)["\\']', 'ig');
+    for (const m of block.matchAll(re)) {
+      const img = cleanImg(m[1]);
+      if (img && /mlstatic|mercadolibre|http2/i.test(img)) return img;
+    }
+  }
+  return '';
+}
+
+function moneyFromAria(s) {
+  s = decodeHtml(String(s || '').toLowerCase());
+  const m = s.match(/(\d[\d\.]*)\s*reais?(?:\s*com\s*(\d{1,2})\s*centavos?)?/i);
+  if (!m) return null;
+  const whole = Number(m[1].replace(/\./g, ''));
+  const cents = m[2] ? Number(m[2]) / 100 : 0;
+  return Number.isFinite(whole) ? whole + cents : null;
+}
+
+function priceTextFromBlock(block) {
+  const values = [];
+  for (const m of block.matchAll(/<span[^>]*class=["'][^"']*andes-money-amount[^"']*["'][^>]*>/gi)) {
+    const start = m.index || 0;
+    const chunk = block.slice(start, start + 900);
+    const open = m[0];
+    let val = moneyFromAria(open.match(/aria-label=["']([^"']+)["']/i)?.[1]);
+    if (val == null) {
+      const frac = chunk.match(/andes-money-amount__fraction[^>]*>([\d\.]+)</i)?.[1];
+      const cents = chunk.match(/andes-money-amount__cents[^>]*>(\d{1,2})</i)?.[1];
+      if (frac) val = Number(frac.replace(/\./g, '')) + (cents ? Number(cents) / 100 : 0);
+    }
+    if (val != null && Number.isFinite(val) && val >= 5) values.push(Math.round(val * 100) / 100);
+  }
+  if (!values.length) {
+    const txt = stripTags(block);
+    for (const m of txt.matchAll(/R\$\s*([\d\.]+(?:,\d{1,2})?)/g)) {
+      const n = Number(m[1].replace(/\./g, '').replace(',', '.'));
+      if (Number.isFinite(n) && n >= 5) values.push(n);
+    }
+  }
+  const unique = [...new Set(values)].sort((a, b) => b - a).slice(0, 3);
+  const discount = stripTags(block).match(/\b\d{1,2}\s*%\s*OFF\b/i)?.[0] || '';
+  return unique.map((n) => 'R$ ' + String(n).replace('.', ',')).join(' ') + (discount ? ' ' + discount : '');
+}
+
+function productBlocks(html) {
+  const blocks = [];
+  const cardRe = /<(?:li|div|article)[^>]+class=["'][^"']*(?:ui-search-layout__item|ui-search-result__wrapper|poly-card|shops__layout-item)[^"']*["'][^>]*>[\s\S]*?(?=<(?:li|div|article)[^>]+class=["'][^"']*(?:ui-search-layout__item|ui-search-result__wrapper|poly-card|shops__layout-item)[^"']*["']|<\/ol>|<\/section>|$)/gi;
+  for (const m of html.matchAll(cardRe)) blocks.push(m[0]);
+  if (blocks.length) return blocks;
+
+  const linkRe = /href=["']([^"']*(?:MLB-?\d+|\/p\/|mercadolivre\.com\.br\/(?!registration|jms\/mlb\/lgz\/login))[^"']*)["']/gi;
+  const seen = new Set();
+  for (const m of html.matchAll(linkRe)) {
+    const idx = m.index || 0;
+    const slice = html.slice(Math.max(0, idx - 2500), Math.min(html.length, idx + 4500));
+    if (seen.has(m[1])) continue;
+    seen.add(m[1]);
+    blocks.push(slice);
+  }
+  return blocks;
+}
+
+function parseProducts(html) {
+  const out = [];
+  const seen = new Set();
+  for (const block of productBlocks(html)) {
+    const linkRaw = block.match(/href=["']([^"']*(?:MLB-?\d+|\/p\/|mercadolivre\.com\.br\/(?!registration|jms\/mlb\/lgz\/login))[^"']*)["']/i)?.[1] || '';
+    const link = absUrl(linkRaw).split('#')[0];
+    if (!link || seen.has(link) || /registration|negative_traffic|\/login/i.test(link)) continue;
+    const name = titleFromBlock(block, linkRaw);
+    const img = imageFromBlock(block);
+    const preco = priceTextFromBlock(block);
+    if (!name || !preco || !link) continue;
+    seen.add(link);
+    out.push({ name, img, preco, link });
+  }
+  return out;
+}
+
+const result = [];
+for (const item of items) {
+  const html = String(item.json?.data ?? item.json?.body ?? item.json?.html ?? item.json ?? '');
+  if (/suspicious-traffic|negative_traffic|Para continuar,\s*acesse|access your account/i.test(html)) {
+    throw new Error('Mercado Livre devolveu tela de verificação/login em vez da lista de produtos. Re-salve o scraper para aplicar os headers/cookie; se continuar, atualize o ML_COOKIE da conta.');
+  }
+  const products = parseProducts(html);
+  if (!products.length) {
+    throw new Error('Nenhum produto encontrado no HTML recebido do Mercado Livre. O layout mudou ou a resposta não é uma página de listagem válida.');
+  }
+  result.push({ json: {
+    'Nomes Produtos': products.map(p => p.name),
+    'Imagem Produtos (src)': products.map(p => p.img),
+    preco: products.map(p => p.preco),
+    link_compra: products.map(p => p.link),
+    'Imagem Produtos (data-src)': products.map(p => p.img),
+    'Imagem Produtos (srcset)': products.map(p => p.img),
+    'Imagem Produtos (data-srcset)': products.map(p => p.img),
+  }});
+}
+return result;
+`;
+
 function removeNode(wf: AnyWorkflow, name: string) {
   wf.nodes = wf.nodes.filter((n: AnyNode) => n.name !== name);
   delete wf.connections?.[name];
