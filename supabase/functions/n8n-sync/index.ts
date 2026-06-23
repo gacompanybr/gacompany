@@ -1,5 +1,6 @@
 // n8n-sync: cria, ativa, pausa e deleta workflows no n8n para cada robô
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { buildMlScrapperWorkflow } from "../_shared/ml-scrapper-template.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1902,7 +1903,10 @@ Deno.serve(async (req) => {
       if (job.n8n_workflow_id) {
         try {
           const refreshed = { ...job, n8n_datatable_id: datatableId, data_table_name: tableName };
-          const wf = buildScrapperWorkflow(refreshed);
+          const isMLr = refreshed.plataforma === "mercadolivre" || refreshed.plataforma === "mercado_livre";
+          const wf = isMLr
+            ? buildMlScrapperWorkflow(refreshed, friendlyWorkflowName("SCRAPPER", refreshed))
+            : buildScrapperWorkflow(refreshed);
           await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wf) });
         } catch (e) { console.warn("refresh workflow falhou:", e); }
       }
@@ -1977,8 +1981,18 @@ Deno.serve(async (req) => {
         if (!datatableId) throw new Error(`Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}`);
       }
 
-      // 2. Monta e faz upsert do workflow (DUP usa builder próprio)
-      const wf = job.plataforma === "dup" ? buildDupWorkflow(job) : buildScrapperWorkflow(job);
+      // 2. Monta e faz upsert do workflow
+      //    - DUP: builder próprio (whatsapp espelho)
+      //    - Mercado Livre: usa o template real do usuário (ML - Auto 12h)
+      //    - Demais: builder genérico antigo
+      const jobForBuild = { ...job, n8n_datatable_id: datatableId, data_table_name: tableName };
+      const wfName = friendlyWorkflowName("SCRAPPER", jobForBuild);
+      const isML = jobForBuild.plataforma === "mercadolivre" || jobForBuild.plataforma === "mercado_livre";
+      const wf = jobForBuild.plataforma === "dup"
+        ? buildDupWorkflow(jobForBuild)
+        : isML
+          ? buildMlScrapperWorkflow(jobForBuild, wfName)
+          : buildScrapperWorkflow(jobForBuild);
 
       let result: any;
       if (job.n8n_workflow_id) {
@@ -2057,7 +2071,10 @@ Deno.serve(async (req) => {
       } catch (_) { /* fallback */ }
       // 2) fallback: flipa cron temporariamente pra * * * * * (every minute), reativa, agenda revert
       const originalCron: string = job.agendamento_cron || "0 10 * * *";
-      const wfTemp = buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
+      const isMLrun = job.plataforma === "mercadolivre" || job.plataforma === "mercado_livre";
+      const wfTemp = isMLrun
+        ? buildMlScrapperWorkflow({ ...job, intervalo_horas: 1 }, friendlyWorkflowName("SCRAPPER", job))
+        : buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
       try {
         await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfTemp) });
         try { await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" }); } catch (_) {}
@@ -2070,7 +2087,10 @@ Deno.serve(async (req) => {
         await new Promise((r) => setTimeout(r, 90_000));
         try {
           const { data: jFresh } = await admin.from("scrapper_jobs").select("*").eq("id", jobId).single();
-          const wfOrig = buildScrapperWorkflow({ ...(jFresh ?? job), agendamento_cron: originalCron });
+          const base = (jFresh ?? job);
+          const wfOrig = isMLrun
+            ? buildMlScrapperWorkflow(base, friendlyWorkflowName("SCRAPPER", base))
+            : buildScrapperWorkflow({ ...base, agendamento_cron: originalCron });
           await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfOrig) });
           try { await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" }); } catch (_) {}
           await n8nFetch(`/workflows/${job.n8n_workflow_id}/activate`, { method: "POST" });
