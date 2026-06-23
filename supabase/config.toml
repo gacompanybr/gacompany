@@ -33,6 +33,9 @@ verify_jwt = false
 [functions.dup-dispatcher]
 verify_jwt = false
 
+[functions.whatsapp-keepalive]
+verify_jwt = false
+
 
 
 
