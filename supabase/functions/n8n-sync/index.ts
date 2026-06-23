@@ -1978,8 +1978,18 @@ Deno.serve(async (req) => {
         if (!datatableId) throw new Error(`Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}`);
       }
 
-      // 2. Monta e faz upsert do workflow (DUP usa builder próprio)
-      const wf = job.plataforma === "dup" ? buildDupWorkflow(job) : buildScrapperWorkflow(job);
+      // 2. Monta e faz upsert do workflow
+      //    - DUP: builder próprio (whatsapp espelho)
+      //    - Mercado Livre: usa o template real do usuário (ML - Auto 12h)
+      //    - Demais: builder genérico antigo
+      const jobForBuild = { ...job, n8n_datatable_id: datatableId, data_table_name: tableName };
+      const wfName = friendlyWorkflowName("SCRAPPER", jobForBuild);
+      const isML = jobForBuild.plataforma === "mercadolivre" || jobForBuild.plataforma === "mercado_livre";
+      const wf = jobForBuild.plataforma === "dup"
+        ? buildDupWorkflow(jobForBuild)
+        : isML
+          ? buildMlScrapperWorkflow(jobForBuild, wfName)
+          : buildScrapperWorkflow(jobForBuild);
 
       let result: any;
       if (job.n8n_workflow_id) {
