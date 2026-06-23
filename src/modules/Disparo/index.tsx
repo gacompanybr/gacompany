@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
-import { Loader2, Plus, Send, Trash2, Play, Pause, Upload, FileSpreadsheet, RefreshCw, Users } from "lucide-react";
+import { Loader2, Plus, Send, Trash2, Play, Pause, Upload, FileSpreadsheet, RefreshCw, Users, Link2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -159,6 +159,10 @@ function NovaCampanhaDialog({
   const [busy, setBusy] = useState(false);
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [arquivoNome, setArquivoNome] = useState<string>("");
+  const [sheetUrl, setSheetUrl] = useState<string>("");
+  const [importMode, setImportMode] = useState<"file" | "sheet">("file");
+  const [loadingSheet, setLoadingSheet] = useState(false);
+  const [skipCount, setSkipCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
 
@@ -185,7 +189,7 @@ function NovaCampanhaDialog({
   useEffect(() => {
     if (!open) {
       setNome(""); setMensagem(""); setDMin(8); setDMax(20); setLoteTamanho(10); setPausaLoteMin(15);
-      setContatos([]); setArquivoNome("");
+      setContatos([]); setArquivoNome(""); setSheetUrl(""); setImportMode("file"); setSkipCount(0);
       setAgentId(""); setWaContacts([]); setSelectedJids(new Set()); setFiltroContato("");
     }
   }, [open]);
@@ -199,34 +203,95 @@ function NovaCampanhaDialog({
     return String(v ?? "").replace(/\D/g, "");
   }
 
+  function parseRows(rows: Record<string, any>[]): { parsed: Contato[]; skipped: number } {
+    if (!rows.length) return { parsed: [], skipped: 0 };
+    const keys = Object.keys(rows[0]);
+    const nomeKey = keys.find((k) => /^(nome|name|contato)$/i.test(k.trim())) || keys.find((k) => /nome|name|contato/i.test(k));
+    const telKey = keys.find((k) => /^(numero|número|telefone|tel|whatsapp|celular|phone)$/i.test(k.trim())) || keys.find((k) => /tel|fone|whats|celular|phone|number|numero|número/i.test(k));
+    const nichoKey = keys.find((k) => /^(nicho|segmento|categoria)$/i.test(k.trim())) || keys.find((k) => /nicho|segmento|categoria/i.test(k));
+    const envioKey = keys.find((k) => /^(envio|enviado|status)$/i.test(k.trim())) || keys.find((k) => /envio|enviado/i.test(k));
+    if (!telKey) {
+      toast.error("A planilha precisa ter uma coluna 'numero' (ou 'telefone').");
+      return { parsed: [], skipped: 0 };
+    }
+    let skipped = 0;
+    const parsed: Contato[] = [];
+    for (const r of rows) {
+      const envioVal = envioKey ? String(r[envioKey] ?? "").trim().toLowerCase() : "";
+      // Linhas marcadas como já enviadas ("sim", "yes", "true", "1") são puladas
+      if (/^(sim|s|yes|y|true|1|enviado)$/i.test(envioVal)) { skipped++; continue; }
+      const telefone = normalizarTelefone(r[telKey]);
+      if (telefone.length < 8) continue;
+      const nome = nomeKey ? String(r[nomeKey] ?? "").trim() : "";
+      const variaveis: Record<string, any> = {};
+      if (nichoKey) variaveis.nicho = String(r[nichoKey] ?? "").trim();
+      for (const k of keys) {
+        if (k === telKey || k === nomeKey || k === nichoKey || k === envioKey) continue;
+        variaveis[k] = r[k];
+      }
+      parsed.push({ nome, telefone, variaveis });
+    }
+    return { parsed, skipped };
+  }
+
   async function handleFile(file: File) {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
-      if (!rows.length) return toast.error("Planilha vazia");
-      const parsed = rows
-        .map((r) => {
-          const keys = Object.keys(r);
-          const telKey = keys.find((k) => /tel|fone|whats|celular|phone|number|numero|número/i.test(k));
-          const nomeKey = keys.find((k) => /nome|name|contato/i.test(k));
-          if (!telKey || !nomeKey) return null;
-          const telefone = normalizarTelefone(r[telKey]);
-          const nome = String(r[nomeKey] ?? "").trim();
-          const variaveis: Record<string, any> = {};
-          for (const k of keys) if (k !== telKey && k !== nomeKey) variaveis[k] = r[k];
-          return { nome, telefone, variaveis };
-        })
-        .filter((c): c is Contato => !!c && c.telefone.length >= 8);
+      const { parsed, skipped } = parseRows(rows);
       if (!parsed.length) {
-        return toast.error("A planilha precisa ter uma coluna 'nome' e outra 'numero' (ou 'telefone').");
+        if (skipped > 0) toast.warning(`Todos os ${skipped} contatos já estão marcados como enviados (envio=sim).`);
+        else toast.error("Nenhum contato válido encontrado.");
+        return;
       }
       setContatos(parsed);
+      setSkipCount(skipped);
       setArquivoNome(file.name);
-      toast.success(`${parsed.length} contatos carregados da planilha`);
+      setSheetUrl("");
+      toast.success(`${parsed.length} contatos carregados${skipped > 0 ? ` (${skipped} pulados por envio=sim)` : ""}`);
     } catch (e: any) {
       toast.error("Erro ao ler planilha: " + (e?.message ?? e));
+    }
+  }
+
+  async function handleSheet() {
+    if (!/\/spreadsheets\/d\/[a-zA-Z0-9-_]+/.test(sheetUrl)) {
+      return toast.error("Link do Google Sheets inválido");
+    }
+    setLoadingSheet(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sdr-sheet-fetch", { body: { sheetUrl } });
+      let payload: any = data;
+      if (error) {
+        try {
+          const ctx = (error as any).context;
+          if (ctx && typeof ctx.json === "function") payload = await ctx.json();
+          else if (ctx && typeof ctx.text === "function") payload = JSON.parse(await ctx.text());
+        } catch { /* ignore */ }
+        if (!payload?.error && !payload?.csv) throw error;
+      }
+      if (payload?.error) throw new Error(payload.error);
+      const csv = payload?.csv as string;
+      if (!csv) throw new Error("Planilha vazia ou inacessível");
+      const wb = XLSX.read(csv, { type: "string" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+      const { parsed, skipped } = parseRows(rows);
+      if (!parsed.length) {
+        if (skipped > 0) toast.warning(`Todos os ${skipped} contatos já estão marcados como enviados (envio=sim).`);
+        else toast.error("Nenhum contato válido encontrado.");
+        return;
+      }
+      setContatos(parsed);
+      setSkipCount(skipped);
+      setArquivoNome("");
+      toast.success(`${parsed.length} contatos carregados da planilha${skipped > 0 ? ` (${skipped} pulados por envio=sim)` : ""}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao ler planilha");
+    } finally {
+      setLoadingSheet(false);
     }
   }
 
