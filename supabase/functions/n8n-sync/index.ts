@@ -1903,7 +1903,10 @@ Deno.serve(async (req) => {
       if (job.n8n_workflow_id) {
         try {
           const refreshed = { ...job, n8n_datatable_id: datatableId, data_table_name: tableName };
-          const wf = buildScrapperWorkflow(refreshed);
+          const isMLr = refreshed.plataforma === "mercadolivre" || refreshed.plataforma === "mercado_livre";
+          const wf = isMLr
+            ? buildMlScrapperWorkflow(refreshed, friendlyWorkflowName("SCRAPPER", refreshed))
+            : buildScrapperWorkflow(refreshed);
           await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wf) });
         } catch (e) { console.warn("refresh workflow falhou:", e); }
       }
