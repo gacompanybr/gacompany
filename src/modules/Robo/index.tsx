@@ -435,10 +435,6 @@ function RoboDialog({
                 <RadioGroupItem value="disparo" id="ds" />
                 <span className="text-sm">Disparo de contatos</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <RadioGroupItem value="beacons_promo" id="bp" />
-                <span className="text-sm">Beacons promoção do dia</span>
-              </label>
             </RadioGroup>
 
           </div>
