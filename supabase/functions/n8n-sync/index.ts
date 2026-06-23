@@ -2087,7 +2087,10 @@ Deno.serve(async (req) => {
         await new Promise((r) => setTimeout(r, 90_000));
         try {
           const { data: jFresh } = await admin.from("scrapper_jobs").select("*").eq("id", jobId).single();
-          const wfOrig = buildScrapperWorkflow({ ...(jFresh ?? job), agendamento_cron: originalCron });
+          const base = (jFresh ?? job);
+          const wfOrig = isMLrun
+            ? buildMlScrapperWorkflow(base, friendlyWorkflowName("SCRAPPER", base))
+            : buildScrapperWorkflow({ ...base, agendamento_cron: originalCron });
           await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfOrig) });
           try { await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" }); } catch (_) {}
           await n8nFetch(`/workflows/${job.n8n_workflow_id}/activate`, { method: "POST" });
