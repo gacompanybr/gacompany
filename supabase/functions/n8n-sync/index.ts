@@ -1525,13 +1525,9 @@ try {
       if (!isMlProductUrl(realUrl)) {
         throw new Error("link resolvido ainda não é produto ML: " + realUrl);
       }
-      // limpa querystring (remove tag de afiliado de terceiros, matt_*, etc.)
-      let clean = realUrl;
-      try {
-        const u = new URL(realUrl);
-        u.search = ""; u.hash = "";
-        clean = u.toString();
-      } catch (_) {}
+      // limpa tag de terceiros, mas preserva pdp_filters=item_id quando existir;
+      // isso evita cair em outro anúncio/variação do mesmo catálogo.
+      const clean = sanitizeProductUrl(realUrl);
       debug.push({ cleanUrl: clean });
 
       const myAff = await generateAffiliate(clean);
