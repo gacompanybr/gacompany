@@ -170,7 +170,7 @@ function parseProducts(html) {
 
 const result = [];
 for (const item of items) {
-  const html = String(item.json?.data ?? item.json?.body ?? item.json?.html ?? item.json ?? '');
+  const html = String(item.json?.data ?? item.json?.body ?? item.json?.html ?? item.data ?? item.body ?? item.html ?? item.json ?? '');
   if (/suspicious-traffic|negative_traffic|Para continuar,\s*acesse|access your account/i.test(html)) {
     throw new Error('Mercado Livre devolveu tela de verificação/login em vez da lista de produtos. Re-salve o scraper para aplicar os headers/cookie; se continuar, atualize o ML_COOKIE da conta.');
   }
