@@ -71,7 +71,7 @@ function cleanImg(u) {
 
 function titleFromBlock(block, link) {
   const linkEsc = link ? link.replace(/[.*+?^{}()|[\]\\$]/g, '\\$&') : '';
-  const linkRe = linkEsc ? new RegExp('<a[^>]+href=["\\']' + linkEsc + '["\\'][^>]*>([\\s\\S]*?)<\\/a>', 'i') : null;
+  const linkRe = linkEsc ? new RegExp("<a[^>]+href=[\"']" + linkEsc + "[\"'][^>]*>([\\s\\S]*?)<\\/a>", 'i') : null;
   const anchor = linkRe ? block.match(linkRe) : block.match(/<a[^>]+href=["'][^"']*(?:MLB|\/p\/|mercadolivre\.com\.br)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
   const candidates = [
     anchor?.[1],
@@ -89,7 +89,7 @@ function titleFromBlock(block, link) {
 function imageFromBlock(block) {
   const attrs = ['data-src', 'src', 'data-srcset', 'srcset'];
   for (const attr of attrs) {
-    const re = new RegExp('<img[^>]+\\s' + attr + '=["\\']([^"\\']+)["\\']', 'ig');
+    const re = new RegExp("<img[^>]+\\s" + attr + "=[\"']([^\"']+)[\"']", 'ig');
     for (const m of block.matchAll(re)) {
       const img = cleanImg(m[1]);
       if (img && /mlstatic|mercadolibre|http2/i.test(img)) return img;
