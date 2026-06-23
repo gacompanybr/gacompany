@@ -72,6 +72,7 @@ const MARKETPLACES = [
   { v: "shopee", l: "Shopee" },
   { v: "mercadolivre", l: "Mercado Livre" },
   { v: "amazon", l: "Amazon" },
+  { v: "dup", l: "DUP" },
 ];
 
 const DEFAULT_TEMPLATE = `🔥 *{productname}*
@@ -433,10 +434,6 @@ function RoboDialog({
               <label className="flex items-center gap-2 cursor-pointer">
                 <RadioGroupItem value="disparo" id="ds" />
                 <span className="text-sm">Disparo de contatos</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <RadioGroupItem value="beacons_promo" id="bp" />
-                <span className="text-sm">Beacons promoção do dia</span>
               </label>
             </RadioGroup>
 
