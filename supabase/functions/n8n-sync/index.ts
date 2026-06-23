@@ -1245,18 +1245,26 @@ function parseOffer(text) {
   if (cM) cupom = cM[1].toUpperCase();
   let productname = "";
   const lines = text.split(/\\r?\\n/).map(l => l.trim()).filter(Boolean);
+  // 1) linha em *negrito*
   for (const l of lines) {
-    const m = l.match(/^[✅✳️🛒🔥]*\\s*\\*(.+?)\\*\\s*$/);
+    const m = l.match(/^[^A-Za-z0-9]*\\*(.+?)\\*\\s*$/);
     if (m) { productname = stripMd(m[1]); break; }
   }
+  // 2) primeira linha útil (sem link, preço, cupom)
   if (!productname) {
     for (const l of lines) {
       if (/https?:/i.test(l)) continue;
-      if (/^R\\$/i.test(l) || /^por\\s+R\\$/i.test(l)) continue;
+      if (/^R\\$/i.test(l) || /^por\\s+R\\$/i.test(l) || /^de\\s+R\\$/i.test(l)) continue;
       if (/cupom/i.test(l)) continue;
-      const cl = stripMd(l);
-      if (cl.length >= 8) { productname = cl; break; }
+      if (/^[\\d%\\s.,-]+$/.test(l)) continue;
+      const cl = stripMd(l).replace(/^[\\s•·\\-–—:]+/, "").trim();
+      if (cl.length >= 4) { productname = cl; break; }
     }
+  }
+  // 3) primeira linha qualquer
+  if (!productname && lines.length) {
+    const cl = stripMd(lines[0]).replace(/^[\\s•·\\-–—:]+/, "").trim();
+    if (cl.length >= 3) productname = cl;
   }
   if (!productname) productname = "Oferta";
   return { productname: productname.slice(0, 250), price, priceoriginal, pricediscountrate, offerlink, cupom };
@@ -1513,6 +1521,7 @@ async function enrichProduct(productUrl, fallback, eventImageUrl) {
     imageUrl: eventImageUrl || "",
     sales: 0,
     rating: 0,
+    cupom: fallback.cupom || null,
   };
   const itemId = itemIdFromText(productUrl);
   const item = itemId ? await fetchJsonSafe("https://api.mercadolibre.com/items/" + String(itemId).replace(/-/g, "")) : null;
@@ -1532,22 +1541,43 @@ async function enrichProduct(productUrl, fallback, eventImageUrl) {
     const avg = Number(reviews && (reviews.rating_average || (reviews.rating && reviews.rating.average)));
     if (Number.isFinite(avg) && avg > 0) info.rating = avg;
   }
-  if (!info.shopname || !info.imageUrl || !info.priceoriginal || !info.price) {
-    try {
-      const r = await fetch(productUrl, { headers: { "User-Agent": UA, "accept-language": "pt-BR,pt;q=0.9" } });
-      const html = await r.text();
-      const ogTitle = pickMeta(html, "og:title").replace(/\\s*\\|\\s*MercadoLivre.*$/i, "").trim();
-      const ogImage = pickMeta(html, "og:image");
-      if (ogTitle && (!info.productname || info.productname === "Oferta")) info.productname = ogTitle;
-      if (ogImage && !info.imageUrl) info.imageUrl = ogImage.replace(/^http:\\/\\//i, "https://");
-      const htmlPrice = parseHtmlPrice(html, ["price", "amount", "price_amount"]);
-      const htmlOriginal = parseHtmlPrice(html, ["original_price", "originalPrice", "was_price", "regular_price"]);
-      if (htmlPrice > 0 && !info.price) info.price = htmlPrice;
-      if (htmlOriginal > 0 && htmlOriginal >= info.price) info.priceoriginal = htmlOriginal;
-      const sellerM = html.match(/["\\'](?:seller_name|sellerName|official_store_name|officialStoreName|nickname)["\\']\\s*:\\s*["\\']([^"\\']{2,80})["\\']/i);
-      if (sellerM && !info.shopname) info.shopname = decodeMlEscapes(sellerM[1]).trim();
-    } catch (_) {}
-  }
+  // HTML scraping (sempre tenta, pra preencher gaps e capturar CUPOM)
+  try {
+    const r = await fetch(productUrl, { headers: { "User-Agent": UA, "accept-language": "pt-BR,pt;q=0.9" } });
+    const html = await r.text();
+    const ogTitle = pickMeta(html, "og:title").replace(/\\s*\\|\\s*MercadoLivre.*$/i, "").trim();
+    const ogImage = pickMeta(html, "og:image:secure_url") || pickMeta(html, "og:image");
+    if (ogTitle && (!info.productname || info.productname === "Oferta")) info.productname = ogTitle;
+    if (ogImage && !info.imageUrl) info.imageUrl = ogImage.replace(/^http:\\/\\//i, "https://");
+    // Preço/original via JSON embutido
+    const htmlPrice = parseHtmlPrice(html, ["price", "amount", "price_amount"]);
+    const htmlOriginal = parseHtmlPrice(html, ["original_price", "originalPrice", "was_price", "regular_price"]);
+    if (htmlPrice > 0 && (!info.price || htmlPrice < info.price)) info.price = htmlPrice;
+    if (htmlOriginal > 0 && htmlOriginal >= info.price) info.priceoriginal = htmlOriginal;
+    // Loja: tenta vários campos
+    if (!info.shopname) {
+      const sellerM = html.match(/["'](?:seller_name|sellerName|official_store_name|officialStoreName|nickname|store_name|storeName)["']\\s*:\\s*["']([^"']{2,80})["']/i);
+      if (sellerM) info.shopname = decodeMlEscapes(sellerM[1]).trim();
+    }
+    if (!info.shopname) {
+      const m2 = html.match(/Vendido por[^<]{0,40}<[^>]+>\\s*([^<]{2,80})</i)
+        || html.match(/<a[^>]+class=["'][^"']*(?:ui-seller-info|ui-pdp-seller__link-trigger)[^"']*["'][^>]*>([^<]{2,80})</i);
+      if (m2) info.shopname = htmlDecode(m2[1]).trim();
+    }
+    // CUPOM: padrões comuns no HTML do ML
+    if (!info.cupom) {
+      const couponPatterns = [
+        /["'](?:coupon_code|couponCode|discount_coupon|coupon)["']\\s*:\\s*["']([A-Z0-9_-]{3,30})["']/i,
+        /Use\\s+o\\s+cupom[^A-Z0-9]{0,20}([A-Z0-9_-]{4,30})/i,
+        /cupom[^A-Z0-9]{0,20}<[^>]*>\\s*([A-Z0-9_-]{4,30})\\s*</i,
+        /cupom[^A-Z0-9]{0,20}([A-Z]{3,}[A-Z0-9_-]{1,27})/i,
+      ];
+      for (const re of couponPatterns) {
+        const m = html.match(re);
+        if (m && m[1] && m[1].toUpperCase() !== "CUPOM") { info.cupom = m[1].toUpperCase(); break; }
+      }
+    }
+  } catch (_) {}
   if (!info.priceoriginal || info.priceoriginal < info.price) info.priceoriginal = info.price;
   info.pricediscountrate = (info.priceoriginal > 0 && info.price > 0 && info.priceoriginal > info.price)
     ? Math.round((1 - info.price / info.priceoriginal) * 100)
@@ -1613,10 +1643,11 @@ try {
       debug.push({ myAffiliate: finalLink });
 
       const product = await enrichProduct(clean, offer, ev.imageUrl || "");
-      debug.push({ enriched: { title: product.productname, price: product.price, original: product.priceoriginal, shop: product.shopname } });
+      debug.push({ enriched: { title: product.productname, price: product.price, original: product.priceoriginal, shop: product.shopname, cupom: product.cupom } });
 
+      const finalCupom = product.cupom || offer.cupom || null;
       const row = {
-        productname: product.productname + (offer.cupom ? " | Cupom: " + offer.cupom : ""),
+        productname: product.productname + (finalCupom ? " | Cupom: " + finalCupom : ""),
         price: product.price || 0,
         priceoriginal: product.priceoriginal || 0,
         pricediscountrate: product.pricediscountrate || 0,
