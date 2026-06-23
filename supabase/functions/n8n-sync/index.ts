@@ -549,17 +549,13 @@ function buildScrapperWorkflow(job: any) {
   const cfg = job.config ?? {};
   const termos: string[] = Array.isArray(cfg.termos) ? cfg.termos : [];
   const categorias: string[] = Array.isArray(cfg.categorias) ? cfg.categorias : [];
-  const normalizeShopeeCredential = (value: unknown) => String(value ?? "")
-    .replace(/^\uFEFF/, "")
-    .replace(/[\u200B-\u200D\u2060]/g, "")
-    .trim();
-  const shopeeAppId = normalizeShopeeCredential(cfg.shopee_app_id);
-  const shopeeSecret = normalizeShopeeCredential(cfg.shopee_secret);
+  const shopeeAppId = normalizeCredential(cfg.shopee_app_id);
+  const shopeeSecret = normalizeCredential(cfg.shopee_secret);
   const shopeePages = Math.max(1, Math.min(20, Number(cfg.shopee_pages ?? 20)));
-  const mlCookie = normalizeShopeeCredential(cfg.ml_cookie);
-  const mlCsrf = normalizeShopeeCredential(cfg.ml_csrf_token);
-  const mlAffiliateId = normalizeShopeeCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
-  const mlToolId = normalizeShopeeCredential(cfg.ml_tool_id);
+  const mlCookie = sanitizeMlCredential(cfg.ml_cookie, ["ML_COOKIE", "COOKIE"]);
+  const mlCsrf = sanitizeMlCredential(cfg.ml_csrf_token, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
+  const mlAffiliateId = sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag, ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]);
+  const mlToolId = normalizeCredential(cfg.ml_tool_id);
   const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 10)));
   const mlKeywordsPerRun = Math.max(1, Math.min(10, Number(cfg.ml_keywords_per_run ?? 1)));
   const mlLimitPerPage = Math.max(10, Math.min(50, Number(cfg.ml_limit_per_page ?? 50)));
@@ -1239,13 +1235,9 @@ function dupWebhookPath(jobId: string): string {
 
 function buildDupWorkflow(job: any) {
   const cfg = job.config ?? {};
-  const normalize = (v: unknown) => String(v ?? "")
-    .replace(/^\uFEFF/, "")
-    .replace(/[\u200B-\u200D\u2060]/g, "")
-    .trim();
-  const mlCookie = normalize(cfg.ml_cookie);
-  const mlCsrf = normalize(cfg.ml_csrf_token);
-  const mlAffiliateId = normalize(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const mlCookie = sanitizeMlCredential(cfg.ml_cookie, ["ML_COOKIE", "COOKIE"]);
+  const mlCsrf = sanitizeMlCredential(cfg.ml_csrf_token, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
+  const mlAffiliateId = sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag, ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]);
   const grupoOrigemJid = String(job.grupo_origem_jid ?? "");
   const dataTableName: string = job.data_table_name || `DUP_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
   const webhookPath = dupWebhookPath(job.id);
