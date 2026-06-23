@@ -1311,7 +1311,7 @@ function itemIdFromText(value) {
   const variants = [decoded];
   try { variants.push(decodeURIComponent(decoded)); } catch (_) {}
   for (const text of variants) {
-    const m = text.match(/(?:item_id[:=]|item_id%3A|wid=|\/MLB-?|"id"\\s*:\\s*")(MLB-?\\d+)/i);
+    const m = text.match(/(?:item_id[:=]|item_id%3A|wid=|\\/MLB-?|"id"\\s*:\\s*")(MLB-?\\d+)/i);
     if (m) return "MLB" + String(m[1]).replace(/\D/g, "");
   }
   return null;
