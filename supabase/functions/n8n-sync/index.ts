@@ -2071,7 +2071,10 @@ Deno.serve(async (req) => {
       } catch (_) { /* fallback */ }
       // 2) fallback: flipa cron temporariamente pra * * * * * (every minute), reativa, agenda revert
       const originalCron: string = job.agendamento_cron || "0 10 * * *";
-      const wfTemp = buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
+      const isMLrun = job.plataforma === "mercadolivre" || job.plataforma === "mercado_livre";
+      const wfTemp = isMLrun
+        ? buildMlScrapperWorkflow({ ...job, intervalo_horas: 0.05 }, friendlyWorkflowName("SCRAPPER", job))
+        : buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
       try {
         await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfTemp) });
         try { await n8nFetch(`/workflows/${job.n8n_workflow_id}/deactivate`, { method: "POST" }); } catch (_) {}
