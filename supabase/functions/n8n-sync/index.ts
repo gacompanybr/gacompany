@@ -1340,6 +1340,27 @@ function isMlProductUrl(url) {
 }
 function extractProductUrlFromHtml(html, baseUrl) {
   const raw = String(html || "");
+  const featuredStart = raw.indexOf('"id":"card-featured"');
+  const featured = featuredStart >= 0 ? raw.slice(featuredStart, featuredStart + 80000) : raw.slice(0, 120000);
+  const actionRe = /"id"\s*:\s*"show_product"[\s\S]{0,1600}?"url"\s*:\s*"((?:\\.|[^"\\])+)"/gi;
+  let a;
+  while ((a = actionRe.exec(featured))) {
+    try {
+      const candidate = sanitizeProductUrl(new URL(decodeMlEscapes(a[1]), baseUrl).toString());
+      if (isMlProductUrl(candidate)) return candidate;
+    } catch (_) {}
+  }
+  const metaRe = /"metadata"\s*:\s*\{[\s\S]{0,1200}?"id"\s*:\s*"(MLB\d+)"[\s\S]{0,1200}?"url"\s*:\s*"((?:\\.|[^"\\])+)"[\s\S]{0,1200}?"url_params"\s*:\s*"((?:\\.|[^"\\])*)"/i;
+  const metaM = featured.match(metaRe);
+  if (metaM) {
+    const url = decodeMlEscapes(metaM[2]);
+    const params = decodeMlEscapes(metaM[3] || ("?pdp_filters=item_id:" + metaM[1]));
+    try {
+      const candidate = sanitizeProductUrl(new URL(url + params, baseUrl).toString());
+      if (isMlProductUrl(candidate)) return candidate;
+    } catch (_) {}
+    return "https://produto.mercadolivre.com.br/" + metaM[1].replace(/^MLB/i, "MLB-") + "-_JM";
+  }
   const hrefRe = /href=["']([^"']+)["']/gi;
   let m;
   while ((m = hrefRe.exec(raw))) {
