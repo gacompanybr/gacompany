@@ -118,6 +118,7 @@ const MARKETPLACE_PREFIX: Record<string, string> = {
   shopee: "SHOPEE",
   mercadolivre: "ML",
   amazon: "AMZ",
+  dup: "DUP",
 };
 
 // Gera um nome legível para o workflow no n8n, incluindo o nome dado pelo
