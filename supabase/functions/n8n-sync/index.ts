@@ -2073,7 +2073,7 @@ Deno.serve(async (req) => {
       const originalCron: string = job.agendamento_cron || "0 10 * * *";
       const isMLrun = job.plataforma === "mercadolivre" || job.plataforma === "mercado_livre";
       const wfTemp = isMLrun
-        ? buildMlScrapperWorkflow({ ...job, intervalo_horas: 0.05 }, friendlyWorkflowName("SCRAPPER", job))
+        ? buildMlScrapperWorkflow({ ...job, intervalo_horas: 1 }, friendlyWorkflowName("SCRAPPER", job))
         : buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
       try {
         await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfTemp) });
