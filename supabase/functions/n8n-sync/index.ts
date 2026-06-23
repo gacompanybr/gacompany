@@ -1245,18 +1245,26 @@ function parseOffer(text) {
   if (cM) cupom = cM[1].toUpperCase();
   let productname = "";
   const lines = text.split(/\\r?\\n/).map(l => l.trim()).filter(Boolean);
+  // 1) linha em *negrito*
   for (const l of lines) {
-    const m = l.match(/^[✅✳️🛒🔥]*\\s*\\*(.+?)\\*\\s*$/);
+    const m = l.match(/^[^A-Za-z0-9]*\\*(.+?)\\*\\s*$/);
     if (m) { productname = stripMd(m[1]); break; }
   }
+  // 2) primeira linha útil (sem link, preço, cupom)
   if (!productname) {
     for (const l of lines) {
       if (/https?:/i.test(l)) continue;
-      if (/^R\\$/i.test(l) || /^por\\s+R\\$/i.test(l)) continue;
+      if (/^R\\$/i.test(l) || /^por\\s+R\\$/i.test(l) || /^de\\s+R\\$/i.test(l)) continue;
       if (/cupom/i.test(l)) continue;
-      const cl = stripMd(l);
-      if (cl.length >= 8) { productname = cl; break; }
+      if (/^[\\d%\\s.,-]+$/.test(l)) continue;
+      const cl = stripMd(l).replace(/^[\\s•·\\-–—:]+/, "").trim();
+      if (cl.length >= 4) { productname = cl; break; }
     }
+  }
+  // 3) primeira linha qualquer
+  if (!productname && lines.length) {
+    const cl = stripMd(lines[0]).replace(/^[\\s•·\\-–—:]+/, "").trim();
+    if (cl.length >= 3) productname = cl;
   }
   if (!productname) productname = "Oferta";
   return { productname: productname.slice(0, 250), price, priceoriginal, pricediscountrate, offerlink, cupom };
