@@ -1612,16 +1612,22 @@ try {
       const finalLink = myAff;
       debug.push({ myAffiliate: finalLink });
 
+      const product = await enrichProduct(clean, offer, ev.imageUrl || "");
+      debug.push({ enriched: { title: product.productname, price: product.price, original: product.priceoriginal, shop: product.shopname } });
 
       const row = {
-        productname: offer.productname + (offer.cupom ? " | Cupom: " + offer.cupom : ""),
-        price: offer.price || 0,
-        priceoriginal: offer.priceoriginal || 0,
-        pricediscountrate: offer.pricediscountrate || 0,
-        shopname: "",
+        productname: product.productname + (offer.cupom ? " | Cupom: " + offer.cupom : ""),
+        price: product.price || 0,
+        priceoriginal: product.priceoriginal || 0,
+        pricediscountrate: product.pricediscountrate || 0,
+        shopname: product.shopname || "",
         offerlink: finalLink,
-        imageUrl: ev.imageUrl || "",
+        imageUrl: product.imageUrl || "",
         sending: false,
+        commission_rate: 0,
+        commission_value: 0,
+        sales: product.sales || 0,
+        rating: product.rating || 0,
       };
       try {
         await http({
