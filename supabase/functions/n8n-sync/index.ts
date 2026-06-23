@@ -1287,21 +1287,44 @@ function htmlDecode(s) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 }
+function decodeMlEscapes(s) {
+  return htmlDecode(String(s || ""))
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u003D/gi, "=")
+    .replace(/\\u003F/gi, "?")
+    .replace(/\\u0025/gi, "%")
+    .replace(/\\\//g, "/")
+    .replace(/\\"/g, '"');
+}
 function unwrapTrackedUrl(u) {
-  let s = htmlDecode(String(u || "").trim());
+  let s = decodeMlEscapes(String(u || "").trim());
   const paramM = s.match(/[?&](?:url|go)=([^&]+)/i);
   if (paramM) { try { s = decodeURIComponent(paramM[1]); } catch (_) {} }
   const clickM = s.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s"']+)/i);
   if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch (_) { s = clickM[1]; } }
-  return htmlDecode(s);
+  return decodeMlEscapes(s);
+}
+function itemIdFromText(value) {
+  const decoded = decodeMlEscapes(value);
+  const variants = [decoded];
+  try { variants.push(decodeURIComponent(decoded)); } catch (_) {}
+  for (const text of variants) {
+    const m = text.match(/(?:item_id[:=]|item_id%3A|wid=|\/MLB-?|"id"\\s*:\\s*")(MLB-?\\d+)/i);
+    if (m) return "MLB" + String(m[1]).replace(/\D/g, "");
+  }
+  return null;
 }
 function sanitizeProductUrl(u) {
   let s = unwrapTrackedUrl(u);
   if (/^\\/\\//.test(s)) s = "https:" + s;
   try {
     const url = new URL(s, "https://www.mercadolivre.com.br");
-    url.search = "";
     url.hash = "";
+    const itemId = itemIdFromText(url.toString());
+    const pdpFilters = url.searchParams.get("pdp_filters") || "";
+    url.search = "";
+    if (itemId && /item_id\\s*:/i.test(pdpFilters)) url.searchParams.set("pdp_filters", "item_id:" + itemId);
     return url.toString();
   } catch (_) {
     return s.split("#")[0].split("?")[0];
@@ -1310,11 +1333,34 @@ function sanitizeProductUrl(u) {
 function isMlProductUrl(url) {
   const s = String(url || "");
   return /\\/p\\/MLB\\d+/i.test(s)
+    || /\\/up\\/MLBU\\d+/i.test(s)
     || /produto\\.mercadolivre\\.com\\.br\\/MLB-?\\d+/i.test(s)
-    || /\\/MLB-?\\d+/i.test(s);
+    || /\\/MLB-?\\d+/i.test(s)
+    || !!itemIdFromText(s);
 }
 function extractProductUrlFromHtml(html, baseUrl) {
   const raw = String(html || "");
+  const featuredStart = raw.indexOf('"id":"card-featured"');
+  const featured = featuredStart >= 0 ? raw.slice(featuredStart, featuredStart + 80000) : raw.slice(0, 120000);
+  const actionRe = /"id"\\s*:\\s*"show_product"[\\s\\S]{0,1600}?"url"\\s*:\\s*"((?:\\\\.|[^"\\\\])+)"/gi;
+  let a;
+  while ((a = actionRe.exec(featured))) {
+    try {
+      const candidate = sanitizeProductUrl(new URL(decodeMlEscapes(a[1]), baseUrl).toString());
+      if (isMlProductUrl(candidate)) return candidate;
+    } catch (_) {}
+  }
+  const metaRe = /"metadata"\\s*:\\s*\{[\\s\\S]{0,1200}?"id"\\s*:\\s*"(MLB\\d+)"[\\s\\S]{0,1200}?"url"\\s*:\\s*"((?:\\\\.|[^"\\\\])+)"[\\s\\S]{0,1200}?"url_params"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"/i;
+  const metaM = featured.match(metaRe);
+  if (metaM) {
+    const url = decodeMlEscapes(metaM[2]);
+    const params = decodeMlEscapes(metaM[3] || ("?pdp_filters=item_id:" + metaM[1]));
+    try {
+      const candidate = sanitizeProductUrl(new URL(url + params, baseUrl).toString());
+      if (isMlProductUrl(candidate)) return candidate;
+    } catch (_) {}
+    return "https://produto.mercadolivre.com.br/" + metaM[1].replace(/^MLB/i, "MLB-") + "-_JM";
+  }
   const hrefRe = /href=["']([^"']+)["']/gi;
   let m;
   while ((m = hrefRe.exec(raw))) {
@@ -1323,10 +1369,10 @@ function extractProductUrlFromHtml(html, baseUrl) {
   }
   const productM = raw.match(/product_id["']?\\s*[:=]\\s*["'](MLB\\d+)["']/i);
   if (productM) return "https://www.mercadolivre.com.br/p/" + productM[1];
-  const metaM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\\s]+)/i);
-  if (metaM) {
+  const refreshM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\\s]+)/i);
+  if (refreshM) {
     try {
-      const candidate = sanitizeProductUrl(new URL(htmlDecode(metaM[1]), baseUrl).toString());
+      const candidate = sanitizeProductUrl(new URL(htmlDecode(refreshM[1]), baseUrl).toString());
       if (isMlProductUrl(candidate)) return candidate;
     } catch (_) {}
   }
@@ -1337,10 +1383,20 @@ function extractProductUrlFromHtml(html, baseUrl) {
   }
   return null;
 }
+async function itemPermalink(itemId) {
+  if (!itemId) return null;
+  try {
+    const r = await fetch("https://api.mercadolibre.com/items/" + String(itemId).replace(/-/g, ""));
+    if (!r.ok) return null;
+    const data = await r.json();
+    const permalink = typeof data.permalink === "string" ? sanitizeProductUrl(data.permalink) : "";
+    return isMlProductUrl(permalink) ? permalink : null;
+  } catch (_) { return null; }
+}
 
 async function resolveFinalUrl(startUrl) {
   const first = sanitizeProductUrl(startUrl);
-  if (isMlProductUrl(first)) return first;
+  if (isMlProductUrl(first)) return (await itemPermalink(itemIdFromText(first))) || first;
 
   // 1) segue redirects, mas não aceita /social com afiliado antigo como URL final.
   // A página intermediária contém o href real do produto no card/botão.
@@ -1352,9 +1408,9 @@ async function resolveFinalUrl(startUrl) {
     const finalUrl = r.url || startUrl;
     const html = await r.text().catch(() => "");
     const productFromHtml = extractProductUrlFromHtml(html, finalUrl);
-    if (productFromHtml) return productFromHtml;
+    if (productFromHtml) return (await itemPermalink(itemIdFromText(productFromHtml))) || productFromHtml;
     const cleanedFinal = sanitizeProductUrl(finalUrl);
-    if (isMlProductUrl(cleanedFinal)) return cleanedFinal;
+    if (isMlProductUrl(cleanedFinal)) return (await itemPermalink(itemIdFromText(cleanedFinal))) || cleanedFinal;
   } catch (_) {}
 
   // 2) fallback: chain manual via httpRequest e lê o HTML do último destino.
@@ -1382,10 +1438,11 @@ async function resolveFinalUrl(startUrl) {
     const raw = resp.body !== undefined ? resp.body : resp;
     const html = typeof raw === "string" ? raw : JSON.stringify(raw || "");
     const productFromHtml = extractProductUrlFromHtml(html, cur);
-    if (productFromHtml) return productFromHtml;
+    if (productFromHtml) return (await itemPermalink(itemIdFromText(productFromHtml))) || productFromHtml;
     break;
   }
-  return sanitizeProductUrl(cur);
+  const cleanedCur = sanitizeProductUrl(cur);
+  return (await itemPermalink(itemIdFromText(cleanedCur))) || cleanedCur;
 }
 
 async function generateAffiliate(permalink) {
@@ -1468,13 +1525,9 @@ try {
       if (!isMlProductUrl(realUrl)) {
         throw new Error("link resolvido ainda não é produto ML: " + realUrl);
       }
-      // limpa querystring (remove tag de afiliado de terceiros, matt_*, etc.)
-      let clean = realUrl;
-      try {
-        const u = new URL(realUrl);
-        u.search = ""; u.hash = "";
-        clean = u.toString();
-      } catch (_) {}
+      // limpa tag de terceiros, mas preserva pdp_filters=item_id quando existir;
+      // isso evita cair em outro anúncio/variação do mesmo catálogo.
+      const clean = sanitizeProductUrl(realUrl);
       debug.push({ cleanUrl: clean });
 
       const myAff = await generateAffiliate(clean);
