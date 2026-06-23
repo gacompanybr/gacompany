@@ -82,7 +82,19 @@ function sanitizeMlCredential(value: string, names: string[]) {
     .replace(/^\uFEFF/, "")
     .replace(/[\u200B-\u200D\u2060]/g, "")
     .trim();
-  const assigned = extractAssignedString(s, names);
+  let assigned: string | null = null;
+  if (names.some((n) => /COOKIE/i.test(n))) {
+    for (const name of names) {
+      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
+      if (idx < 0) continue;
+      const eq = s.indexOf("=", idx);
+      if (eq < 0) continue;
+      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
+      break;
+    }
+  } else {
+    assigned = extractAssignedString(s, names);
+  }
   if (assigned != null) s = assigned;
   return s
     .replace(/^['"`]|['"`]$/g, "")
