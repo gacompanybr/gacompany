@@ -1310,7 +1310,7 @@ function itemIdFromText(value) {
   const variants = [decoded];
   try { variants.push(decodeURIComponent(decoded)); } catch (_) {}
   for (const text of variants) {
-    const m = text.match(/(?:item_id[:=]|item_id%3A|wid=|\/MLB-?|"id"\s*:\s*")(MLB-?\d+)/i);
+    const m = text.match(/(?:item_id[:=]|item_id%3A|wid=|\/MLB-?|"id"\\s*:\\s*")(MLB-?\\d+)/i);
     if (m) return "MLB" + String(m[1]).replace(/\D/g, "");
   }
   return null;
@@ -1324,7 +1324,7 @@ function sanitizeProductUrl(u) {
     const itemId = itemIdFromText(url.toString());
     const pdpFilters = url.searchParams.get("pdp_filters") || "";
     url.search = "";
-    if (itemId && /item_id\s*:/i.test(pdpFilters)) url.searchParams.set("pdp_filters", "item_id:" + itemId);
+    if (itemId && /item_id\\s*:/i.test(pdpFilters)) url.searchParams.set("pdp_filters", "item_id:" + itemId);
     return url.toString();
   } catch (_) {
     return s.split("#")[0].split("?")[0];
@@ -1342,7 +1342,7 @@ function extractProductUrlFromHtml(html, baseUrl) {
   const raw = String(html || "");
   const featuredStart = raw.indexOf('"id":"card-featured"');
   const featured = featuredStart >= 0 ? raw.slice(featuredStart, featuredStart + 80000) : raw.slice(0, 120000);
-  const actionRe = /"id"\s*:\s*"show_product"[\s\S]{0,1600}?"url"\s*:\s*"((?:\\.|[^"\\])+)"/gi;
+  const actionRe = /"id"\\s*:\\s*"show_product"[\\s\\S]{0,1600}?"url"\\s*:\\s*"((?:\\\\.|[^"\\\\])+)"/gi;
   let a;
   while ((a = actionRe.exec(featured))) {
     try {
@@ -1350,7 +1350,7 @@ function extractProductUrlFromHtml(html, baseUrl) {
       if (isMlProductUrl(candidate)) return candidate;
     } catch (_) {}
   }
-  const metaRe = /"metadata"\s*:\s*\{[\s\S]{0,1200}?"id"\s*:\s*"(MLB\d+)"[\s\S]{0,1200}?"url"\s*:\s*"((?:\\.|[^"\\])+)"[\s\S]{0,1200}?"url_params"\s*:\s*"((?:\\.|[^"\\])*)"/i;
+  const metaRe = /"metadata"\\s*:\\s*\{[\\s\\S]{0,1200}?"id"\\s*:\\s*"(MLB\\d+)"[\\s\\S]{0,1200}?"url"\\s*:\\s*"((?:\\\\.|[^"\\\\])+)"[\\s\\S]{0,1200}?"url_params"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"/i;
   const metaM = featured.match(metaRe);
   if (metaM) {
     const url = decodeMlEscapes(metaM[2]);
