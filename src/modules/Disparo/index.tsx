@@ -365,6 +365,7 @@ function NovaCampanhaDialog({
       pausa_lote_min: pausaLoteMin,
       total_contatos: dedup.length,
       instancia_id: selectedAgent.instancia_id,
+      planilha_url: sheetUrl || null,
       status: "rascunho",
     }).select("id").single();
 
