@@ -87,13 +87,21 @@ function titleFromBlock(block, link) {
 }
 
 function imageFromBlock(block) {
-  const attrs = ['data-src', 'src', 'data-srcset', 'srcset'];
+  // 1) Tenta atributos clássicos no <img>
+  const attrs = ['data-zoom', 'data-src', 'src', 'data-srcset', 'srcset', 'data-lazy', 'data-original'];
   for (const attr of attrs) {
-    const re = new RegExp("<img[^>]+\\s" + attr + "=[\"']([^\"']+)[\"']", 'ig');
+    const re = new RegExp("\\s" + attr + "=[\"']([^\"']+)[\"']", 'ig');
     for (const m of block.matchAll(re)) {
-      const img = cleanImg(m[1]);
+      const raw = String(m[1] || '').split(',')[0].trim().split(/\s+/)[0];
+      const img = cleanImg(raw);
       if (img && /mlstatic|mercadolibre|http2/i.test(img)) return img;
     }
+  }
+  // 2) Fallback: qualquer URL mlstatic dentro do bloco (lazy load, <source>, JSON inline)
+  const re2 = /https?:\/\/[^"'\s)<>]+mlstatic\.com\/[^"'\s)<>]+\.(?:webp|jpg|jpeg|png)/ig;
+  for (const m of block.matchAll(re2)) {
+    const img = cleanImg(m[0]);
+    if (img) return img;
   }
   return '';
 }
