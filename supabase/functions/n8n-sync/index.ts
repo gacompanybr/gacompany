@@ -1287,6 +1287,16 @@ function htmlDecode(s) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 }
+function decodeMlEscapes(s) {
+  return htmlDecode(String(s || ""))
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u003D/gi, "=")
+    .replace(/\\u003F/gi, "?")
+    .replace(/\\u0025/gi, "%")
+    .replace(/\\\//g, "/")
+    .replace(/\\"/g, '"');
+}
 function unwrapTrackedUrl(u) {
   let s = htmlDecode(String(u || "").trim());
   const paramM = s.match(/[?&](?:url|go)=([^&]+)/i);
