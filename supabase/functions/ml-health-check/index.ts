@@ -5,6 +5,7 @@
 // - Loga claramente quando o cookie expira para aparecer no console da função.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sanitizeMlCredential } from "../_shared/ml-affiliate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +32,9 @@ type CookieStatus = {
 
 async function testCookie(cookie: string, csrf: string, tag: string): Promise<CookieStatus> {
   const checked_at = new Date().toISOString();
+  cookie = sanitizeMlCredential(cookie, ["ML_COOKIE", "COOKIE"]);
+  csrf = sanitizeMlCredential(csrf, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
+  tag = sanitizeMlCredential(tag, ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]);
   if (!cookie || !csrf || !tag) {
     return { ok: false, checked_at, status_code: 0, error: "MISSING_CREDENTIALS" };
   }
@@ -82,11 +86,12 @@ async function testCookie(cookie: string, csrf: string, tag: string): Promise<Co
       error: `NO_SHORT_URL: ${raw.slice(0, 160)}`,
     };
   } catch (e) {
+    const message = (e as any)?.message ?? String(e);
     return {
       ok: false,
       checked_at,
       status_code: 0,
-      error: `EXCEPTION: ${(e as any)?.message ?? String(e)}`,
+      error: /Invalid header value/i.test(message) ? "INVALID_HEADER_VALUE" : `EXCEPTION: ${message.slice(0, 180)}`,
     };
   }
 }
@@ -121,10 +126,17 @@ Deno.serve(async (req) => {
 
   for (const j of jobs ?? []) {
     const cfg = (j.config ?? {}) as any;
+    const cleanedCfg = {
+      ...cfg,
+      ml_cookie: sanitizeMlCredential(cfg.ml_cookie ?? "", ["ML_COOKIE", "COOKIE"]),
+      ml_csrf_token: sanitizeMlCredential(cfg.ml_csrf_token ?? "", ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]),
+      ml_affiliate_id: sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag ?? "", ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]),
+      ml_affiliate_tag: sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag ?? "", ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"]),
+    };
     const status = await testCookie(
-      cfg.ml_cookie ?? "",
-      cfg.ml_csrf_token ?? "",
-      cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag ?? "",
+      cleanedCfg.ml_cookie,
+      cleanedCfg.ml_csrf_token,
+      cleanedCfg.ml_affiliate_id,
     );
 
     const tag = `[ml-health] job=${j.id} (${j.nome})`;
@@ -137,7 +149,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const newCfg = { ...cfg, ml_cookie_status: status };
+    const newCfg = { ...cleanedCfg, ml_cookie_status: status };
     const { error: upErr } = await sb
       .from("scrapper_jobs")
       .update({ config: newCfg })
