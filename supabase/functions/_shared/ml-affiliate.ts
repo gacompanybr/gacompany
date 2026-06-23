@@ -118,10 +118,10 @@ function extractProductUrlFromHtml(html: string, baseUrl: string): string | null
   }
   const productM = raw.match(/product_id["']?\s*[:=]\s*["'](MLB\d+)["']/i);
   if (productM) return `https://www.mercadolivre.com.br/p/${productM[1]}`;
-  const metaM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\s]+)/i);
-  if (metaM) {
+  const refreshM = raw.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=([^"'>\s]+)/i);
+  if (refreshM) {
     try {
-      const candidate = cleanAffiliateInputUrl(new URL(htmlDecode(metaM[1]), baseUrl).toString());
+      const candidate = cleanAffiliateInputUrl(new URL(htmlDecode(refreshM[1]), baseUrl).toString());
       if (isMlProductUrl(candidate)) return candidate;
     } catch { /* keep */ }
   }
