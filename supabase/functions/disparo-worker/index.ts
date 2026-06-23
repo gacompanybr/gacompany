@@ -100,6 +100,16 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
     return { sent: 0, errors: 0, reason: "vazio_concluida" };
   }
 
+  // Telefones já enviados nessa campanha (normalizados), para evitar duplicata
+  const { data: jaEnviados } = await admin
+    .from("disparo_contatos")
+    .select("telefone")
+    .eq("campanha_id", campanha.id)
+    .eq("status", "enviado");
+  const sentSet = new Set<string>(
+    (jaEnviados ?? []).map((r: any) => normalizePhone(r.telefone))
+  );
+
   let sent = 0;
   let errors = 0;
 
@@ -111,6 +121,18 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
       console.log("campanha não mais executando, parando", campanha.id);
       break;
     }
+
+    const phoneNorm = normalizePhone(contato.telefone);
+    if (sentSet.has(phoneNorm)) {
+      // já foi disparado pra esse número nessa campanha — marca como duplicado e pula
+      await admin.from("disparo_contatos").update({
+        status: "enviado",
+        enviado_em: new Date().toISOString(),
+        erro: "duplicado (mesmo número já enviado)",
+      }).eq("id", contato.id);
+      continue;
+    }
+    sentSet.add(phoneNorm);
 
     const template = pickRandom(mensagens);
     const text = renderMessage(template, {
