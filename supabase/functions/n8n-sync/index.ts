@@ -335,31 +335,35 @@ if (!priceOriginalNum) priceOriginalNum = priceNum;
 const shortLink = String(row.offerlink || "");
 
 
-// Frase curta gerada por IA (Lovable AI / Gemini Flash) — fallback se falhar
+// Frase curta gerada por IA (Lovable AI / Gemini Flash Lite — sem reasoning) — fallback se falhar
 let frase = "OFERTA IMPERDÍVEL";
-try {
-  if (LOVABLE_API_KEY) {
+let fraseDebug = "no-key";
+if (LOVABLE_API_KEY) {
+  fraseDebug = "called";
+  try {
     const aiResp = await http({
       method: "POST",
       url: "https://ai.gateway.lovable.dev/v1/chat/completions",
       headers: { "Authorization": "Bearer " + LOVABLE_API_KEY, "Content-Type": "application/json" },
       body: {
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
-          { role: "system", content: "Você é um copy de marketing. Gere UMA frase curtíssima em CAIXA ALTA (máximo 4 palavras, sem aspas, sem pontuação final, sem emoji) que combine com o produto e chame atenção. Exemplos: ESSE É VERSÁTIL / OFERTA RELÂMPAGO / PRA QUEM AMA CHURRASCO / SÓ HOJE / IMPERDÍVEL. Responda APENAS a frase, nada mais." },
+          { role: "system", content: "Você é um copy de marketing brasileiro. Gere UMA frase curtíssima em CAIXA ALTA (2 a 4 palavras, sem aspas, sem pontuação final, sem emoji, sem hashtag) ESPECÍFICA para o produto informado — destaque uma qualidade real do produto. Exemplos: ESSE É VERSÁTIL / PRA QUEM AMA CHURRASCO / TÁ MUITO BARATO / DESIGN INCRÍVEL / SÓ HOJE. NUNCA responda apenas 'OFERTA IMPERDÍVEL'. Responda APENAS a frase, nada mais." },
           { role: "user", content: "Produto: " + String(row.productname || "") },
         ],
-        max_tokens: 20,
-        temperature: 0.9,
+        max_tokens: 60,
+        temperature: 0.95,
       },
       json: true,
-      timeout: 8000,
+      timeout: 12000,
     });
     const txt = String(aiResp && aiResp.choices && aiResp.choices[0] && aiResp.choices[0].message && aiResp.choices[0].message.content || "").trim();
-    const cleaned = txt.replace(/["'\`*_]/g, "").replace(/[\\.!?,;:]+$/g, "").trim().toUpperCase();
-    if (cleaned && cleaned.length <= 40) frase = cleaned;
-  }
-} catch (_) {}
+    const cleaned = txt.replace(/["'\`*_#]/g, "").replace(/[\\.!?,;:]+$/g, "").trim().toUpperCase();
+    if (cleaned && cleaned.length <= 60) { frase = cleaned; fraseDebug = "ok:" + cleaned; }
+    else { fraseDebug = "empty"; }
+  } catch (e) { fraseDebug = "err:" + String(e && e.message || e).slice(0, 120); }
+}
+console.log("FRASE_IA", fraseDebug);
 
 // 6. Monta caption
 const caption = TEMPLATE
