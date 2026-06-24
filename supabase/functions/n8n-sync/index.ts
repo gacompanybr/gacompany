@@ -281,42 +281,122 @@ if (state && state.ultima_execucao) {
   }
 }
 
-// 4. Busca produtos disponiveis (sending=false) e ignora ML sem meli.la
+// 4. RODIZIO de categoria SEM estado/memoria: le a propria Data Table a cada execucao.
+//    (a) descobre a ULTIMA categoria enviada (linha com sent_at mais recente)
+//    (b) manda a PROXIMA categoria do ciclo que tenha produto disponivel.
+//    Se a coluna 'categoria' nao existir/estiver vazia em todas as linhas, cai pro modo sequencial.
+const COL_CATEGORIA = "categoria";
+const normCat = (c) => String(c == null ? "" : c).trim().toLowerCase();
+const isMercadoLivre = /mercado/i.test(String(PLATAFORMA || ""));
+async function queimaRow(idRow) {
+  try {
+    await http({
+      method: "PATCH",
+      url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
+      headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+      body: {
+        filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: idRow }] },
+        data: { sending: true, sent_at: new Date().toISOString() },
+      },
+      json: true,
+    });
+  } catch (_) {}
+}
+function rowValido(item) {
+  const link = String((item && item.offerlink) || "").trim();
+  if (isMercadoLivre && !/^https?:\\/\\/meli\\.la\\//i.test(link)) return false;
+  return true;
+}
+
+// 4a. Ultima categoria enviada (sent_at mais recente, sending=true)
+let ultimaCat = null;
+try {
+  const janelaMin = Math.max(180, intervaloMin * 8);
+  const cutoff = new Date(nowUtc.getTime() - janelaMin * 60000).toISOString();
+  const filtroSent = { type: "and", filters: [
+    { columnName: "sending", condition: "eq", value: true },
+    { columnName: "sent_at", condition: "gte", value: cutoff },
+  ] };
+  let sentResp;
+  try {
+    sentResp = await http({
+      method: "GET",
+      url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
+      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 200 },
+      headers: { "X-N8N-API-KEY": N8N_KEY },
+      json: true,
+    });
+  } catch (_) {
+    sentResp = await http({
+      method: "GET",
+      url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
+      qs: { filter: JSON.stringify(filtroSent), limit: 200 },
+      headers: { "X-N8N-API-KEY": N8N_KEY },
+      json: true,
+    });
+  }
+  const sentRows = (sentResp && sentResp.data) ? sentResp.data : [];
+  let maisRecente = null;
+  for (const r of sentRows) {
+    const t = Date.parse((r && r.sent_at) || "") || 0;
+    if (!maisRecente || t > maisRecente.t) maisRecente = { t, cat: normCat(r[COL_CATEGORIA]) };
+  }
+  if (maisRecente) ultimaCat = maisRecente.cat;
+} catch (_) {}
+
+// 4b. Produtos disponiveis (sending=false)
 const filterObj = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
 const rowsData = await http({
   method: "GET",
   url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-  qs: { filter: JSON.stringify(filterObj), limit: 20 },
+  qs: { filter: JSON.stringify(filterObj), limit: 200 },
   headers: { "X-N8N-API-KEY": N8N_KEY },
   json: true,
 });
-const candidates = rowsData && rowsData.data ? rowsData.data : [];
-let row = null;
-for (const candidate of candidates) {
-  const link = String(candidate && candidate.offerlink || "").trim();
-  const isMercadoLivre = /mercado/i.test(String(PLATAFORMA || ""));
-  if (isMercadoLivre && !/^https?:\\/\\/meli\\.la\\//i.test(link)) {
-    try {
-      await http({
-        method: "PATCH",
-        url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
-        headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
-        body: {
-          filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: candidate.id }] },
-          data: { sending: true, sent_at: new Date().toISOString() },
-        },
-        json: true,
-      });
-    } catch (_) {}
-    continue;
-  }
-  row = candidate;
-  break;
-}
-if (!row) {
-  // Sem produto novo nao e erro - so nao dispara, aguardando proximo scraper
+const disponiveis = (rowsData && rowsData.data) ? rowsData.data : [];
+if (disponiveis.length === 0) {
   return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
 }
+
+// Detecta se categoria existe e tem valor em alguma linha
+const temCategoria = disponiveis.some(c => normCat(c[COL_CATEGORIA]) !== "");
+
+let row = null;
+if (!temCategoria) {
+  // Modo sequencial — comportamento antigo
+  for (const candidate of disponiveis) {
+    if (!rowValido(candidate)) { await queimaRow(candidate.id); continue; }
+    row = candidate; break;
+  }
+} else {
+  // Modo rodizio por categoria
+  const grupos = {};
+  for (const c of disponiveis) {
+    const cat = normCat(c[COL_CATEGORIA]) || "_sem_categoria";
+    (grupos[cat] = grupos[cat] || []).push(c);
+  }
+  for (const cat of Object.keys(grupos)) {
+    grupos[cat].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+  }
+  const ciclo = Object.keys(grupos).sort();
+  if (ultimaCat && !ciclo.includes(ultimaCat)) ciclo.push(ultimaCat);
+  const idxUlt = ultimaCat ? ciclo.indexOf(ultimaCat) : -1;
+  const start = idxUlt >= 0 ? idxUlt + 1 : 0;
+  for (let k = 0; k < ciclo.length; k++) {
+    const cat = ciclo[(start + k) % ciclo.length];
+    const lista = grupos[cat] || [];
+    let escolhido = null;
+    for (const item of lista) {
+      if (!rowValido(item)) { await queimaRow(item.id); continue; }
+      escolhido = item; break;
+    }
+    if (escolhido) { row = escolhido; break; }
+  }
+}
+if (!row) {
+  return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
+}
+
 
 // 5. Enriquecimento: priceoriginal calculado, link encurtado, frase IA
 function fmtBRL(n) {
