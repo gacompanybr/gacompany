@@ -200,6 +200,53 @@ function sanitizeMlCredential(value: unknown, names: string[] = []): string {
     .trim();
 }
 
+function normalizeProductName(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function extractProductIdFromRow(row: any): string {
+  const joined = [row?.link_compra, row?.offerlink, row?.imageUrl].map((v) => String(v ?? "")).join(" ");
+  const m = joined.match(/\b(MLB(?:U)?\d{6,})\b/i) || joined.match(/\/p\/(MLB\d{6,})/i);
+  return m?.[1]?.toUpperCase() ?? "";
+}
+
+function productHistoryKey(row: any): string {
+  const mlId = extractProductIdFromRow(row);
+  if (mlId) return `ml:${mlId}`;
+  return `name:${normalizeProductName(row?.productname).slice(0, 160)}`;
+}
+
+const PRODUCT_STOPWORDS = new Set([
+  "de", "da", "do", "das", "dos", "com", "sem", "para", "pra", "por", "em", "no", "na", "nos", "nas", "e", "ou", "a", "o", "as", "os",
+  "um", "uma", "uns", "umas", "the", "and", "for", "with", "of", "kit", "set", "pcs", "un", "und", "ml", "cm", "mm", "kg", "g", "mah", "w", "v", "volts", "cor",
+]);
+
+function productTokens(value: unknown): string[] {
+  return normalizeProductName(value)
+    .split(" ")
+    .filter((token) => token.length >= 3 && !PRODUCT_STOPWORDS.has(token));
+}
+
+function rowsLookDuplicated(a: any, b: any): boolean {
+  const ida = extractProductIdFromRow(a);
+  const idb = extractProductIdFromRow(b);
+  if (ida && idb && ida === idb) return true;
+  const at = new Set(productTokens(a?.productname));
+  const bt = new Set(productTokens(b?.productname));
+  if (!at.size || !bt.size) return false;
+  let inter = 0;
+  for (const token of at) if (bt.has(token)) inter++;
+  const union = at.size + bt.size - inter;
+  const jaccard = union > 0 ? inter / union : 0;
+  return inter >= 3 || jaccard >= 0.55;
+}
+
 function buildEcommerceWorkflow(robo: any) {
   const tableId = robo.n8n_datatable_id;
   const destinos: string[] = Array.isArray(robo.destinos) ? robo.destinos : [];
@@ -229,6 +276,84 @@ const HORARIOS_PADRAO = ${JSON.stringify(horariosPorDia)};
 
 const http = this.helpers.httpRequest;
 const DOW_MAP = ["dom","seg","ter","qua","qui","sex","sab"];
+
+async function apiPost(body) {
+  return await http({
+    method: "POST",
+    url: SCRAPPER_API,
+    headers: { "Authorization": "Bearer " + SCRAPPER_SECRET, "Content-Type": "application/json" },
+    body,
+    json: true,
+  });
+}
+
+async function jaFoiEnviado(item) {
+  try {
+    const r = await apiPost({
+      action: "check_sent_product",
+      robo_id: ROBO_ID,
+      table_id: TABLE_ID,
+      productname: item && item.productname,
+      offerlink: item && item.offerlink,
+      link_compra: item && item.link_compra,
+      imageUrl: item && item.imageUrl,
+      lookback_days: 45,
+    });
+    return !!(r && r.sent);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function registrarEnviado(item, grupo) {
+  try {
+    await apiPost({
+      action: "record_sent_product",
+      robo_id: ROBO_ID,
+      table_id: TABLE_ID,
+      row_id: item && item.id,
+      productname: item && item.productname,
+      offerlink: item && item.offerlink,
+      link_compra: item && item.link_compra,
+      imageUrl: item && item.imageUrl,
+      destino: grupo,
+    });
+  } catch (_) {}
+}
+
+function normProduto(v) {
+  return String(v || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+function mlProductId(item) {
+  const s = [item && item.link_compra, item && item.offerlink, item && item.imageUrl].map(x => String(x || "")).join(" ");
+  const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
+  return m && m[1] ? m[1].toUpperCase() : "";
+}
+const STOP_PROD = new Set(["de","da","do","das","dos","com","sem","para","pra","por","em","no","na","nos","nas","e","ou","a","o","as","os","um","uma","uns","umas","kit","set","pcs","un","und","ml","cm","mm","kg","g","mah","w","v","volts","cor"]);
+function prodTokens(v) {
+  return normProduto(v).split(" ").filter(t => t.length >= 3 && !STOP_PROD.has(t));
+}
+function produtoSimilar(a, b) {
+  const ida = mlProductId(a), idb = mlProductId(b);
+  if (ida && idb && ida === idb) return true;
+  const at = new Set(prodTokens(a && a.productname));
+  const bt = new Set(prodTokens(b && b.productname));
+  if (!at.size || !bt.size) return false;
+  let inter = 0;
+  for (const t of at) if (bt.has(t)) inter++;
+  const union = at.size + bt.size - inter;
+  const jac = union > 0 ? inter / union : 0;
+  return inter >= 3 || jac >= 0.55;
+}
+function localJaFoiEnviado(item) {
+  return sentHistory.some(sent => produtoSimilar(item, sent));
+}
 
 function toMin(t) {
   const parts = String(t || "00:00").split(":");
@@ -315,8 +440,9 @@ function rowValido(item) {
 
 // 4a. Ultima categoria enviada (sent_at mais recente, sending=true)
 let ultimaCat = null;
+let sentHistory = [];
 try {
-  const janelaMin = Math.max(180, intervaloMin * 8);
+  const janelaMin = 45 * 24 * 60;
   const cutoff = new Date(nowUtc.getTime() - janelaMin * 60000).toISOString();
   const filtroSent = { type: "and", filters: [
     { columnName: "sending", condition: "eq", value: true },
@@ -327,7 +453,7 @@ try {
     sentResp = await http({
       method: "GET",
       url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 200 },
+      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 250 },
       headers: { "X-N8N-API-KEY": N8N_KEY },
       json: true,
     });
@@ -335,12 +461,13 @@ try {
     sentResp = await http({
       method: "GET",
       url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-      qs: { filter: JSON.stringify(filtroSent), limit: 200 },
+      qs: { filter: JSON.stringify(filtroSent), limit: 250 },
       headers: { "X-N8N-API-KEY": N8N_KEY },
       json: true,
     });
   }
   const sentRows = (sentResp && sentResp.data) ? sentResp.data : [];
+  sentHistory = Array.isArray(sentRows) ? sentRows : [];
   let maisRecente = null;
   for (const r of sentRows) {
     const t = Date.parse((r && r.sent_at) || "") || 0;
@@ -371,6 +498,8 @@ if (!temCategoria) {
   // Modo sequencial — comportamento antigo
   for (const candidate of disponiveis) {
     if (!rowValido(candidate)) { await queimaRow(candidate.id); continue; }
+    if (localJaFoiEnviado(candidate)) { await queimaRow(candidate.id); continue; }
+    if (await jaFoiEnviado(candidate)) { await queimaRow(candidate.id); continue; }
     row = candidate; break;
   }
 } else {
@@ -393,6 +522,8 @@ if (!temCategoria) {
     let escolhido = null;
     for (const item of lista) {
       if (!rowValido(item)) { await queimaRow(item.id); continue; }
+      if (localJaFoiEnviado(item)) { await queimaRow(item.id); continue; }
+      if (await jaFoiEnviado(item)) { await queimaRow(item.id); continue; }
       escolhido = item; break;
     }
     if (escolhido) { row = escolhido; break; }
@@ -404,6 +535,7 @@ if (!row) {
 
 // 4c. RESERVA ATOMICA: marca sending=true ANTES de enviar pra evitar que outra execucao
 // paralela do cron pegue a mesma linha (corrige envios duplicados).
+const claimToken = "__CLAIM__:" + Date.now() + ":" + Math.random().toString(36).slice(2);
 try {
   await http({
     method: "PATCH",
@@ -413,8 +545,9 @@ try {
       filter: { type: "and", filters: [
         { columnName: "id", condition: "eq", value: row.id },
         { columnName: "sending", condition: "eq", value: false },
+        { columnName: "sent_at", condition: "eq", value: "" },
       ] },
-      data: { sending: true, sent_at: new Date().toISOString() },
+      data: { sending: true, sent_at: claimToken },
     },
     json: true,
   });
@@ -430,8 +563,8 @@ try {
     json: true,
   });
   const atual = (check && check.data && check.data[0]) || null;
-  const reservadoAgora = atual && atual.sending === true && atual.sent_at && (Date.now() - Date.parse(atual.sent_at)) < 15000;
-  if (!reservadoAgora) {
+  const reservadoPorMim = atual && atual.sending === true && String(atual.sent_at || "") === claimToken;
+  if (!reservadoPorMim) {
     return [{ json: { skipped: "linha ja reservada por outra execucao - evitando duplicidade" } }];
   }
 } catch (_) {}
@@ -577,6 +710,7 @@ if (hasImg) {
 
 // 8. Marca como usada (so se enviou OK). Se falhou, LIBERA a reserva pra retry.
 if (sendStatus === 200) {
+  await registrarEnviado(row, grupo);
   try {
     await http({
       method: "PATCH",
@@ -2326,7 +2460,7 @@ Deno.serve(async (req) => {
       try {
         let rows: any[] = [];
         let lastErr = "";
-        for (const path of [`/data-tables/${tableId}/rows?limit=1000`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=1000`]) {
+        for (const path of [`/data-tables/${tableId}/rows?limit=250`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=250`]) {
           try {
             const data = await n8nFetch(path);
             const parsed = data?.data ?? data ?? [];
@@ -2402,8 +2536,10 @@ Deno.serve(async (req) => {
       const cutoff = Date.now() - sinceMinutes * 60_000;
       const candidates = rows.filter((r) => {
         if (r?.sending !== true) return false;
-        const t = Date.parse(String(r?.sent_at ?? "")) || 0;
-        return t >= cutoff;
+        const sent = String(r?.sent_at ?? "").trim();
+        if (!sent.startsWith("__CLAIM__:")) return false;
+        const claimedAt = Number(sent.split(":")[1] || 0);
+        return claimedAt > 0 && claimedAt >= cutoff;
       });
       let released = 0;
       for (const r of candidates) {
@@ -2419,6 +2555,82 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
       return j({ ok: true, tableId: finalTableId, checked: rows.length, released, sinceMinutes });
+    }
+
+    if (action === "repair_sent_product_history") {
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const manualTerms: string[] = Array.isArray(body?.manualTerms) ? body.manualTerms.map((v: any) => String(v || "").trim()).filter(Boolean) : [];
+      let finalTableId = tableId;
+      let robo: any = null;
+      if (roboId) {
+        const { data, error } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id, n8n_datatable_id")
+          .eq("id", roboId)
+          .single();
+        if (error) throw error;
+        robo = data;
+        finalTableId = finalTableId ?? data?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId || !robo?.id) return j({ error: "roboId/tableId requerido" }, 400);
+
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
+      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const isRealSent = (r: any) => r?.sending === true && String(r?.sent_at ?? "").trim() && !String(r?.sent_at ?? "").startsWith("__CLAIM__:");
+      const sentRows = rows.filter(isRealSent);
+      let seeded = 0;
+      for (const r of sentRows) {
+        const key = productHistoryKey(r);
+        if (!key || key === "name:") continue;
+        const { error } = await admin.from("robo_produtos_enviados").upsert({
+          portfolio_id: robo.portfolio_id,
+          robo_id: robo.id,
+          table_id: finalTableId,
+          row_id: r.id == null ? null : String(r.id),
+          product_key: key,
+          productname: r.productname ?? null,
+          offerlink: r.offerlink ?? null,
+          link_compra: r.link_compra ?? null,
+          image_url: r.imageUrl ?? null,
+          sent_at: String(r.sent_at),
+        }, { onConflict: "robo_id,product_key" });
+        if (!error) seeded++;
+      }
+
+      const pending = rows.filter((r) => r?.sending !== true);
+      const normTerms = manualTerms.map((t) => normalizeProductName(t));
+      let burned = 0;
+      const nowIso = new Date().toISOString();
+      for (const r of pending) {
+        const manual = normTerms.some((t) => t && normalizeProductName(r?.productname).includes(t));
+        const duplicate = manual || sentRows.some((s) => rowsLookDuplicated(r, s));
+        if (!duplicate) continue;
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: true, sent_at: nowIso },
+            }),
+          });
+          const key = productHistoryKey(r);
+          await admin.from("robo_produtos_enviados").upsert({
+            portfolio_id: robo.portfolio_id,
+            robo_id: robo.id,
+            table_id: finalTableId,
+            row_id: r.id == null ? null : String(r.id),
+            product_key: key,
+            productname: r.productname ?? null,
+            offerlink: r.offerlink ?? null,
+            link_compra: r.link_compra ?? null,
+            image_url: r.imageUrl ?? null,
+            sent_at: nowIso,
+          }, { onConflict: "robo_id,product_key" });
+          burned++;
+        } catch (_) {}
+      }
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, seeded, burned, manualTerms });
     }
 
     if (action === "reset_datatable") {

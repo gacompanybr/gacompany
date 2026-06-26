@@ -1163,6 +1163,69 @@ export type Database = {
         }
         Relationships: []
       }
+      robo_produtos_enviados: {
+        Row: {
+          created_at: string
+          destino: string | null
+          id: string
+          image_url: string | null
+          link_compra: string | null
+          offerlink: string | null
+          portfolio_id: string
+          product_key: string
+          productname: string | null
+          robo_id: string
+          row_id: string | null
+          sent_at: string
+          table_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          destino?: string | null
+          id?: string
+          image_url?: string | null
+          link_compra?: string | null
+          offerlink?: string | null
+          portfolio_id: string
+          product_key: string
+          productname?: string | null
+          robo_id: string
+          row_id?: string | null
+          sent_at?: string
+          table_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          destino?: string | null
+          id?: string
+          image_url?: string | null
+          link_compra?: string | null
+          offerlink?: string | null
+          portfolio_id?: string
+          product_key?: string
+          productname?: string | null
+          robo_id?: string
+          row_id?: string | null
+          sent_at?: string
+          table_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "robo_produtos_enviados_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "robo_produtos_enviados_robo_id_fkey"
+            columns: ["robo_id"]
+            isOneToOne: false
+            referencedRelation: "robo_campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scrapper_jobs: {
         Row: {
           agendamento_cron: string | null

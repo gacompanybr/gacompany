@@ -16,6 +16,53 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function normProductText(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function extractMlProductId(...values: unknown[]): string {
+  for (const value of values) {
+    const s = String(value ?? "");
+    const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
+    if (m?.[1]) return m[1].toUpperCase();
+  }
+  return "";
+}
+
+const PRODUCT_STOPWORDS = new Set([
+  "de", "da", "do", "das", "dos", "com", "sem", "para", "pra", "por", "em", "no", "na", "nos", "nas", "e", "ou", "a", "o", "as", "os",
+  "um", "uma", "uns", "umas", "the", "and", "for", "with", "of", "kit", "set", "pcs", "un", "und", "ml", "cm", "mm", "kg", "g", "w", "v", "volts", "cor",
+]);
+
+function productTokens(value: unknown): string[] {
+  return normProductText(value)
+    .split(" ")
+    .filter((token) => token.length >= 3 && !PRODUCT_STOPWORDS.has(token));
+}
+
+function productKey(input: { productname?: unknown; link_compra?: unknown; offerlink?: unknown; imageUrl?: unknown }): string {
+  const mlId = extractMlProductId(input.link_compra, input.offerlink, input.imageUrl);
+  if (mlId) return `ml:${mlId}`;
+  return `name:${normProductText(input.productname).slice(0, 160)}`;
+}
+
+function productsAreSimilar(a: unknown, b: unknown): boolean {
+  const at = new Set(productTokens(a));
+  const bt = new Set(productTokens(b));
+  if (at.size === 0 || bt.size === 0) return false;
+  let inter = 0;
+  for (const token of at) if (bt.has(token)) inter++;
+  const union = at.size + bt.size - inter;
+  const jaccard = union > 0 ? inter / union : 0;
+  return inter >= 3 || jaccard >= 0.55;
+}
+
 // ---- Cron helpers ---------------------------------------------------------
 function parseCronField(expr: string, min: number, max: number): number[] {
   const out = new Set<number>();
@@ -318,6 +365,89 @@ Deno.serve(async (req) => {
           if (error) return json({ error: error.message }, 500);
         }
         return json({ ok: true });
+      }
+
+      if (bodyAction === "check_sent_product") {
+        const roboId = body.robo_id;
+        if (!roboId) return json({ error: "robo_id obrigatório" }, 400);
+
+        const { data: robo, error: roboErr } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id")
+          .eq("id", roboId)
+          .maybeSingle();
+        if (roboErr) return json({ error: roboErr.message }, 500);
+        if (!robo) return json({ error: "robô não encontrado" }, 404);
+
+        const incoming = {
+          productname: body.productname,
+          offerlink: body.offerlink,
+          link_compra: body.link_compra,
+          imageUrl: body.imageUrl,
+        };
+        const key = productKey(incoming);
+        const lookbackDays = Math.max(1, Math.min(120, Number(body.lookback_days ?? 45)));
+        const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: exact, error: exactErr } = await admin
+          .from("robo_produtos_enviados")
+          .select("id, productname, product_key, sent_at")
+          .eq("robo_id", roboId)
+          .eq("product_key", key)
+          .gte("sent_at", since)
+          .limit(1);
+        if (exactErr) return json({ error: exactErr.message }, 500);
+        if ((exact ?? []).length > 0) return json({ sent: true, reason: "exact", key, match: exact![0] });
+
+        const { data: recent, error: recentErr } = await admin
+          .from("robo_produtos_enviados")
+          .select("id, productname, product_key, sent_at, offerlink, link_compra, image_url")
+          .eq("robo_id", roboId)
+          .gte("sent_at", since)
+          .order("sent_at", { ascending: false })
+          .limit(400);
+        if (recentErr) return json({ error: recentErr.message }, 500);
+        const match = (recent ?? []).find((r: any) => productsAreSimilar(incoming.productname, r.productname));
+        if (match) return json({ sent: true, reason: "similar", key, match });
+        return json({ sent: false, key });
+      }
+
+      if (bodyAction === "record_sent_product") {
+        const roboId = body.robo_id;
+        if (!roboId) return json({ error: "robo_id obrigatório" }, 400);
+
+        const { data: robo, error: roboErr } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id")
+          .eq("id", roboId)
+          .maybeSingle();
+        if (roboErr) return json({ error: roboErr.message }, 500);
+        if (!robo) return json({ error: "robô não encontrado" }, 404);
+
+        const row = {
+          productname: body.productname,
+          offerlink: body.offerlink,
+          link_compra: body.link_compra,
+          imageUrl: body.imageUrl,
+        };
+        const key = productKey(row);
+        const { error } = await admin
+          .from("robo_produtos_enviados")
+          .upsert({
+            portfolio_id: robo.portfolio_id,
+            robo_id: roboId,
+            table_id: body.table_id ?? null,
+            row_id: body.row_id == null ? null : String(body.row_id),
+            product_key: key,
+            productname: body.productname ?? null,
+            offerlink: body.offerlink ?? null,
+            link_compra: body.link_compra ?? null,
+            image_url: body.imageUrl ?? null,
+            destino: body.destino ?? null,
+            sent_at: new Date().toISOString(),
+          }, { onConflict: "robo_id,product_key" });
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, key });
       }
 
       return json({ error: "action inválida" }, 400);
