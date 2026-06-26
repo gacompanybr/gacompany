@@ -216,6 +216,12 @@ function extractProductIdFromRow(row: any): string {
   return m?.[1]?.toUpperCase() ?? "";
 }
 
+function productHistoryKey(row: any): string {
+  const mlId = extractProductIdFromRow(row);
+  if (mlId) return `ml:${mlId}`;
+  return `name:${normalizeProductName(row?.productname).slice(0, 160)}`;
+}
+
 const PRODUCT_STOPWORDS = new Set([
   "de", "da", "do", "das", "dos", "com", "sem", "para", "pra", "por", "em", "no", "na", "nos", "nas", "e", "ou", "a", "o", "as", "os",
   "um", "uma", "uns", "umas", "the", "and", "for", "with", "of", "kit", "set", "pcs", "un", "und", "ml", "cm", "mm", "kg", "g", "mah", "w", "v", "volts", "cor",
@@ -2549,6 +2555,82 @@ Deno.serve(async (req) => {
         } catch (_) {}
       }
       return j({ ok: true, tableId: finalTableId, checked: rows.length, released, sinceMinutes });
+    }
+
+    if (action === "repair_sent_product_history") {
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const manualTerms: string[] = Array.isArray(body?.manualTerms) ? body.manualTerms.map((v: any) => String(v || "").trim()).filter(Boolean) : [];
+      let finalTableId = tableId;
+      let robo: any = null;
+      if (roboId) {
+        const { data, error } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id, n8n_datatable_id")
+          .eq("id", roboId)
+          .single();
+        if (error) throw error;
+        robo = data;
+        finalTableId = finalTableId ?? data?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId || !robo?.id) return j({ error: "roboId/tableId requerido" }, 400);
+
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=1000`);
+      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const isRealSent = (r: any) => r?.sending === true && String(r?.sent_at ?? "").trim() && !String(r?.sent_at ?? "").startsWith("__CLAIM__:");
+      const sentRows = rows.filter(isRealSent);
+      let seeded = 0;
+      for (const r of sentRows) {
+        const key = productHistoryKey(r);
+        if (!key || key === "name:") continue;
+        const { error } = await admin.from("robo_produtos_enviados").upsert({
+          portfolio_id: robo.portfolio_id,
+          robo_id: robo.id,
+          table_id: finalTableId,
+          row_id: r.id == null ? null : String(r.id),
+          product_key: key,
+          productname: r.productname ?? null,
+          offerlink: r.offerlink ?? null,
+          link_compra: r.link_compra ?? null,
+          image_url: r.imageUrl ?? null,
+          sent_at: String(r.sent_at),
+        }, { onConflict: "robo_id,product_key" });
+        if (!error) seeded++;
+      }
+
+      const pending = rows.filter((r) => r?.sending !== true);
+      const normTerms = manualTerms.map((t) => normalizeProductName(t));
+      let burned = 0;
+      const nowIso = new Date().toISOString();
+      for (const r of pending) {
+        const manual = normTerms.some((t) => t && normalizeProductName(r?.productname).includes(t));
+        const duplicate = manual || sentRows.some((s) => rowsLookDuplicated(r, s));
+        if (!duplicate) continue;
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: true, sent_at: nowIso },
+            }),
+          });
+          const key = productHistoryKey(r);
+          await admin.from("robo_produtos_enviados").upsert({
+            portfolio_id: robo.portfolio_id,
+            robo_id: robo.id,
+            table_id: finalTableId,
+            row_id: r.id == null ? null : String(r.id),
+            product_key: key,
+            productname: r.productname ?? null,
+            offerlink: r.offerlink ?? null,
+            link_compra: r.link_compra ?? null,
+            image_url: r.imageUrl ?? null,
+            sent_at: nowIso,
+          }, { onConflict: "robo_id,product_key" });
+          burned++;
+        } catch (_) {}
+      }
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, seeded, burned, manualTerms });
     }
 
     if (action === "reset_datatable") {
