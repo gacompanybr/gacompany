@@ -2397,7 +2397,7 @@ Deno.serve(async (req) => {
       }
       if (!finalTableId) return j({ error: "tableId ou roboId requerido" }, 400);
 
-      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=1000`);
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
       const cutoff = Date.now() - sinceMinutes * 60_000;
       const candidates = rows.filter((r) => {
