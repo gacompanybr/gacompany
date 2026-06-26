@@ -325,14 +325,14 @@ function normProduto(v) {
   return String(v || "")
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/https?:\\/\\/\\S+/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
-    .replace(/\s+/g, " ");
+    .replace(/\\s+/g, " ");
 }
 function mlProductId(item) {
   const s = [item && item.link_compra, item && item.offerlink, item && item.imageUrl].map(x => String(x || "")).join(" ");
-  const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
+  const m = s.match(/\\b(MLB(?:U)?\\d{6,})\\b/i) || s.match(/\\/p\\/(MLB\\d{6,})/i);
   return m && m[1] ? m[1].toUpperCase() : "";
 }
 const STOP_PROD = new Set(["de","da","do","das","dos","com","sem","para","pra","por","em","no","na","nos","nas","e","ou","a","o","as","os","um","uma","uns","umas","kit","set","pcs","un","und","ml","cm","mm","kg","g","mah","w","v","volts","cor"]);
