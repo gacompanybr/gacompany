@@ -575,7 +575,7 @@ if (hasImg) {
   }
 }
 
-// 8. Marca como usada (so se enviou OK)
+// 8. Marca como usada (so se enviou OK). Se falhou, LIBERA a reserva pra retry.
 if (sendStatus === 200) {
   try {
     await http({
@@ -585,6 +585,20 @@ if (sendStatus === 200) {
       body: {
         filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
         data: { sending: true, sent_at: new Date().toISOString() },
+      },
+      json: true,
+    });
+  } catch (_) {}
+} else {
+  // Falha no envio: libera a linha (sending=false, sent_at vazio) pra proxima execucao tentar de novo.
+  try {
+    await http({
+      method: "PATCH",
+      url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
+      headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+      body: {
+        filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] },
+        data: { sending: false, sent_at: "" },
       },
       json: true,
     });
