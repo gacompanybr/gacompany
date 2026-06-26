@@ -2173,6 +2173,90 @@ Deno.serve(async (req) => {
       return j({ ok: !activationError, workflowId, activated: robo.status === "ativo", activation, activationError });
     }
 
+    if (action === "diagnose_robo") {
+      const roboId: string = body?.roboId;
+      if (!roboId) return j({ error: "roboId requerido" }, 400);
+      const { data: robo, error } = await admin
+        .from("robo_campanhas").select("*").eq("id", roboId).single();
+      if (error) throw error;
+
+      const out: any = {
+        robo: {
+          id: robo.id,
+          nome: robo.nome,
+          status: robo.status,
+          marketplace: robo.marketplace,
+          workflowId: robo.n8n_workflow_id,
+          tableId: robo.n8n_datatable_id,
+          tableName: robo.n8n_datatable_name,
+          ultima_execucao: robo.ultima_execucao,
+          proxima_execucao: robo.proxima_execucao,
+          ultimo_erro: robo.ultimo_erro,
+          horarios_por_dia: robo.horarios_por_dia,
+        },
+        workflow: null,
+        executions: null,
+        rows: null,
+      };
+
+      if (robo.n8n_workflow_id) {
+        try {
+          const wf = await n8nFetch(`/workflows/${robo.n8n_workflow_id}`);
+          out.workflow = { id: wf?.id, name: wf?.name, active: wf?.active, updatedAt: wf?.updatedAt };
+        } catch (e) {
+          out.workflow = { error: (e as Error).message };
+        }
+        try {
+          const ex = await n8nFetch(`/executions?workflowId=${encodeURIComponent(robo.n8n_workflow_id)}&limit=5`);
+          const list = ex?.data ?? ex ?? [];
+          out.executions = Array.isArray(list)
+            ? list.map((r: any) => ({ id: r.id, status: r.status, mode: r.mode, startedAt: r.startedAt, stoppedAt: r.stoppedAt, finished: r.finished }))
+            : list;
+        } catch (e) {
+          out.executions = { error: (e as Error).message };
+        }
+      }
+
+      if (robo.n8n_datatable_id) {
+        try {
+          const pendingFilter = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
+          const sentFilter = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: true }] };
+          const pendingResp = await n8nFetch(`/data-tables/${robo.n8n_datatable_id}/rows?filter=${encodeURIComponent(JSON.stringify(pendingFilter))}&limit=200`);
+          const sentResp = await n8nFetch(`/data-tables/${robo.n8n_datatable_id}/rows?filter=${encodeURIComponent(JSON.stringify(sentFilter))}&limit=20`);
+          const pending = Array.isArray(pendingResp?.data) ? pendingResp.data : [];
+          const sent = Array.isArray(sentResp?.data) ? sentResp.data : [];
+          const isMl = /mercado/i.test(String(robo.marketplace ?? ""));
+          const valid = pending.filter((r: any) => {
+            const sentAt = String(r?.sent_at ?? "").trim();
+            const link = String(r?.offerlink ?? "").trim();
+            return !sentAt && (!isMl || /^https?:\/\/meli\.la\//i.test(link));
+          });
+          out.rows = {
+            pendingCountSample: pending.length,
+            validCountSample: valid.length,
+            sentCountSample: sent.length,
+            firstPending: pending.slice(0, 5).map((r: any) => ({ id: r.id, productname: r.productname, sending: r.sending, sent_at: r.sent_at, offerlink: r.offerlink })),
+            firstValid: valid.slice(0, 5).map((r: any) => ({ id: r.id, productname: r.productname, sending: r.sending, sent_at: r.sent_at, offerlink: r.offerlink })),
+          };
+        } catch (e) {
+          out.rows = { error: (e as Error).message };
+        }
+      }
+
+      return j(out);
+    }
+
+    if (action === "run_robo_now") {
+      const roboId: string = body?.roboId;
+      if (!roboId) return j({ error: "roboId requerido" }, 400);
+      const { data: robo, error } = await admin
+        .from("robo_campanhas").select("id, n8n_workflow_id").eq("id", roboId).single();
+      if (error) throw error;
+      if (!robo?.n8n_workflow_id) return j({ error: "workflow não encontrado" }, 404);
+      const result = await n8nFetch(`/workflows/${robo.n8n_workflow_id}/execute`, { method: "POST" });
+      return j({ ok: true, result });
+    }
+
     if (action === "recreate_datatable") {
       const jobId: string = body?.jobId;
       if (!jobId) return j({ error: "jobId requerido" }, 400);
