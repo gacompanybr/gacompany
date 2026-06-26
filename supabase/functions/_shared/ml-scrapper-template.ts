@@ -458,7 +458,7 @@ async function loadExisting() {
   try {
     const resp = await this.helpers.httpRequest({
       method: 'GET',
-      url: `${N8N_BASE}/data-tables/${TABLE_ID}/rows`,
+      url: N8N_BASE + '/data-tables/' + TABLE_ID + '/rows',
       qs: { limit: 1000 },
       headers: { 'X-N8N-API-KEY': N8N_KEY },
       json: true,
