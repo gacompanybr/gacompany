@@ -16,6 +16,53 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function normProductText(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function extractMlProductId(...values: unknown[]): string {
+  for (const value of values) {
+    const s = String(value ?? "");
+    const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
+    if (m?.[1]) return m[1].toUpperCase();
+  }
+  return "";
+}
+
+const PRODUCT_STOPWORDS = new Set([
+  "de", "da", "do", "das", "dos", "com", "sem", "para", "pra", "por", "em", "no", "na", "nos", "nas", "e", "ou", "a", "o", "as", "os",
+  "um", "uma", "uns", "umas", "the", "and", "for", "with", "of", "kit", "set", "pcs", "un", "und", "ml", "cm", "mm", "kg", "g", "w", "v", "volts", "cor",
+]);
+
+function productTokens(value: unknown): string[] {
+  return normProductText(value)
+    .split(" ")
+    .filter((token) => token.length >= 3 && !PRODUCT_STOPWORDS.has(token));
+}
+
+function productKey(input: { productname?: unknown; link_compra?: unknown; offerlink?: unknown; imageUrl?: unknown }): string {
+  const mlId = extractMlProductId(input.link_compra, input.offerlink, input.imageUrl);
+  if (mlId) return `ml:${mlId}`;
+  return `name:${normProductText(input.productname).slice(0, 160)}`;
+}
+
+function productsAreSimilar(a: unknown, b: unknown): boolean {
+  const at = new Set(productTokens(a));
+  const bt = new Set(productTokens(b));
+  if (at.size === 0 || bt.size === 0) return false;
+  let inter = 0;
+  for (const token of at) if (bt.has(token)) inter++;
+  const union = at.size + bt.size - inter;
+  const jaccard = union > 0 ? inter / union : 0;
+  return inter >= 3 || jaccard >= 0.55;
+}
+
 // ---- Cron helpers ---------------------------------------------------------
 function parseCronField(expr: string, min: number, max: number): number[] {
   const out = new Set<number>();
