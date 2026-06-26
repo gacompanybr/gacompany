@@ -2333,6 +2333,47 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === "burn_stale_datatable_rows") {
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const olderThanHours = Math.max(1, Number(body?.olderThanHours ?? 12));
+      let finalTableId = tableId;
+      if (!finalTableId && roboId) {
+        const { data: robo, error } = await admin
+          .from("robo_campanhas")
+          .select("n8n_datatable_id")
+          .eq("id", roboId)
+          .single();
+        if (error) throw error;
+        finalTableId = robo?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId ou roboId requerido" }, 400);
+
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=1000`);
+      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
+      const stale = rows.filter((r) => {
+        const sent = String(r?.sent_at ?? "").trim();
+        const t = sent ? Date.parse(sent) : 0;
+        return r?.sending !== true && t > 0 && t < cutoff;
+      });
+      let updated = 0;
+      const nowIso = new Date().toISOString();
+      for (const r of stale) {
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: true, sent_at: nowIso },
+            }),
+          });
+          updated++;
+        } catch (_) {}
+      }
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, burned: updated, olderThanHours });
+    }
+
     if (action === "reset_datatable") {
       const jobId: string = body?.jobId;
       if (!jobId) return j({ error: "jobId requerido" }, 400);
