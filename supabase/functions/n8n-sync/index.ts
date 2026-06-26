@@ -2492,8 +2492,10 @@ Deno.serve(async (req) => {
       const cutoff = Date.now() - sinceMinutes * 60_000;
       const candidates = rows.filter((r) => {
         if (r?.sending !== true) return false;
-        const t = Date.parse(String(r?.sent_at ?? "")) || 0;
-        return t >= cutoff;
+        const sent = String(r?.sent_at ?? "").trim();
+        if (!sent.startsWith("__CLAIM__:")) return false;
+        const claimedAt = Number(sent.split(":")[1] || 0);
+        return claimedAt > 0 && claimedAt >= cutoff;
       });
       let released = 0;
       for (const r of candidates) {
