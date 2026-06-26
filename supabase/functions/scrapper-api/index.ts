@@ -367,6 +367,89 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
 
+      if (bodyAction === "check_sent_product") {
+        const roboId = body.robo_id;
+        if (!roboId) return json({ error: "robo_id obrigatório" }, 400);
+
+        const { data: robo, error: roboErr } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id")
+          .eq("id", roboId)
+          .maybeSingle();
+        if (roboErr) return json({ error: roboErr.message }, 500);
+        if (!robo) return json({ error: "robô não encontrado" }, 404);
+
+        const incoming = {
+          productname: body.productname,
+          offerlink: body.offerlink,
+          link_compra: body.link_compra,
+          imageUrl: body.imageUrl,
+        };
+        const key = productKey(incoming);
+        const lookbackDays = Math.max(1, Math.min(120, Number(body.lookback_days ?? 45)));
+        const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: exact, error: exactErr } = await admin
+          .from("robo_produtos_enviados")
+          .select("id, productname, product_key, sent_at")
+          .eq("robo_id", roboId)
+          .eq("product_key", key)
+          .gte("sent_at", since)
+          .limit(1);
+        if (exactErr) return json({ error: exactErr.message }, 500);
+        if ((exact ?? []).length > 0) return json({ sent: true, reason: "exact", key, match: exact![0] });
+
+        const { data: recent, error: recentErr } = await admin
+          .from("robo_produtos_enviados")
+          .select("id, productname, product_key, sent_at, offerlink, link_compra, image_url")
+          .eq("robo_id", roboId)
+          .gte("sent_at", since)
+          .order("sent_at", { ascending: false })
+          .limit(400);
+        if (recentErr) return json({ error: recentErr.message }, 500);
+        const match = (recent ?? []).find((r: any) => productsAreSimilar(incoming.productname, r.productname));
+        if (match) return json({ sent: true, reason: "similar", key, match });
+        return json({ sent: false, key });
+      }
+
+      if (bodyAction === "record_sent_product") {
+        const roboId = body.robo_id;
+        if (!roboId) return json({ error: "robo_id obrigatório" }, 400);
+
+        const { data: robo, error: roboErr } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id")
+          .eq("id", roboId)
+          .maybeSingle();
+        if (roboErr) return json({ error: roboErr.message }, 500);
+        if (!robo) return json({ error: "robô não encontrado" }, 404);
+
+        const row = {
+          productname: body.productname,
+          offerlink: body.offerlink,
+          link_compra: body.link_compra,
+          imageUrl: body.imageUrl,
+        };
+        const key = productKey(row);
+        const { error } = await admin
+          .from("robo_produtos_enviados")
+          .upsert({
+            portfolio_id: robo.portfolio_id,
+            robo_id: roboId,
+            table_id: body.table_id ?? null,
+            row_id: body.row_id == null ? null : String(body.row_id),
+            product_key: key,
+            productname: body.productname ?? null,
+            offerlink: body.offerlink ?? null,
+            link_compra: body.link_compra ?? null,
+            image_url: body.imageUrl ?? null,
+            destino: body.destino ?? null,
+            sent_at: new Date().toISOString(),
+          }, { onConflict: "robo_id,product_key" });
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, key });
+      }
+
       return json({ error: "action inválida" }, 400);
     }
 
