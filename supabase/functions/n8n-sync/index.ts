@@ -305,6 +305,11 @@ async function queimaRow(idRow) {
 function rowValido(item) {
   const link = String((item && item.offerlink) || "").trim();
   if (isMercadoLivre && !/^https?:\\/\\/meli\\.la\\//i.test(link)) return false;
+  // Linhas novas do scraper atualizado entram com sent_at vazio.
+  // Se estiver pending (sending=false) e já tem sent_at, é legado/regravado:
+  // pode ser produto já enviado voltando para a fila, então queima e pula.
+  const sentRaw = String((item && item.sent_at) || "").trim();
+  if (sentRaw) return false;
   return true;
 }
 
@@ -2321,6 +2326,45 @@ Deno.serve(async (req) => {
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
+    }
+
+    if (action === "burn_stale_datatable_rows") {
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const olderThanHours = Math.max(1, Number(body?.olderThanHours ?? 12));
+      let finalTableId = tableId;
+      if (!finalTableId && roboId) {
+        const { data: robo, error } = await admin
+          .from("robo_campanhas")
+          .select("n8n_datatable_id")
+          .eq("id", roboId)
+          .single();
+        if (error) throw error;
+        finalTableId = robo?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId ou roboId requerido" }, 400);
+
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
+      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const stale = rows.filter((r) => {
+        const sent = String(r?.sent_at ?? "").trim();
+        return r?.sending !== true && sent.length > 0;
+      });
+      let updated = 0;
+      const nowIso = new Date().toISOString();
+      for (const r of stale) {
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: true, sent_at: nowIso },
+            }),
+          });
+          updated++;
+        } catch (_) {}
+      }
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, burned: updated, olderThanHours });
     }
 
     if (action === "reset_datatable") {
