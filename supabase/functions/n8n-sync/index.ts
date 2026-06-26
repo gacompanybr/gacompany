@@ -397,6 +397,40 @@ if (!row) {
   return [{ json: { skipped: "sem produto novo no data table - aguardando scraper" } }];
 }
 
+// 4c. RESERVA ATOMICA: marca sending=true ANTES de enviar pra evitar que outra execucao
+// paralela do cron pegue a mesma linha (corrige envios duplicados).
+try {
+  await http({
+    method: "PATCH",
+    url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows/update\`,
+    headers: { "X-N8N-API-KEY": N8N_KEY, "Content-Type": "application/json" },
+    body: {
+      filter: { type: "and", filters: [
+        { columnName: "id", condition: "eq", value: row.id },
+        { columnName: "sending", condition: "eq", value: false },
+      ] },
+      data: { sending: true, sent_at: new Date().toISOString() },
+    },
+    json: true,
+  });
+} catch (_) {}
+
+// Confirma que ESSA execucao foi quem reservou (caso outra tenha reservado microssegundos antes)
+try {
+  const check = await http({
+    method: "GET",
+    url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
+    qs: { filter: JSON.stringify({ type: "and", filters: [{ columnName: "id", condition: "eq", value: row.id }] }), limit: 1 },
+    headers: { "X-N8N-API-KEY": N8N_KEY },
+    json: true,
+  });
+  const atual = (check && check.data && check.data[0]) || null;
+  const reservadoAgora = atual && atual.sending === true && atual.sent_at && (Date.now() - Date.parse(atual.sent_at)) < 15000;
+  if (!reservadoAgora) {
+    return [{ json: { skipped: "linha ja reservada por outra execucao - evitando duplicidade" } }];
+  }
+} catch (_) {}
+
 
 // 5. Enriquecimento: priceoriginal calculado, link encurtado, frase IA
 function fmtBRL(n) {
