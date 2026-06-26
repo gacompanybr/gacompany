@@ -2139,11 +2139,38 @@ Deno.serve(async (req) => {
       }
 
       const workflowId = result?.id ?? result?.data?.id;
+      let activation: any = null;
+      let activationError: string | null = null;
+
+      if (workflowId) {
+        try {
+          if (robo.status === "ativo") {
+            // Depois de um PUT o n8n pode deixar o cron sem registro ativo.
+            // Reinicia a ativação para garantir que o Schedule volte a disparar.
+            try {
+              await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" });
+            } catch (_) {
+              // ignorar: workflow já podia estar inativo
+            }
+            activation = await n8nFetch(`/workflows/${workflowId}/activate`, { method: "POST" });
+          } else {
+            activation = await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" });
+          }
+        } catch (e) {
+          activationError = (e as Error).message;
+          console.warn("upsert_workflow activation failed:", activationError);
+        }
+      }
+
       await admin.from("robo_campanhas")
-        .update({ n8n_workflow_id: workflowId, ultimo_erro: null })
+        .update({
+          n8n_workflow_id: workflowId,
+          ultima_execucao: robo.status === "ativo" ? null : robo.ultima_execucao,
+          ultimo_erro: activationError,
+        })
         .eq("id", roboId);
 
-      return j({ ok: true, workflowId });
+      return j({ ok: !activationError, workflowId, activated: robo.status === "ativo", activation, activationError });
     }
 
     if (action === "recreate_datatable") {
