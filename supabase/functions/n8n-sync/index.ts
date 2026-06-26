@@ -200,6 +200,47 @@ function sanitizeMlCredential(value: unknown, names: string[] = []): string {
     .trim();
 }
 
+function normalizeProductName(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function extractProductIdFromRow(row: any): string {
+  const joined = [row?.link_compra, row?.offerlink, row?.imageUrl].map((v) => String(v ?? "")).join(" ");
+  const m = joined.match(/\b(MLB(?:U)?\d{6,})\b/i) || joined.match(/\/p\/(MLB\d{6,})/i);
+  return m?.[1]?.toUpperCase() ?? "";
+}
+
+const PRODUCT_STOPWORDS = new Set([
+  "de", "da", "do", "das", "dos", "com", "sem", "para", "pra", "por", "em", "no", "na", "nos", "nas", "e", "ou", "a", "o", "as", "os",
+  "um", "uma", "uns", "umas", "the", "and", "for", "with", "of", "kit", "set", "pcs", "un", "und", "ml", "cm", "mm", "kg", "g", "mah", "w", "v", "volts", "cor",
+]);
+
+function productTokens(value: unknown): string[] {
+  return normalizeProductName(value)
+    .split(" ")
+    .filter((token) => token.length >= 3 && !PRODUCT_STOPWORDS.has(token));
+}
+
+function rowsLookDuplicated(a: any, b: any): boolean {
+  const ida = extractProductIdFromRow(a);
+  const idb = extractProductIdFromRow(b);
+  if (ida && idb && ida === idb) return true;
+  const at = new Set(productTokens(a?.productname));
+  const bt = new Set(productTokens(b?.productname));
+  if (!at.size || !bt.size) return false;
+  let inter = 0;
+  for (const token of at) if (bt.has(token)) inter++;
+  const union = at.size + bt.size - inter;
+  const jaccard = union > 0 ? inter / union : 0;
+  return inter >= 3 || jaccard >= 0.55;
+}
+
 function buildEcommerceWorkflow(robo: any) {
   const tableId = robo.n8n_datatable_id;
   const destinos: string[] = Array.isArray(robo.destinos) ? robo.destinos : [];
