@@ -321,6 +321,25 @@ async function registrarEnviado(item, grupo) {
   } catch (_) {}
 }
 
+async function reservarHistoricoEnviado(item) {
+  try {
+    const r = await apiPost({
+      action: "claim_sent_product",
+      robo_id: ROBO_ID,
+      table_id: TABLE_ID,
+      row_id: item && item.id,
+      productname: item && item.productname,
+      offerlink: item && item.offerlink,
+      link_compra: item && item.link_compra,
+      imageUrl: item && item.imageUrl,
+      lookback_days: 45,
+    });
+    return !!(r && r.claimed);
+  } catch (_) {
+    return false;
+  }
+}
+
 function normProduto(v) {
   return String(v || "")
     .toLowerCase()
@@ -568,6 +587,15 @@ try {
   }
 } catch (_) {}
 
+
+// 5. Enriquecimento: priceoriginal calculado, link encurtado, frase IA
+// 4d. TRAVA FINAL antes de enviar: grava no histórico com chave única.
+// Se já existe produto igual/similar, queima a linha e NÃO envia de jeito nenhum.
+const historicoReservado = await reservarHistoricoEnviado(row);
+if (!historicoReservado) {
+  await queimaRow(row.id);
+  return [{ json: { skipped: "produto ja enviado/similar - bloqueado antes do disparo", produto: row.productname } }];
+}
 
 // 5. Enriquecimento: priceoriginal calculado, link encurtado, frase IA
 function fmtBRL(n) {
