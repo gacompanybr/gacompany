@@ -491,6 +491,7 @@ if (!row) {
 
 // 4c. RESERVA ATOMICA: marca sending=true ANTES de enviar pra evitar que outra execucao
 // paralela do cron pegue a mesma linha (corrige envios duplicados).
+const claimToken = "__CLAIM__:" + Date.now() + ":" + Math.random().toString(36).slice(2);
 try {
   await http({
     method: "PATCH",
@@ -500,8 +501,9 @@ try {
       filter: { type: "and", filters: [
         { columnName: "id", condition: "eq", value: row.id },
         { columnName: "sending", condition: "eq", value: false },
+        { columnName: "sent_at", condition: "eq", value: "" },
       ] },
-      data: { sending: true, sent_at: new Date().toISOString() },
+      data: { sending: true, sent_at: claimToken },
     },
     json: true,
   });
@@ -517,8 +519,8 @@ try {
     json: true,
   });
   const atual = (check && check.data && check.data[0]) || null;
-  const reservadoAgora = atual && atual.sending === true && atual.sent_at && (Date.now() - Date.parse(atual.sent_at)) < 15000;
-  if (!reservadoAgora) {
+  const reservadoPorMim = atual && atual.sending === true && String(atual.sent_at || "") === claimToken;
+  if (!reservadoPorMim) {
     return [{ json: { skipped: "linha ja reservada por outra execucao - evitando duplicidade" } }];
   }
 } catch (_) {}
