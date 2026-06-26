@@ -2381,6 +2381,46 @@ Deno.serve(async (req) => {
       return j({ ok: true, tableId: finalTableId, checked: rows.length, burned: updated, olderThanHours });
     }
 
+    if (action === "release_reserved_rows") {
+      // Libera linhas marcadas como sending=true que foram reservadas recentemente
+      // mas provavelmente NAO chegaram a ser enviadas de fato (falha no Evolution).
+      // Usuario chama isso quando ve "tudo marcado mas nada enviado".
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const sinceMinutes = Math.max(1, Number(body?.sinceMinutes ?? 360)); // padrao: ultimas 6h
+      let finalTableId = tableId;
+      if (!finalTableId && roboId) {
+        const { data: robo, error } = await admin
+          .from("robo_campanhas").select("n8n_datatable_id").eq("id", roboId).single();
+        if (error) throw error;
+        finalTableId = robo?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId ou roboId requerido" }, 400);
+
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=1000`);
+      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const cutoff = Date.now() - sinceMinutes * 60_000;
+      const candidates = rows.filter((r) => {
+        if (r?.sending !== true) return false;
+        const t = Date.parse(String(r?.sent_at ?? "")) || 0;
+        return t >= cutoff;
+      });
+      let released = 0;
+      for (const r of candidates) {
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: false, sent_at: "" },
+            }),
+          });
+          released++;
+        } catch (_) {}
+      }
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, released, sinceMinutes });
+    }
+
     if (action === "reset_datatable") {
       const jobId: string = body?.jobId;
       if (!jobId) return j({ error: "jobId requerido" }, 400);
