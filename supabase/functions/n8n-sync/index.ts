@@ -305,6 +305,16 @@ async function queimaRow(idRow) {
 function rowValido(item) {
   const link = String((item && item.offerlink) || "").trim();
   if (isMercadoLivre && !/^https?:\\/\\/meli\\.la\\//i.test(link)) return false;
+  // Se o scraper antigo regravou produto já enviado, ele pode voltar como
+  // sending=false mas com sent_at antigo. Isso é promoção velha: queima e pula.
+  const sentRaw = String((item && item.sent_at) || "").trim();
+  if (sentRaw) {
+    const sentTime = Date.parse(sentRaw);
+    if (Number.isFinite(sentTime)) {
+      const staleMs = Math.max(12 * 60 * 60000, intervaloMin * 3 * 60000);
+      if (nowUtc.getTime() - sentTime > staleMs) return false;
+    }
+  }
   return true;
 }
 
