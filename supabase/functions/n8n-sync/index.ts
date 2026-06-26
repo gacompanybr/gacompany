@@ -305,16 +305,11 @@ async function queimaRow(idRow) {
 function rowValido(item) {
   const link = String((item && item.offerlink) || "").trim();
   if (isMercadoLivre && !/^https?:\\/\\/meli\\.la\\//i.test(link)) return false;
-  // Se o scraper antigo regravou produto já enviado, ele pode voltar como
-  // sending=false mas com sent_at antigo. Isso é promoção velha: queima e pula.
+  // Linhas novas do scraper atualizado entram com sent_at vazio.
+  // Se estiver pending (sending=false) e já tem sent_at, é legado/regravado:
+  // pode ser produto já enviado voltando para a fila, então queima e pula.
   const sentRaw = String((item && item.sent_at) || "").trim();
-  if (sentRaw) {
-    const sentTime = Date.parse(sentRaw);
-    if (Number.isFinite(sentTime)) {
-      const staleMs = Math.max(12 * 60 * 60000, intervaloMin * 3 * 60000);
-      if (nowUtc.getTime() - sentTime > staleMs) return false;
-    }
-  }
+  if (sentRaw) return false;
   return true;
 }
 
@@ -2351,11 +2346,9 @@ Deno.serve(async (req) => {
 
       const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
-      const cutoff = Date.now() - olderThanHours * 60 * 60 * 1000;
       const stale = rows.filter((r) => {
         const sent = String(r?.sent_at ?? "").trim();
-        const t = sent ? Date.parse(sent) : 0;
-        return r?.sending !== true && t > 0 && t < cutoff;
+        return r?.sending !== true && sent.length > 0;
       });
       let updated = 0;
       const nowIso = new Date().toISOString();
