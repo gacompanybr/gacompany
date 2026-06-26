@@ -2534,12 +2534,17 @@ Deno.serve(async (req) => {
       }
       const workflowId = result?.id ?? result?.data?.id;
       let activation: any = null;
+      let activationError: string | null = null;
       if (workflowId) {
         try {
-          activation = await n8nFetch(`/workflows/${workflowId}/${job.status === "ativo" ? "activate" : "deactivate"}`, {
-            method: "POST",
-          });
+          if (job.status === "ativo") {
+            try { await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" }); } catch (_) {}
+            activation = await n8nFetch(`/workflows/${workflowId}/activate`, { method: "POST" });
+          } else {
+            activation = await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" });
+          }
         } catch (e) {
+          activationError = (e as Error).message;
           console.warn("sync workflow activation failed:", e);
           if (job.status === "ativo") throw e;
         }
@@ -2552,7 +2557,7 @@ Deno.serve(async (req) => {
       await admin.from("scrapper_jobs")
         .update({ n8n_workflow_id: workflowId, n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
-      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation, evolutionCapture });
+      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation, activationError, evolutionCapture });
     }
 
     if (action === "activate" || action === "deactivate") {
@@ -2598,7 +2603,7 @@ Deno.serve(async (req) => {
       const originalCron: string = job.agendamento_cron || "0 10 * * *";
       const isMLrun = job.plataforma === "mercadolivre" || job.plataforma === "mercado_livre";
       const wfTemp = isMLrun
-        ? buildMlScrapperWorkflow({ ...job, intervalo_horas: 1 }, friendlyWorkflowName("SCRAPPER", job))
+        ? buildMlScrapperWorkflow({ ...job, force_every_minute: true, agendamento_cron: "* * * * *" }, friendlyWorkflowName("SCRAPPER", job))
         : buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
       try {
         await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfTemp) });
