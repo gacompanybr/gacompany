@@ -545,7 +545,6 @@ try {
       filter: { type: "and", filters: [
         { columnName: "id", condition: "eq", value: row.id },
         { columnName: "sending", condition: "eq", value: false },
-        { columnName: "sent_at", condition: "eq", value: "" },
       ] },
       data: { sending: true, sent_at: claimToken },
     },
