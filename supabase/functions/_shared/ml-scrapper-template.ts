@@ -428,37 +428,84 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   if (mapper) {
     mapper.parameters = {
       jsCode: `// Mapeia itens vindos de "Finalizar Acumulado" para o formato da Data Table.
+// Importante: NÃO faz upsert em produto que já existe, porque isso resetava
+// sending=false e fazia promoção já enviada voltar a disparar no dia seguinte.
 const now = new Date().toISOString();
 const seen = new Set();
 const out = [];
+const N8N_BASE = ${JSON.stringify((Deno.env.get("N8N_BASE_URL") ?? "").replace(/\/$/, ""))};
+const N8N_KEY = ${JSON.stringify(Deno.env.get("N8N_API_KEY") ?? "")};
+const TABLE_ID = ${JSON.stringify(job.n8n_datatable_id ?? "")};
 const toNum = (v) => {
   if (v === '' || v === null || v === undefined) return null;
   const n = Number(String(v).replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 };
+const norm = (v) => String(v || '')
+  .toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/https?:\/\/\S+/g, '')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim()
+  .replace(/\s+/g, ' ')
+  .slice(0, 120);
+const productKey = (r) => norm(r.productname) + '|' + String(toNum(r.price) ?? '') + '|' + norm(r.shopname || 'Mercado Livre');
+
+const existingLinks = new Set();
+const existingKeys = new Set();
+async function loadExisting() {
+  if (!N8N_BASE || !N8N_KEY || !TABLE_ID) return;
+  try {
+    const resp = await this.helpers.httpRequest({
+      method: 'GET',
+      url: `${N8N_BASE}/data-tables/${TABLE_ID}/rows`,
+      qs: { limit: 1000 },
+      headers: { 'X-N8N-API-KEY': N8N_KEY },
+      json: true,
+    });
+    const rows = (resp && resp.data) ? resp.data : [];
+    for (const r of rows) {
+      const l = String(r.offerlink || '').trim();
+      if (l) existingLinks.add(l);
+      const k = productKey(r);
+      if (k.length > 4) existingKeys.add(k);
+    }
+  } catch (e) {
+    console.log('DEDUP_EXISTING_SKIP_LOAD_FAILED', String(e && e.message || e).slice(0, 160));
+  }
+}
+await loadExisting.call(this);
+
 for (const item of items) {
   const j = item.json || {};
   const offerlink = j.link_produtos_afiliado || j.offerlink || j.link_compra_original || '';
   if (!offerlink || seen.has(offerlink)) continue;
+  const row = {
+    productname:       j.productname || j.nome_produtos || j.nome || '',
+    price:             toNum(j.price ?? j.preco_produtos),
+    pricediscountrate: toNum(j.pricediscountrate ?? j.discount_pct),
+    shopname:          j.shopname || 'Mercado Livre',
+    offerlink,
+    imageUrl:          j.imageUrl || j.imagem_produtos || j.imagem || '',
+    sending:           false,
+    commission_rate:   toNum(j.commission_rate) ?? 5,
+    commission_value:  toNum(j.commission_value),
+    sales:             toNum(j.sales) ?? 0,
+    rating:            toNum(j.rating) ?? 0,
+    sent_at:           '',
+    priceoriginal:     toNum(j.priceoriginal ?? j.price_old),
+  };
+  const key = productKey(row);
+  if (existingLinks.has(offerlink) || existingKeys.has(key) || seen.has(key)) continue;
   seen.add(offerlink);
+  seen.add(key);
   out.push({
     json: {
-      productname:       j.productname || j.nome_produtos || j.nome || '',
-      price:             toNum(j.price ?? j.preco_produtos),
-      pricediscountrate: toNum(j.pricediscountrate ?? j.discount_pct),
-      shopname:          j.shopname || 'Mercado Livre',
-      offerlink,
-      imageUrl:          j.imageUrl || j.imagem_produtos || j.imagem || '',
-      sending:           false,
-      commission_rate:   toNum(j.commission_rate) ?? 5,
-      commission_value:  toNum(j.commission_value),
-      sales:             toNum(j.sales) ?? 0,
-      rating:            toNum(j.rating) ?? 0,
-      sent_at:           j.sent_at || now,
-      priceoriginal:     toNum(j.priceoriginal ?? j.price_old),
+      ...row,
     }
   });
 }
+console.log('DEDUP_EXISTING_RESULT', { novos: out.length, existentes_links: existingLinks.size, now });
 return out;
 `,
     };
