@@ -315,6 +315,40 @@ async function registrarEnviado(item, grupo) {
   } catch (_) {}
 }
 
+function normProduto(v) {
+  return String(v || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+function mlProductId(item) {
+  const s = [item && item.link_compra, item && item.offerlink, item && item.imageUrl].map(x => String(x || "")).join(" ");
+  const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
+  return m && m[1] ? m[1].toUpperCase() : "";
+}
+const STOP_PROD = new Set(["de","da","do","das","dos","com","sem","para","pra","por","em","no","na","nos","nas","e","ou","a","o","as","os","um","uma","uns","umas","kit","set","pcs","un","und","ml","cm","mm","kg","g","mah","w","v","volts","cor"]);
+function prodTokens(v) {
+  return normProduto(v).split(" ").filter(t => t.length >= 3 && !STOP_PROD.has(t));
+}
+function produtoSimilar(a, b) {
+  const ida = mlProductId(a), idb = mlProductId(b);
+  if (ida && idb && ida === idb) return true;
+  const at = new Set(prodTokens(a && a.productname));
+  const bt = new Set(prodTokens(b && b.productname));
+  if (!at.size || !bt.size) return false;
+  let inter = 0;
+  for (const t of at) if (bt.has(t)) inter++;
+  const union = at.size + bt.size - inter;
+  const jac = union > 0 ? inter / union : 0;
+  return inter >= 3 || jac >= 0.55;
+}
+function localJaFoiEnviado(item) {
+  return sentHistory.some(sent => produtoSimilar(item, sent));
+}
+
 function toMin(t) {
   const parts = String(t || "00:00").split(":");
   return (parseInt(parts[0]||"0",10) * 60) + parseInt(parts[1]||"0",10);
@@ -400,8 +434,9 @@ function rowValido(item) {
 
 // 4a. Ultima categoria enviada (sent_at mais recente, sending=true)
 let ultimaCat = null;
+let sentHistory = [];
 try {
-  const janelaMin = Math.max(180, intervaloMin * 8);
+  const janelaMin = 45 * 24 * 60;
   const cutoff = new Date(nowUtc.getTime() - janelaMin * 60000).toISOString();
   const filtroSent = { type: "and", filters: [
     { columnName: "sending", condition: "eq", value: true },
@@ -412,7 +447,7 @@ try {
     sentResp = await http({
       method: "GET",
       url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 200 },
+      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 1000 },
       headers: { "X-N8N-API-KEY": N8N_KEY },
       json: true,
     });
@@ -420,12 +455,13 @@ try {
     sentResp = await http({
       method: "GET",
       url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-      qs: { filter: JSON.stringify(filtroSent), limit: 200 },
+      qs: { filter: JSON.stringify(filtroSent), limit: 1000 },
       headers: { "X-N8N-API-KEY": N8N_KEY },
       json: true,
     });
   }
   const sentRows = (sentResp && sentResp.data) ? sentResp.data : [];
+  sentHistory = Array.isArray(sentRows) ? sentRows : [];
   let maisRecente = null;
   for (const r of sentRows) {
     const t = Date.parse((r && r.sent_at) || "") || 0;
@@ -456,6 +492,7 @@ if (!temCategoria) {
   // Modo sequencial — comportamento antigo
   for (const candidate of disponiveis) {
     if (!rowValido(candidate)) { await queimaRow(candidate.id); continue; }
+    if (localJaFoiEnviado(candidate)) { await queimaRow(candidate.id); continue; }
     if (await jaFoiEnviado(candidate)) { await queimaRow(candidate.id); continue; }
     row = candidate; break;
   }
@@ -479,6 +516,7 @@ if (!temCategoria) {
     let escolhido = null;
     for (const item of lista) {
       if (!rowValido(item)) { await queimaRow(item.id); continue; }
+      if (localJaFoiEnviado(item)) { await queimaRow(item.id); continue; }
       if (await jaFoiEnviado(item)) { await queimaRow(item.id); continue; }
       escolhido = item; break;
     }
