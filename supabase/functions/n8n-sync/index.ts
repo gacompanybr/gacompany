@@ -2212,6 +2212,29 @@ Deno.serve(async (req) => {
           out.executions = Array.isArray(list)
             ? list.map((r: any) => ({ id: r.id, status: r.status, mode: r.mode, startedAt: r.startedAt, stoppedAt: r.stoppedAt, finished: r.finished }))
             : list;
+          const lastId = Array.isArray(list) && list[0]?.id ? list[0].id : null;
+          if (lastId) {
+            try {
+              const detail = await n8nFetch(`/executions/${lastId}?includeData=true`);
+              const runData = detail?.data?.resultData?.runData ?? detail?.resultData?.runData ?? {};
+              const error = detail?.data?.resultData?.error ?? detail?.resultData?.error ?? null;
+              const nodeErrors: any[] = [];
+              for (const [node, runs] of Object.entries(runData)) {
+                const arr = Array.isArray(runs) ? runs : [];
+                for (const run of arr) {
+                  if ((run as any)?.error) nodeErrors.push({ node, error: (run as any).error });
+                }
+              }
+              out.lastExecutionDetail = {
+                id: lastId,
+                status: detail?.status,
+                error,
+                nodeErrors: nodeErrors.slice(0, 3),
+              };
+            } catch (e) {
+              out.lastExecutionDetail = { id: lastId, error: (e as Error).message };
+            }
+          }
         } catch (e) {
           out.executions = { error: (e as Error).message };
         }
