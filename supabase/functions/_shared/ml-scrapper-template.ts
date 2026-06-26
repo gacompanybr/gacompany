@@ -338,9 +338,9 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   const intervalHours = Math.max(1, Number(job.intervalo_horas ?? 12));
   const schedule = findNode(wf, "Schedule Trigger 12h");
   if (schedule) {
-    schedule.parameters = {
-      rule: { interval: [{ field: "hours", hoursInterval: intervalHours }] },
-    };
+    schedule.parameters = job.force_every_minute === true || job.agendamento_cron === "* * * * *"
+      ? { rule: { interval: [{ field: "minutes", minutesInterval: 1 }] } }
+      : { rule: { interval: [{ field: "hours", hoursInterval: intervalHours }] } };
   }
 
   // ---- CONFIG ML: credenciais + categorias + settings ----

@@ -325,14 +325,14 @@ function normProduto(v) {
   return String(v || "")
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/https?:\\/\\/\\S+/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
-    .replace(/\s+/g, " ");
+    .replace(/\\s+/g, " ");
 }
 function mlProductId(item) {
   const s = [item && item.link_compra, item && item.offerlink, item && item.imageUrl].map(x => String(x || "")).join(" ");
-  const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
+  const m = s.match(/\\b(MLB(?:U)?\\d{6,})\\b/i) || s.match(/\\/p\\/(MLB\\d{6,})/i);
   return m && m[1] ? m[1].toUpperCase() : "";
 }
 const STOP_PROD = new Set(["de","da","do","das","dos","com","sem","para","pra","por","em","no","na","nos","nas","e","ou","a","o","as","os","um","uma","uns","umas","kit","set","pcs","un","und","ml","cm","mm","kg","g","mah","w","v","volts","cor"]);
@@ -545,7 +545,6 @@ try {
       filter: { type: "and", filters: [
         { columnName: "id", condition: "eq", value: row.id },
         { columnName: "sending", condition: "eq", value: false },
-        { columnName: "sent_at", condition: "eq", value: "" },
       ] },
       data: { sending: true, sent_at: claimToken },
     },
@@ -2139,11 +2138,218 @@ Deno.serve(async (req) => {
       }
 
       const workflowId = result?.id ?? result?.data?.id;
+      let activation: any = null;
+      let activationError: string | null = null;
+
+      if (workflowId) {
+        try {
+          if (robo.status === "ativo") {
+            // Depois de um PUT o n8n pode deixar o cron sem registro ativo.
+            // Reinicia a ativação para garantir que o Schedule volte a disparar.
+            try {
+              await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" });
+            } catch (_) {
+              // ignorar: workflow já podia estar inativo
+            }
+            activation = await n8nFetch(`/workflows/${workflowId}/activate`, { method: "POST" });
+          } else {
+            activation = await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" });
+          }
+        } catch (e) {
+          activationError = (e as Error).message;
+          console.warn("upsert_workflow activation failed:", activationError);
+        }
+      }
+
       await admin.from("robo_campanhas")
-        .update({ n8n_workflow_id: workflowId, ultimo_erro: null })
+        .update({
+          n8n_workflow_id: workflowId,
+          ultima_execucao: robo.status === "ativo" ? null : robo.ultima_execucao,
+          ultimo_erro: activationError,
+        })
         .eq("id", roboId);
 
-      return j({ ok: true, workflowId });
+      return j({ ok: !activationError, workflowId, activated: robo.status === "ativo", activation, activationError });
+    }
+
+    if (action === "diagnose_robo") {
+      const roboId: string = body?.roboId;
+      if (!roboId) return j({ error: "roboId requerido" }, 400);
+      const { data: robo, error } = await admin
+        .from("robo_campanhas").select("*").eq("id", roboId).single();
+      if (error) throw error;
+
+      const out: any = {
+        robo: {
+          id: robo.id,
+          nome: robo.nome,
+          status: robo.status,
+          marketplace: robo.marketplace,
+          workflowId: robo.n8n_workflow_id,
+          tableId: robo.n8n_datatable_id,
+          tableName: robo.n8n_datatable_name,
+          ultima_execucao: robo.ultima_execucao,
+          proxima_execucao: robo.proxima_execucao,
+          ultimo_erro: robo.ultimo_erro,
+          horarios_por_dia: robo.horarios_por_dia,
+        },
+        workflow: null,
+        executions: null,
+        rows: null,
+      };
+
+      if (robo.n8n_workflow_id) {
+        try {
+          const wf = await n8nFetch(`/workflows/${robo.n8n_workflow_id}`);
+          out.workflow = { id: wf?.id, name: wf?.name, active: wf?.active, updatedAt: wf?.updatedAt };
+        } catch (e) {
+          out.workflow = { error: (e as Error).message };
+        }
+        try {
+          const ex = await n8nFetch(`/executions?workflowId=${encodeURIComponent(robo.n8n_workflow_id)}&limit=5`);
+          const list = ex?.data ?? ex ?? [];
+          out.executions = Array.isArray(list)
+            ? list.map((r: any) => ({ id: r.id, status: r.status, mode: r.mode, startedAt: r.startedAt, stoppedAt: r.stoppedAt, finished: r.finished }))
+            : list;
+          const lastId = Array.isArray(list) && list[0]?.id ? list[0].id : null;
+          if (lastId) {
+            try {
+              const detail = await n8nFetch(`/executions/${lastId}?includeData=true`);
+              const runData = detail?.data?.resultData?.runData ?? detail?.resultData?.runData ?? {};
+              const error = detail?.data?.resultData?.error ?? detail?.resultData?.error ?? null;
+              const nodeErrors: any[] = [];
+              for (const [node, runs] of Object.entries(runData)) {
+                const arr = Array.isArray(runs) ? runs : [];
+                for (const run of arr) {
+                  if ((run as any)?.error) nodeErrors.push({ node, error: (run as any).error });
+                }
+              }
+              out.lastExecutionDetail = {
+                id: lastId,
+                status: detail?.status,
+                error,
+                nodeErrors: nodeErrors.slice(0, 3),
+              };
+            } catch (e) {
+              out.lastExecutionDetail = { id: lastId, error: (e as Error).message };
+            }
+          }
+        } catch (e) {
+          out.executions = { error: (e as Error).message };
+        }
+      }
+
+      if (robo.n8n_datatable_id) {
+        try {
+          const pendingFilter = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
+          const sentFilter = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: true }] };
+          const pendingResp = await n8nFetch(`/data-tables/${robo.n8n_datatable_id}/rows?filter=${encodeURIComponent(JSON.stringify(pendingFilter))}&limit=200`);
+          const sentResp = await n8nFetch(`/data-tables/${robo.n8n_datatable_id}/rows?filter=${encodeURIComponent(JSON.stringify(sentFilter))}&limit=20`);
+          const pending = Array.isArray(pendingResp?.data) ? pendingResp.data : [];
+          const sent = Array.isArray(sentResp?.data) ? sentResp.data : [];
+          const isMl = /mercado/i.test(String(robo.marketplace ?? ""));
+          const valid = pending.filter((r: any) => {
+            const sentAt = String(r?.sent_at ?? "").trim();
+            const link = String(r?.offerlink ?? "").trim();
+            return !sentAt && (!isMl || /^https?:\/\/meli\.la\//i.test(link));
+          });
+          out.rows = {
+            pendingCountSample: pending.length,
+            validCountSample: valid.length,
+            sentCountSample: sent.length,
+            firstPending: pending.slice(0, 5).map((r: any) => ({ id: r.id, productname: r.productname, sending: r.sending, sent_at: r.sent_at, offerlink: r.offerlink })),
+            firstValid: valid.slice(0, 5).map((r: any) => ({ id: r.id, productname: r.productname, sending: r.sending, sent_at: r.sent_at, offerlink: r.offerlink })),
+          };
+        } catch (e) {
+          out.rows = { error: (e as Error).message };
+        }
+      }
+
+      return j(out);
+    }
+
+    if (action === "run_robo_now") {
+      const roboId: string = body?.roboId;
+      if (!roboId) return j({ error: "roboId requerido" }, 400);
+      const { data: robo, error } = await admin
+        .from("robo_campanhas").select("id, n8n_workflow_id").eq("id", roboId).single();
+      if (error) throw error;
+      if (!robo?.n8n_workflow_id) return j({ error: "workflow não encontrado" }, 404);
+      const result = await n8nFetch(`/workflows/${robo.n8n_workflow_id}/execute`, { method: "POST" });
+      return j({ ok: true, result });
+    }
+
+    if (action === "diagnose_scrapper") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+
+      const out: any = {
+        job: {
+          id: job.id,
+          nome: job.nome,
+          plataforma: job.plataforma,
+          status: job.status,
+          cron: job.agendamento_cron,
+          workflowId: job.n8n_workflow_id,
+          tableId: job.n8n_datatable_id,
+          tableName: job.data_table_name,
+          ultima_execucao: job.ultima_execucao,
+          ultima_qtd: job.ultima_qtd,
+          ultimo_erro: job.ultimo_erro,
+        },
+        workflow: null,
+        executions: null,
+        rows: null,
+      };
+
+      if (job.n8n_workflow_id) {
+        try {
+          const wf = await n8nFetch(`/workflows/${job.n8n_workflow_id}`);
+          out.workflow = { id: wf?.id, name: wf?.name, active: wf?.active, updatedAt: wf?.updatedAt };
+        } catch (e) {
+          out.workflow = { error: (e as Error).message };
+        }
+        try {
+          const ex = await n8nFetch(`/executions?workflowId=${encodeURIComponent(job.n8n_workflow_id)}&limit=5`);
+          const list = ex?.data ?? ex ?? [];
+          out.executions = Array.isArray(list)
+            ? list.map((r: any) => ({ id: r.id, status: r.status, mode: r.mode, startedAt: r.startedAt, stoppedAt: r.stoppedAt, finished: r.finished }))
+            : list;
+          const lastId = Array.isArray(list) && list[0]?.id ? list[0].id : null;
+          if (lastId) {
+            try {
+              const detail = await n8nFetch(`/executions/${lastId}?includeData=true`);
+              const runData = detail?.data?.resultData?.runData ?? detail?.resultData?.runData ?? {};
+              const error = detail?.data?.resultData?.error ?? detail?.resultData?.error ?? null;
+              const nodeErrors: any[] = [];
+              for (const [node, runs] of Object.entries(runData)) {
+                const arr = Array.isArray(runs) ? runs : [];
+                for (const run of arr) if ((run as any)?.error) nodeErrors.push({ node, error: (run as any).error });
+              }
+              out.lastExecutionDetail = { id: lastId, status: detail?.status, error, nodeErrors: nodeErrors.slice(0, 5) };
+            } catch (e) {
+              out.lastExecutionDetail = { id: lastId, error: (e as Error).message };
+            }
+          }
+        } catch (e) {
+          out.executions = { error: (e as Error).message };
+        }
+      }
+
+      if (job.n8n_datatable_id) {
+        try {
+          const pendingFilter = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
+          const rows = await n8nFetch(`/data-tables/${job.n8n_datatable_id}/rows?filter=${encodeURIComponent(JSON.stringify(pendingFilter))}&limit=20`);
+          out.rows = { pendingSample: rows?.data ?? rows ?? [] };
+        } catch (e) {
+          out.rows = { error: (e as Error).message };
+        }
+      }
+
+      return j(out);
     }
 
     if (action === "recreate_datatable") {
@@ -2328,12 +2534,17 @@ Deno.serve(async (req) => {
       }
       const workflowId = result?.id ?? result?.data?.id;
       let activation: any = null;
+      let activationError: string | null = null;
       if (workflowId) {
         try {
-          activation = await n8nFetch(`/workflows/${workflowId}/${job.status === "ativo" ? "activate" : "deactivate"}`, {
-            method: "POST",
-          });
+          if (job.status === "ativo") {
+            try { await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" }); } catch (_) {}
+            activation = await n8nFetch(`/workflows/${workflowId}/activate`, { method: "POST" });
+          } else {
+            activation = await n8nFetch(`/workflows/${workflowId}/deactivate`, { method: "POST" });
+          }
         } catch (e) {
+          activationError = (e as Error).message;
           console.warn("sync workflow activation failed:", e);
           if (job.status === "ativo") throw e;
         }
@@ -2346,7 +2557,7 @@ Deno.serve(async (req) => {
       await admin.from("scrapper_jobs")
         .update({ n8n_workflow_id: workflowId, n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
-      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation, evolutionCapture });
+      return j({ ok: true, workflowId, datatableId, tableName, activated: job.status === "ativo", activation, activationError, evolutionCapture });
     }
 
     if (action === "activate" || action === "deactivate") {
@@ -2392,7 +2603,7 @@ Deno.serve(async (req) => {
       const originalCron: string = job.agendamento_cron || "0 10 * * *";
       const isMLrun = job.plataforma === "mercadolivre" || job.plataforma === "mercado_livre";
       const wfTemp = isMLrun
-        ? buildMlScrapperWorkflow({ ...job, intervalo_horas: 1 }, friendlyWorkflowName("SCRAPPER", job))
+        ? buildMlScrapperWorkflow({ ...job, force_every_minute: true, agendamento_cron: "* * * * *" }, friendlyWorkflowName("SCRAPPER", job))
         : buildScrapperWorkflow({ ...job, agendamento_cron: "* * * * *" });
       try {
         await n8nFetch(`/workflows/${job.n8n_workflow_id}`, { method: "PUT", body: JSON.stringify(wfTemp) });
