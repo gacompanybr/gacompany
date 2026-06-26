@@ -271,6 +271,50 @@ const HORARIOS_PADRAO = ${JSON.stringify(horariosPorDia)};
 const http = this.helpers.httpRequest;
 const DOW_MAP = ["dom","seg","ter","qua","qui","sex","sab"];
 
+async function apiPost(body) {
+  return await http({
+    method: "POST",
+    url: SCRAPPER_API,
+    headers: { "Authorization": "Bearer " + SCRAPPER_SECRET, "Content-Type": "application/json" },
+    body,
+    json: true,
+  });
+}
+
+async function jaFoiEnviado(item) {
+  try {
+    const r = await apiPost({
+      action: "check_sent_product",
+      robo_id: ROBO_ID,
+      table_id: TABLE_ID,
+      productname: item && item.productname,
+      offerlink: item && item.offerlink,
+      link_compra: item && item.link_compra,
+      imageUrl: item && item.imageUrl,
+      lookback_days: 45,
+    });
+    return !!(r && r.sent);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function registrarEnviado(item, grupo) {
+  try {
+    await apiPost({
+      action: "record_sent_product",
+      robo_id: ROBO_ID,
+      table_id: TABLE_ID,
+      row_id: item && item.id,
+      productname: item && item.productname,
+      offerlink: item && item.offerlink,
+      link_compra: item && item.link_compra,
+      imageUrl: item && item.imageUrl,
+      destino: grupo,
+    });
+  } catch (_) {}
+}
+
 function toMin(t) {
   const parts = String(t || "00:00").split(":");
   return (parseInt(parts[0]||"0",10) * 60) + parseInt(parts[1]||"0",10);
@@ -412,6 +456,7 @@ if (!temCategoria) {
   // Modo sequencial — comportamento antigo
   for (const candidate of disponiveis) {
     if (!rowValido(candidate)) { await queimaRow(candidate.id); continue; }
+    if (await jaFoiEnviado(candidate)) { await queimaRow(candidate.id); continue; }
     row = candidate; break;
   }
 } else {
@@ -434,6 +479,7 @@ if (!temCategoria) {
     let escolhido = null;
     for (const item of lista) {
       if (!rowValido(item)) { await queimaRow(item.id); continue; }
+      if (await jaFoiEnviado(item)) { await queimaRow(item.id); continue; }
       escolhido = item; break;
     }
     if (escolhido) { row = escolhido; break; }
@@ -618,6 +664,7 @@ if (hasImg) {
 
 // 8. Marca como usada (so se enviou OK). Se falhou, LIBERA a reserva pra retry.
 if (sendStatus === 200) {
+  await registrarEnviado(row, grupo);
   try {
     await http({
       method: "PATCH",
