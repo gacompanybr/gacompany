@@ -453,7 +453,7 @@ try {
     sentResp = await http({
       method: "GET",
       url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 1000 },
+      qs: { filter: JSON.stringify(filtroSent), sortBy: "sent_at:DESC", limit: 250 },
       headers: { "X-N8N-API-KEY": N8N_KEY },
       json: true,
     });
@@ -461,7 +461,7 @@ try {
     sentResp = await http({
       method: "GET",
       url: \`\${N8N_BASE}/data-tables/\${TABLE_ID}/rows\`,
-      qs: { filter: JSON.stringify(filtroSent), limit: 1000 },
+      qs: { filter: JSON.stringify(filtroSent), limit: 250 },
       headers: { "X-N8N-API-KEY": N8N_KEY },
       json: true,
     });
@@ -2460,7 +2460,7 @@ Deno.serve(async (req) => {
       try {
         let rows: any[] = [];
         let lastErr = "";
-        for (const path of [`/data-tables/${tableId}/rows?limit=1000`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=1000`]) {
+        for (const path of [`/data-tables/${tableId}/rows?limit=250`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=250`]) {
           try {
             const data = await n8nFetch(path);
             const parsed = data?.data ?? data ?? [];
@@ -2575,7 +2575,7 @@ Deno.serve(async (req) => {
       }
       if (!finalTableId || !robo?.id) return j({ error: "roboId/tableId requerido" }, 400);
 
-      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=1000`);
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
       const isRealSent = (r: any) => r?.sending === true && String(r?.sent_at ?? "").trim() && !String(r?.sent_at ?? "").startsWith("__CLAIM__:");
       const sentRows = rows.filter(isRealSent);
