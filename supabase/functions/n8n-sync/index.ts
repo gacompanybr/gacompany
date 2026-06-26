@@ -2279,6 +2279,79 @@ Deno.serve(async (req) => {
       return j({ ok: true, result });
     }
 
+    if (action === "diagnose_scrapper") {
+      const jobId: string = body?.jobId;
+      if (!jobId) return j({ error: "jobId requerido" }, 400);
+      const { data: job, error } = await admin
+        .from("scrapper_jobs").select("*").eq("id", jobId).single();
+      if (error) throw error;
+
+      const out: any = {
+        job: {
+          id: job.id,
+          nome: job.nome,
+          plataforma: job.plataforma,
+          status: job.status,
+          cron: job.agendamento_cron,
+          workflowId: job.n8n_workflow_id,
+          tableId: job.n8n_datatable_id,
+          tableName: job.data_table_name,
+          ultima_execucao: job.ultima_execucao,
+          ultima_qtd: job.ultima_qtd,
+          ultimo_erro: job.ultimo_erro,
+        },
+        workflow: null,
+        executions: null,
+        rows: null,
+      };
+
+      if (job.n8n_workflow_id) {
+        try {
+          const wf = await n8nFetch(`/workflows/${job.n8n_workflow_id}`);
+          out.workflow = { id: wf?.id, name: wf?.name, active: wf?.active, updatedAt: wf?.updatedAt };
+        } catch (e) {
+          out.workflow = { error: (e as Error).message };
+        }
+        try {
+          const ex = await n8nFetch(`/executions?workflowId=${encodeURIComponent(job.n8n_workflow_id)}&limit=5`);
+          const list = ex?.data ?? ex ?? [];
+          out.executions = Array.isArray(list)
+            ? list.map((r: any) => ({ id: r.id, status: r.status, mode: r.mode, startedAt: r.startedAt, stoppedAt: r.stoppedAt, finished: r.finished }))
+            : list;
+          const lastId = Array.isArray(list) && list[0]?.id ? list[0].id : null;
+          if (lastId) {
+            try {
+              const detail = await n8nFetch(`/executions/${lastId}?includeData=true`);
+              const runData = detail?.data?.resultData?.runData ?? detail?.resultData?.runData ?? {};
+              const error = detail?.data?.resultData?.error ?? detail?.resultData?.error ?? null;
+              const nodeErrors: any[] = [];
+              for (const [node, runs] of Object.entries(runData)) {
+                const arr = Array.isArray(runs) ? runs : [];
+                for (const run of arr) if ((run as any)?.error) nodeErrors.push({ node, error: (run as any).error });
+              }
+              out.lastExecutionDetail = { id: lastId, status: detail?.status, error, nodeErrors: nodeErrors.slice(0, 5) };
+            } catch (e) {
+              out.lastExecutionDetail = { id: lastId, error: (e as Error).message };
+            }
+          }
+        } catch (e) {
+          out.executions = { error: (e as Error).message };
+        }
+      }
+
+      if (job.n8n_datatable_id) {
+        try {
+          const pendingFilter = { type: "and", filters: [{ columnName: "sending", condition: "eq", value: false }] };
+          const rows = await n8nFetch(`/data-tables/${job.n8n_datatable_id}/rows?filter=${encodeURIComponent(JSON.stringify(pendingFilter))}&limit=20`);
+          out.rows = { pendingSample: rows?.data ?? rows ?? [] };
+        } catch (e) {
+          out.rows = { error: (e as Error).message };
+        }
+      }
+
+      return j(out);
+    }
+
     if (action === "recreate_datatable") {
       const jobId: string = body?.jobId;
       if (!jobId) return j({ error: "jobId requerido" }, 400);
