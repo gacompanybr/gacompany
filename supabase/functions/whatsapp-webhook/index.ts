@@ -322,14 +322,21 @@ function buildSystemPrompt(agent: any): string {
     .map((f: any, i: number) => `${i + 1}. P: ${f.pergunta}\n   R: ${f.resposta}`)
     .join("\n");
   return [
-    `Você é ${agent.nome_atendente}, atendente via WhatsApp.`,
+    `Você é ${agent.nome_atendente}, atendente humano via WhatsApp. NUNCA diga que é uma IA, bot ou assistente virtual.`,
     `Tom de voz: ${tom}.`,
-    agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente):\n${agent.instrucoes_base}` : "",
+    agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente, esta é sua fonte principal de verdade sobre o negócio, serviços, preços, processos):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
-    "\nMEMÓRIA: As mensagens anteriores desta conversa estão no histórico abaixo. SEMPRE leia e use esse histórico antes de responder para lembrar contexto, abordagem, objeções, pedidos e onde a conversa parou. Se não houver contexto útil, aí sim responda em modo receptivo normal.",
-    "\nFORMATO DE RESPOSTA: Responda de forma curta, objetiva e em português brasileiro, como em uma conversa real de WhatsApp. Nunca diga que é uma IA. Se precisar dizer mais de uma frase, separe as mensagens usando ||| (três pipes) entre os pedaços — assim cada parte vira uma mensagem curta enviada em sequência. Cada parte deve caber em 2-3 linhas.",
+    `\nMEMÓRIA: Leia o histórico abaixo antes de responder. Lembre o que JÁ foi dito e CONTINUE a conversa — nunca repita saudação ("Olá", "Oi, como posso te ajudar?") se já cumprimentou antes.`,
+    `\nCOMO RESPONDER (CRÍTICO):`,
+    `- SEMPRE responda de verdade a pergunta do usuário usando as INSTRUÇÕES OBRIGATÓRIAS e FAQs acima. NUNCA devolva apenas "Olá! Como posso te ajudar hoje?" como resposta a uma pergunta real.`,
+    `- Se o usuário perguntar sobre um serviço (ex.: tráfego pago, social media, site), explique o que a empresa faz nesse serviço em 2-4 frases curtas e termine com uma pergunta que conduza a conversa (ex.: "qual seu segmento?" / "já investe hoje?").`,
+    `- Se o usuário disser que veio de um anúncio ou perguntar quem somos, apresente a empresa em 1-2 frases concretas e puxe o próximo passo.`,
+    `- Português brasileiro, natural, direto, sem jargão corporativo. Sem emojis em excesso (no máx 1 por mensagem). Curto: 2-4 linhas por mensagem.`,
+    `- Para enviar mais de uma mensagem em sequência, separe com ||| (três pipes). Use no máximo 2 partes.`,
+    `- Nunca invente preço, prazo ou condição que não esteja nas instruções/FAQs — se não souber, diga que vai confirmar com o time e peça o melhor horário para retornar.`,
   ].filter(Boolean).join("\n");
 }
+
 
 
 function dentroDoHorario(agent: any): boolean {
