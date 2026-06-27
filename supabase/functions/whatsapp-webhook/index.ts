@@ -661,6 +661,9 @@ async function processPayload(payload: any) {
     };
     const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
 
+    // Limita histórico para economizar tokens (últimas 20 trocas bastam para contexto)
+    const trimmedRecent = recent.slice(-20);
+
     // System prompt: padrão OU SDR (com contexto isolado por lead)
     let systemPrompt = buildSystemPrompt(agent);
     if (sdrLead) {
@@ -685,10 +688,10 @@ async function processPayload(payload: any) {
         model,
         messages: [
           { role: "system", content: systemPrompt },
-          ...recent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
+          ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
         ],
         temperature: agent.temperatura ?? 0.7,
-        max_tokens: Math.min(Number(agent.max_tokens ?? 400), 600),
+        max_tokens: Math.min(Number(agent.max_tokens ?? 350), 450),
       }),
     });
 
@@ -696,6 +699,7 @@ async function processPayload(payload: any) {
       console.error("AI gateway error", aiResp.status, await aiResp.text());
       continue;
     }
+
     const aiJson = await aiResp.json();
     const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
     if (!reply) continue;
