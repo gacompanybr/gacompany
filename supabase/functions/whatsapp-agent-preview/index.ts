@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { systemPrompt, userMessage, model = "google/gemini-2.5-flash", temperature = 0.7, maxTokens = 500 } = body;
+    const { systemPrompt, userMessage, messages = [], model = "google/gemini-2.5-flash", temperature = 0.7, maxTokens = 500 } = body;
 
     if (!userMessage) return json({ error: "userMessage obrigatório" }, 400);
 
@@ -25,6 +25,12 @@ Deno.serve(async (req) => {
       openai: "openai/gpt-5-mini",
     };
     const finalModel = modelMap[model] ?? model;
+
+    const history = Array.isArray(messages)
+      ? messages
+          .filter((m: any) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string" && m.content.trim())
+          .slice(-30)
+      : [];
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -36,6 +42,8 @@ Deno.serve(async (req) => {
         model: finalModel,
         messages: [
           { role: "system", content: systemPrompt ?? "Você é um assistente prestativo." },
+          { role: "system", content: "Use o histórico como memória e responda a última mensagem. Não reinicie a conversa se já existe contexto." },
+          ...history,
           { role: "user", content: userMessage },
         ],
         temperature,
@@ -53,7 +61,8 @@ Deno.serve(async (req) => {
 
     const data = await resp.json();
     const reply = data.choices?.[0]?.message?.content ?? "(sem resposta)";
-    return json({ reply });
+    const parts = splitMessage(reply);
+    return json({ reply: parts.join("\n\n"), parts });
   } catch (e) {
     console.error("whatsapp-agent-preview error", e);
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
@@ -65,4 +74,27 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function splitMessage(text: string): string[] {
+  let raw = (text ?? "").trim();
+  if (!raw) return [];
+  raw = raw.replace(/^["'`]+|["'`]+$/g, "").replace(/\n?\s*\|\|\|\s*\n?/g, " ||| ").trim();
+  if (raw.includes("|||")) return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 4);
+  const paragraphs = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (paragraphs.length > 1) return paragraphs.slice(0, 4);
+  if (raw.length <= 250 && raw.split(/\n/).length <= 3) return [raw];
+  const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
+  const chunks: string[] = [];
+  let current = "";
+  for (const sentence of sentences) {
+    if ((current + sentence).length > 200 && current.trim()) {
+      chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current += sentence;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.slice(0, 4);
 }
