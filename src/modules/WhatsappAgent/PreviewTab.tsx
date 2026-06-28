@@ -30,6 +30,10 @@ export function PreviewTab({ agent }: { agent: WhatsappAgent }) {
         body: {
           systemPrompt: buildSystemPrompt(agent),
           userMessage,
+          messages: msgs.map((m) => ({
+            role: m.role === "agent" ? "assistant" : "user",
+            content: m.text,
+          })),
           model: agent.modelo_ia,
           temperature: agent.temperatura,
           maxTokens: agent.max_tokens,
@@ -38,7 +42,13 @@ export function PreviewTab({ agent }: { agent: WhatsappAgent }) {
       if (error || (data as any)?.error) {
         toast.error((data as any)?.error ?? error?.message ?? "Erro ao gerar resposta");
       } else {
-        setMsgs((prev) => [...prev, { role: "agent", text: (data as any).reply }]);
+        const parts = Array.isArray((data as any).parts) && (data as any).parts.length
+          ? (data as any).parts
+          : [(data as any).reply];
+        setMsgs((prev) => [
+          ...prev,
+          ...parts.map((text: string) => ({ role: "agent" as const, text })),
+        ]);
       }
     } finally {
       setBusy(false);
