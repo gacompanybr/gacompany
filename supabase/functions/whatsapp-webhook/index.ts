@@ -433,7 +433,7 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
   return false;
 }
 
-const SPLIT_DELAY_MS = 8000;
+const SPLIT_DELAY_MS = 2200;
 
 async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
   const parts = splitMessage(text);
