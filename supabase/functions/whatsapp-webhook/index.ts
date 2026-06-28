@@ -675,15 +675,47 @@ async function processPayload(payload: any) {
         .limit(100);
       history = data;
     } else {
-      const { data } = await admin
-        .from("whatsapp_conversas")
-        .select("role, mensagem, contato_telefone, created_at")
-        .eq("portfolio_id", portfolioId)
-        .order("created_at", { ascending: false })
-        .limit(160);
-      history = (data ?? [])
-        .filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList) || row.contato_telefone === storagePhone || row.contato_telefone === remoteJid)
-        .slice(0, 120);
+      const exactPhones = Array.from(new Set([
+        ...phoneCandidates,
+        storagePhone,
+        normalizePhoneDigits(phone),
+        remoteJid,
+      ].filter(Boolean))).slice(0, 25);
+
+      let exactRows: any[] = [];
+      if (exactPhones.length) {
+        const { data } = await admin
+          .from("whatsapp_conversas")
+          .select("role, mensagem, contato_telefone, created_at")
+          .eq("portfolio_id", portfolioId)
+          .in("contato_telefone", exactPhones)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        exactRows = data ?? [];
+      }
+
+      // Fallback para conversas antigas salvas com outro formato do mesmo número (@lid/9º dígito/DDI).
+      let fallbackRows: any[] = [];
+      if (phoneSuffixList.length && exactRows.length < 20) {
+        const { data } = await admin
+          .from("whatsapp_conversas")
+          .select("role, mensagem, contato_telefone, created_at")
+          .eq("portfolio_id", portfolioId)
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        fallbackRows = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
+      }
+
+      const seen = new Set<string>();
+      history = [...exactRows, ...fallbackRows]
+        .filter((row: any) => {
+          const key = `${row.created_at}|${row.role}|${row.mensagem}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 160);
     }
 
     const recent = (history ?? []).reverse();
