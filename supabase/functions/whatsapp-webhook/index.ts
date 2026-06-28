@@ -663,13 +663,12 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: sempre tenta reconstruir a conversa atual inteira.
-    // SDR: histórico completo por lead. Normal: histórico recente por qualquer formato conhecido do telefone.
-    let history: { role: string; mensagem: string }[] | null = null;
+    // Memória: reconstrói a conversa por lead ou por telefone/JID equivalente.
+    let history: { role: string; mensagem: string; created_at?: string; contato_telefone?: string }[] | null = null;
     if (sdrLead) {
       const { data } = await admin
         .from("whatsapp_conversas")
-        .select("role, mensagem")
+        .select("role, mensagem, created_at")
         .eq("portfolio_id", portfolioId)
         .eq("sdr_lead_id", sdrLead.id)
         .order("created_at", { ascending: false })
@@ -682,7 +681,9 @@ async function processPayload(payload: any) {
         .eq("portfolio_id", portfolioId)
         .order("created_at", { ascending: false })
         .limit(160);
-      history = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList)).slice(0, 80);
+      history = (data ?? [])
+        .filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList) || row.contato_telefone === storagePhone || row.contato_telefone === remoteJid)
+        .slice(0, 120);
     }
 
     const recent = (history ?? []).reverse();
@@ -693,14 +694,15 @@ async function processPayload(payload: any) {
     };
     const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
 
-    // Limita histórico para economizar tokens (últimas 20 trocas bastam para contexto)
-    const trimmedRecent = recent.slice(-20);
+    // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
+    const trimmedRecent = recent.slice(-60);
 
     // System prompt: padrão OU SDR (com contexto isolado por lead)
     let systemPrompt = buildSystemPrompt(agent);
+    systemPrompt = [systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
     if (sdrLead) {
       systemPrompt = [
-        buildSystemPrompt(agent),
+        systemPrompt,
         ``,
         `[MODO SDR ATIVO]`,
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
@@ -720,6 +722,7 @@ async function processPayload(payload: any) {
         model,
         messages: [
           { role: "system", content: systemPrompt },
+          { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
           ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
         ],
         temperature: agent.temperatura ?? 0.7,
