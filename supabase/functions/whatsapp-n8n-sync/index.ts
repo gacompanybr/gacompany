@@ -458,9 +458,9 @@ Deno.serve(async (req) => {
       console.warn("n8n activate/deactivate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
     }
 
-    // Aponta Evolution para o webhook do n8n (URL de produção)
-    const N8N_HOST = N8N_BASE_URL.replace(/\/api\/v\d+$/, "");
-    const webhookUrl = `${N8N_HOST}/webhook/${webhookPath}`;
+    // Aponta Evolution para o webhook central do sistema. Ele salva memória por conversa,
+    // quebra mensagens em partes e roteia grupos DUP para o n8n quando necessário.
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
     const wh = await ensureEvolutionWebhook(instanceName, webhookUrl);
 
     await admin.from("whatsapp_agents").update({
