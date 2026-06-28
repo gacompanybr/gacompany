@@ -322,18 +322,45 @@ function buildSystemPrompt(agent: any): string {
     .map((f: any, i: number) => `${i + 1}. P: ${f.pergunta}\n   R: ${f.resposta}`)
     .join("\n");
   return [
-    `Você é ${agent.nome_atendente}, atendente humano via WhatsApp. NUNCA diga que é uma IA, bot ou assistente virtual.`,
+    `Você é ${agent.nome_atendente}, atendente humano via WhatsApp da GA Company. NUNCA diga que é uma IA, bot ou assistente virtual.`,
     `Tom de voz: ${tom}.`,
     agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente, esta é sua fonte principal de verdade sobre o negócio, serviços, preços, processos):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
-    `\nMEMÓRIA: Leia o histórico abaixo antes de responder. Lembre o que JÁ foi dito e CONTINUE a conversa — nunca repita saudação ("Olá", "Oi, como posso te ajudar?") se já cumprimentou antes.`,
+    `\nMEMÓRIA OBRIGATÓRIA: antes de responder, leia todo o histórico enviado. Continue exatamente do ponto em que a conversa parou. Se o usuário mencionar "isso", "aquilo", "o que falamos", "planos", "tráfego pago" ou responder só com o segmento, use o contexto anterior.`,
     `\nCOMO RESPONDER (CRÍTICO):`,
     `- SEMPRE responda de verdade a pergunta do usuário usando as INSTRUÇÕES OBRIGATÓRIAS e FAQs acima. NUNCA devolva apenas "Olá! Como posso te ajudar hoje?" como resposta a uma pergunta real.`,
+    `- NÃO cumprimente de novo se já existe histórico com esse contato. Não reinicie a conversa. Não fale "como posso ajudar?" quando o usuário já disse o assunto.`,
     `- Se o usuário perguntar sobre um serviço (ex.: tráfego pago, social media, site), explique o que a empresa faz nesse serviço em 2-4 frases curtas e termine com uma pergunta que conduza a conversa (ex.: "qual seu segmento?" / "já investe hoje?").`,
+    `- Se o usuário responder apenas o segmento (ex.: "bar", "loja", "clínica"), trate como resposta da pergunta anterior e avance sugerindo o caminho ideal para aquele segmento.`,
     `- Se o usuário disser que veio de um anúncio ou perguntar quem somos, apresente a empresa em 1-2 frases concretas e puxe o próximo passo.`,
-    `- Português brasileiro, natural, direto, sem jargão corporativo. Sem emojis em excesso (no máx 1 por mensagem). Curto: 2-4 linhas por mensagem.`,
-    `- Para enviar mais de uma mensagem em sequência, separe com ||| (três pipes). Use no máximo 2 partes.`,
+    `- Português brasileiro, natural, humanizado e consultivo, sem jargão corporativo. Sem emojis em excesso (no máx 1 por mensagem). Curto: 2-4 linhas por mensagem.`,
+    `- Quando fizer sentido dividir, escreva até 3 blocos curtos separados por |||. O sistema vai enviar cada bloco como uma mensagem separada. NUNCA explique nem mencione esse separador para o cliente.`,
     `- Nunca invente preço, prazo ou condição que não esteja nas instruções/FAQs — se não souber, diga que vai confirmar com o time e peça o melhor horário para retornar.`,
+  ].filter(Boolean).join("\n");
+}
+
+function messageLooksLikeGreeting(value: string): boolean {
+  const text = value.trim().toLowerCase();
+  return /^(ol[áa]|oi|opa|bom dia|boa tarde|boa noite|e ai|e aí)[!,.\s]*$/.test(text);
+}
+
+function buildConversationState(recent: { role: string; mensagem: string }[], currentText: string): string {
+  const assistantCount = recent.filter((m) => m.role === "assistant").length;
+  const userCount = recent.filter((m) => m.role !== "assistant").length;
+  const greeted = assistantCount > 0;
+  const lastUserBeforeCurrent = [...recent]
+    .reverse()
+    .find((m) => m.role !== "assistant" && m.mensagem !== currentText)?.mensagem ?? "";
+  const lastAssistant = [...recent].reverse().find((m) => m.role === "assistant")?.mensagem ?? "";
+
+  return [
+    `ESTADO DA CONVERSA:`,
+    `- Mensagens anteriores do cliente: ${Math.max(userCount - 1, 0)}. Respostas anteriores suas: ${assistantCount}.`,
+    `- Cliente já foi cumprimentado: ${greeted ? "sim" : "não"}.`,
+    greeted ? `- Não comece com saudação. Continue o contexto.` : `- Se a mensagem for só cumprimento, cumprimente brevemente e puxe o próximo passo.`,
+    messageLooksLikeGreeting(currentText) && greeted ? `- A mensagem atual é só cumprimento; responda curto e retome o assunto anterior, sem reiniciar.` : "",
+    lastUserBeforeCurrent ? `- Última mensagem anterior do cliente: ${lastUserBeforeCurrent}` : "",
+    lastAssistant ? `- Sua última resposta: ${lastAssistant}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -357,11 +384,16 @@ function dentroDoHorario(agent: any): boolean {
 }
 
 function splitMessage(text: string): string[] {
-  const raw = (text ?? "").trim();
+  let raw = (text ?? "").trim();
   if (!raw) return [];
+  raw = raw
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/\n?\s*\|\|\|\s*\n?/g, " ||| ")
+    .replace(/\s+\|\|\|\s+/g, " ||| ")
+    .trim();
   // Separador explícito do modelo
   if (raw.includes("|||")) {
-    return raw.split("|||").map((s) => s.trim()).filter(Boolean);
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 4);
   }
   // Quebra por parágrafo duplo
   const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
@@ -382,7 +414,7 @@ function splitMessage(text: string): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-  return chunks.filter(Boolean);
+  return chunks.filter(Boolean).slice(0, 4);
 }
 
 async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
