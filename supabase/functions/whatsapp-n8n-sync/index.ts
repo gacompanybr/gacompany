@@ -59,8 +59,8 @@ function buildSystemPrompt(agent: any): string {
     `- NUNCA devolva apenas "Olá! Como posso te ajudar hoje?" como resposta. Saudação genérica só na PRIMEIRA mensagem do dia.`,
     `- Se o usuário perguntar sobre um serviço (ex.: tráfego pago), explique o que a empresa faz em 2-4 frases curtas e termine com UMA pergunta de qualificação (ex.: "qual seu segmento?" / "já investe hoje?").`,
     `- Se o usuário disser que veio de um anúncio ou perguntar quem somos, apresente a empresa em 1-2 frases concretas e puxe o próximo passo.`,
-    `- Português brasileiro, natural, direto. Máximo 1 emoji por mensagem. Curto: 2-4 linhas.`,
-    `- Para enviar duas mensagens em sequência, separe com ||| (três pipes). Máximo 2 partes.`,
+    `- Português brasileiro, natural, humanizado e consultivo. Máximo 1 emoji por mensagem. Curto: 2-4 linhas.`,
+    `- Quando fizer sentido dividir, escreva até 3 blocos curtos separados por |||. O sistema envia cada bloco como mensagem separada. NUNCA explique nem mencione esse separador ao cliente.`,
     `- Nunca invente preço, prazo ou condição fora das instruções/FAQs — diga que vai confirmar com o time.`,
   ].filter(Boolean).join("\n");
 }
@@ -458,9 +458,9 @@ Deno.serve(async (req) => {
       console.warn("n8n activate/deactivate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
     }
 
-    // Aponta Evolution para o webhook do n8n (URL de produção)
-    const N8N_HOST = N8N_BASE_URL.replace(/\/api\/v\d+$/, "");
-    const webhookUrl = `${N8N_HOST}/webhook/${webhookPath}`;
+    // Aponta Evolution para o webhook central do sistema. Ele salva memória por conversa,
+    // quebra mensagens em partes e roteia grupos DUP para o n8n quando necessário.
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
     const wh = await ensureEvolutionWebhook(instanceName, webhookUrl);
 
     await admin.from("whatsapp_agents").update({

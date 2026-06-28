@@ -322,18 +322,45 @@ function buildSystemPrompt(agent: any): string {
     .map((f: any, i: number) => `${i + 1}. P: ${f.pergunta}\n   R: ${f.resposta}`)
     .join("\n");
   return [
-    `Você é ${agent.nome_atendente}, atendente humano via WhatsApp. NUNCA diga que é uma IA, bot ou assistente virtual.`,
+    `Você é ${agent.nome_atendente}, atendente humano via WhatsApp da GA Company. NUNCA diga que é uma IA, bot ou assistente virtual.`,
     `Tom de voz: ${tom}.`,
     agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente, esta é sua fonte principal de verdade sobre o negócio, serviços, preços, processos):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
-    `\nMEMÓRIA: Leia o histórico abaixo antes de responder. Lembre o que JÁ foi dito e CONTINUE a conversa — nunca repita saudação ("Olá", "Oi, como posso te ajudar?") se já cumprimentou antes.`,
+    `\nMEMÓRIA OBRIGATÓRIA: antes de responder, leia todo o histórico enviado. Continue exatamente do ponto em que a conversa parou. Se o usuário mencionar "isso", "aquilo", "o que falamos", "planos", "tráfego pago" ou responder só com o segmento, use o contexto anterior.`,
     `\nCOMO RESPONDER (CRÍTICO):`,
     `- SEMPRE responda de verdade a pergunta do usuário usando as INSTRUÇÕES OBRIGATÓRIAS e FAQs acima. NUNCA devolva apenas "Olá! Como posso te ajudar hoje?" como resposta a uma pergunta real.`,
+    `- NÃO cumprimente de novo se já existe histórico com esse contato. Não reinicie a conversa. Não fale "como posso ajudar?" quando o usuário já disse o assunto.`,
     `- Se o usuário perguntar sobre um serviço (ex.: tráfego pago, social media, site), explique o que a empresa faz nesse serviço em 2-4 frases curtas e termine com uma pergunta que conduza a conversa (ex.: "qual seu segmento?" / "já investe hoje?").`,
+    `- Se o usuário responder apenas o segmento (ex.: "bar", "loja", "clínica"), trate como resposta da pergunta anterior e avance sugerindo o caminho ideal para aquele segmento.`,
     `- Se o usuário disser que veio de um anúncio ou perguntar quem somos, apresente a empresa em 1-2 frases concretas e puxe o próximo passo.`,
-    `- Português brasileiro, natural, direto, sem jargão corporativo. Sem emojis em excesso (no máx 1 por mensagem). Curto: 2-4 linhas por mensagem.`,
-    `- Para enviar mais de uma mensagem em sequência, separe com ||| (três pipes). Use no máximo 2 partes.`,
+    `- Português brasileiro, natural, humanizado e consultivo, sem jargão corporativo. Sem emojis em excesso (no máx 1 por mensagem). Curto: 2-4 linhas por mensagem.`,
+    `- Quando fizer sentido dividir, escreva até 3 blocos curtos separados por |||. O sistema vai enviar cada bloco como uma mensagem separada. NUNCA explique nem mencione esse separador para o cliente.`,
     `- Nunca invente preço, prazo ou condição que não esteja nas instruções/FAQs — se não souber, diga que vai confirmar com o time e peça o melhor horário para retornar.`,
+  ].filter(Boolean).join("\n");
+}
+
+function messageLooksLikeGreeting(value: string): boolean {
+  const text = value.trim().toLowerCase();
+  return /^(ol[áa]|oi|opa|bom dia|boa tarde|boa noite|e ai|e aí)[!,.\s]*$/.test(text);
+}
+
+function buildConversationState(recent: { role: string; mensagem: string }[], currentText: string): string {
+  const assistantCount = recent.filter((m) => m.role === "assistant").length;
+  const userCount = recent.filter((m) => m.role !== "assistant").length;
+  const greeted = assistantCount > 0;
+  const lastUserBeforeCurrent = [...recent]
+    .reverse()
+    .find((m) => m.role !== "assistant" && m.mensagem !== currentText)?.mensagem ?? "";
+  const lastAssistant = [...recent].reverse().find((m) => m.role === "assistant")?.mensagem ?? "";
+
+  return [
+    `ESTADO DA CONVERSA:`,
+    `- Mensagens anteriores do cliente: ${Math.max(userCount - 1, 0)}. Respostas anteriores suas: ${assistantCount}.`,
+    `- Cliente já foi cumprimentado: ${greeted ? "sim" : "não"}.`,
+    greeted ? `- Não comece com saudação. Continue o contexto.` : `- Se a mensagem for só cumprimento, cumprimente brevemente e puxe o próximo passo.`,
+    messageLooksLikeGreeting(currentText) && greeted ? `- A mensagem atual é só cumprimento; responda curto e retome o assunto anterior, sem reiniciar.` : "",
+    lastUserBeforeCurrent ? `- Última mensagem anterior do cliente: ${lastUserBeforeCurrent}` : "",
+    lastAssistant ? `- Sua última resposta: ${lastAssistant}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -357,11 +384,16 @@ function dentroDoHorario(agent: any): boolean {
 }
 
 function splitMessage(text: string): string[] {
-  const raw = (text ?? "").trim();
+  let raw = (text ?? "").trim();
   if (!raw) return [];
+  raw = raw
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/\n?\s*\|\|\|\s*\n?/g, " ||| ")
+    .replace(/\s+\|\|\|\s+/g, " ||| ")
+    .trim();
   // Separador explícito do modelo
   if (raw.includes("|||")) {
-    return raw.split("|||").map((s) => s.trim()).filter(Boolean);
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 4);
   }
   // Quebra por parágrafo duplo
   const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
@@ -382,7 +414,7 @@ function splitMessage(text: string): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-  return chunks.filter(Boolean);
+  return chunks.filter(Boolean).slice(0, 4);
 }
 
 async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
@@ -401,7 +433,7 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
   return false;
 }
 
-const SPLIT_DELAY_MS = 8000;
+const SPLIT_DELAY_MS = 2200;
 
 async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
   const parts = splitMessage(text);
@@ -631,26 +663,59 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: sempre tenta reconstruir a conversa atual inteira.
-    // SDR: histórico completo por lead. Normal: histórico recente por qualquer formato conhecido do telefone.
-    let history: { role: string; mensagem: string }[] | null = null;
+    // Memória: reconstrói a conversa por lead ou por telefone/JID equivalente.
+    let history: { role: string; mensagem: string; created_at?: string; contato_telefone?: string }[] | null = null;
     if (sdrLead) {
       const { data } = await admin
         .from("whatsapp_conversas")
-        .select("role, mensagem")
+        .select("role, mensagem, created_at")
         .eq("portfolio_id", portfolioId)
         .eq("sdr_lead_id", sdrLead.id)
         .order("created_at", { ascending: false })
         .limit(100);
       history = data;
     } else {
-      const { data } = await admin
-        .from("whatsapp_conversas")
-        .select("role, mensagem, contato_telefone, created_at")
-        .eq("portfolio_id", portfolioId)
-        .order("created_at", { ascending: false })
-        .limit(160);
-      history = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList)).slice(0, 80);
+      const exactPhones = Array.from(new Set([
+        ...phoneCandidates,
+        storagePhone,
+        normalizePhoneDigits(phone),
+        remoteJid,
+      ].filter(Boolean))).slice(0, 25);
+
+      let exactRows: any[] = [];
+      if (exactPhones.length) {
+        const { data } = await admin
+          .from("whatsapp_conversas")
+          .select("role, mensagem, contato_telefone, created_at")
+          .eq("portfolio_id", portfolioId)
+          .in("contato_telefone", exactPhones)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        exactRows = data ?? [];
+      }
+
+      // Fallback para conversas antigas salvas com outro formato do mesmo número (@lid/9º dígito/DDI).
+      let fallbackRows: any[] = [];
+      if (phoneSuffixList.length && exactRows.length < 20) {
+        const { data } = await admin
+          .from("whatsapp_conversas")
+          .select("role, mensagem, contato_telefone, created_at")
+          .eq("portfolio_id", portfolioId)
+          .order("created_at", { ascending: false })
+          .limit(2000);
+        fallbackRows = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
+      }
+
+      const seen = new Set<string>();
+      history = [...exactRows, ...fallbackRows]
+        .filter((row: any) => {
+          const key = `${row.created_at}|${row.role}|${row.mensagem}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 160);
     }
 
     const recent = (history ?? []).reverse();
@@ -661,14 +726,15 @@ async function processPayload(payload: any) {
     };
     const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
 
-    // Limita histórico para economizar tokens (últimas 20 trocas bastam para contexto)
-    const trimmedRecent = recent.slice(-20);
+    // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
+    const trimmedRecent = recent.slice(-60);
 
     // System prompt: padrão OU SDR (com contexto isolado por lead)
     let systemPrompt = buildSystemPrompt(agent);
+    systemPrompt = [systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
     if (sdrLead) {
       systemPrompt = [
-        buildSystemPrompt(agent),
+        systemPrompt,
         ``,
         `[MODO SDR ATIVO]`,
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
@@ -688,6 +754,7 @@ async function processPayload(payload: any) {
         model,
         messages: [
           { role: "system", content: systemPrompt },
+          { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
           ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
         ],
         temperature: agent.temperatura ?? 0.7,
