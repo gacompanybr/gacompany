@@ -758,7 +758,7 @@ async function processPayload(payload: any) {
           ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
         ],
         temperature: agent.temperatura ?? 0.7,
-        max_tokens: Math.min(Number(agent.max_tokens ?? 350), 450),
+        max_tokens: Math.min(Math.max(Number(agent.max_tokens ?? 500), 200), 2000),
       }),
     });
 

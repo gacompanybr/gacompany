@@ -29,12 +29,16 @@ async function evo(path: string, init: RequestInit = {}) {
   return { ok: r.ok, status: r.status, body };
 }
 
-function extractQr(body: any): string | null {
-  if (!body || typeof body !== "object") return typeof body === "string" && body.length > 80 ? body : null;
+function extractQr(body: any, seen: WeakSet<object> = new WeakSet(), depth = 0): string | null {
+  if (typeof body === "string") return body.length > 80 ? body : null;
+  if (!body || typeof body !== "object") return null;
+  if (depth > 8) return null;
+  if (seen.has(body)) return null;
+  seen.add(body);
   const direct = body.base64 ?? body.code ?? body.pairingCode ?? body.qrcode?.base64 ?? body.qrcode?.code;
   if (typeof direct === "string" && direct.length > 20) return direct;
   for (const value of Object.values(body)) {
-    const found = extractQr(value);
+    const found = extractQr(value, seen, depth + 1);
     if (found) return found;
   }
   return null;
