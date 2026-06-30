@@ -666,7 +666,9 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: reconstrói a conversa por lead ou por telefone/JID equivalente.
+    // Memória: últimas 36h da MESMA conversa (por lead SDR ou por telefone equivalente).
+    const MEMORY_WINDOW_HOURS = 36;
+    const memoryCutoffIso = new Date(Date.now() - MEMORY_WINDOW_HOURS * 3600 * 1000).toISOString();
     let history: { role: string; mensagem: string; created_at?: string; contato_telefone?: string }[] | null = null;
     if (sdrLead) {
       const { data } = await admin
@@ -674,6 +676,7 @@ async function processPayload(payload: any) {
         .select("role, mensagem, created_at")
         .eq("portfolio_id", portfolioId)
         .eq("sdr_lead_id", sdrLead.id)
+        .gte("created_at", memoryCutoffIso)
         .order("created_at", { ascending: false })
         .limit(100);
       history = data;
@@ -692,20 +695,22 @@ async function processPayload(payload: any) {
           .select("role, mensagem, contato_telefone, created_at")
           .eq("portfolio_id", portfolioId)
           .in("contato_telefone", exactPhones)
+          .gte("created_at", memoryCutoffIso)
           .order("created_at", { ascending: false })
           .limit(200);
         exactRows = data ?? [];
       }
 
-      // Fallback para conversas antigas salvas com outro formato do mesmo número (@lid/9º dígito/DDI).
+      // Fallback para conversas do mesmo número salvas com outro formato (@lid/9º dígito/DDI), ainda dentro da janela.
       let fallbackRows: any[] = [];
       if (phoneSuffixList.length && exactRows.length < 20) {
         const { data } = await admin
           .from("whatsapp_conversas")
           .select("role, mensagem, contato_telefone, created_at")
           .eq("portfolio_id", portfolioId)
+          .gte("created_at", memoryCutoffIso)
           .order("created_at", { ascending: false })
-          .limit(2000);
+          .limit(1000);
         fallbackRows = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
       }
 
@@ -720,6 +725,7 @@ async function processPayload(payload: any) {
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 160);
     }
+
 
     const recent = (history ?? []).reverse();
 
