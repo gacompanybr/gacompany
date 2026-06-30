@@ -48,6 +48,42 @@ const STATUS_LABEL: Record<string, string> = {
 export function SdrTab({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [followupBusy, setFollowupBusy] = useState(false);
+
+  const { data: agent } = useQuery({
+    queryKey: ["sdr-followup-flag", portfolioId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_agents")
+        .select("id, sdr_followup_enabled")
+        .eq("portfolio_id", portfolioId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; sdr_followup_enabled: boolean } | null;
+    },
+  });
+
+  async function toggleFollowup(next: boolean) {
+    if (!agent?.id) {
+      toast.error("Configure o Agente IA primeiro");
+      return;
+    }
+    setFollowupBusy(true);
+    try {
+      const { error } = await supabase
+        .from("whatsapp_agents")
+        .update({ sdr_followup_enabled: next })
+        .eq("id", agent.id);
+      if (error) throw error;
+      toast.success(next ? "Follow-up ativo ligado" : "Follow-up ativo desligado");
+      qc.invalidateQueries({ queryKey: ["sdr-followup-flag", portfolioId] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao atualizar");
+    } finally {
+      setFollowupBusy(false);
+    }
+  }
+
 
   const { data: campaigns } = useQuery({
     queryKey: ["sdr-campaigns", portfolioId],
