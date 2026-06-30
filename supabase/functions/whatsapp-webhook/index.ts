@@ -433,7 +433,10 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
   return false;
 }
 
-const SPLIT_DELAY_MS = 2200;
+// Delay aleatório entre 6 e 10 segundos para parecer humano
+function randomSplitDelayMs(): number {
+  return 6000 + Math.floor(Math.random() * 4001);
+}
 
 async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
   const parts = splitMessage(text);
@@ -443,7 +446,7 @@ async function sendText(instance: string, targets: string[], text: string): Prom
     const ok = await sendOnce(instance, targets, parts[i]);
     if (ok) sent.push(parts[i]); else failed.push(parts[i]);
     if (i < parts.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, SPLIT_DELAY_MS));
+      await new Promise((resolve) => setTimeout(resolve, randomSplitDelayMs()));
     }
   }
   return { sent, failed };
