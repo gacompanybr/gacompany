@@ -19,9 +19,9 @@
         "operation": "upsert",
         "dataTableId": {
           "__rl": true,
-          "value": "HHVRHOgRDCza0NBQ",
+          "value": "__DATA_TABLE_ID__",
           "mode": "list",
-          "cachedResultName": "ML_LAR_EM_OFERTAS",
+          "cachedResultName": "JOB_DATA_TABLE",
           "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
         },
         "filters": {
@@ -222,9 +222,9 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "HHVRHOgRDCza0NBQ",
+          "value": "__DATA_TABLE_ID__",
           "mode": "list",
-          "cachedResultName": "ML_LAR_EM_OFERTAS",
+          "cachedResultName": "JOB_DATA_TABLE",
           "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
         }
       },
@@ -626,15 +626,15 @@
             },
             {
               "name": "ml_affiliate_tag",
-              "stringValue": "giglioligustavo20231009100149"
+              "stringValue": "__ML_AFFILIATE_TAG__"
             },
             {
               "name": "ml_cookie",
-              "stringValue": "_d2id=fca031c7-6256-4705-bb94-15f10aab8081; _tt_enable_cookie=1; _ttp=01KQR8G5T54J5Z3DBWWT0WE25C_.tt.2; _pin_unauth=dWlkPU5UbGpZakEyTURndFkyWTBPQzAwTldObExXRXpZelF0T1dSaE5qVmlZMkptWWpnNA; g_state={\\\"i_l\\\":0,\\\"i_ll\\\":1778262977442,\\\"i_e\\\":{\\\"enable_itp_optimization\\\":0},\\\"i_et\\\":1777856944194}; ftid=ZQiCdRDZ4XMVY8wa9GMtlOrJ1W1hTFUa-1778262986116; ssid=ghy-050813-DpKcIz2ZIhCQl0fVM8S3km9RTI9bNP-__-1505979876-__-1872957437109--RRR_0-RRR_0; orguserid=h090dh94h47ht; orgnickp=GIGLIOLIGUSTAVO20231009100149; orguseridp=1505979876; cookiesPreferencesNotLogged=%7B%22categories%22%3A%7B%22advertising%22%3Atrue%2C%22functionality%22%3Atrue%2C%22performance%22%3Atrue%2C%22traceability%22%3Atrue%7D%7D; _hjSessionUser_720738=eyJpZCI6IjY2MDE5NjBkLTI5MDItNTU3OC1hMmMxLWNlM2JkNWJlNTczOCIsImNyZWF0ZWQiOjE3NzgyNjI5NzgxMjYsImV4aXN0aW5nIjp0cnVlfQ==; tooltip=true; QSI_SI_d4ikElJeWDP7fzo_intercept=true; p_dsid=df5714f7-c892-4291-8e5b-01d5a49198bf-1778264906363; cross_esc_web-flow=%7B%22fca031c7-6256-4705-bb94-15f10aab8081%22%3A%7B%229788153857%22%3A%22v5GMtkMA4sK0Jh6a4jPLwEZKZYmC37XC1PNuYiYcQQ%3D%3D%22%7D%7D; c_Z1l9PLD=1; p_edsid=91ad0f12-564e-30d4-b313-e5491dd1cdba-1780254935341; modal-configuration={\\\"cbt_modal\\\":{\\\"view_cnt\\\":2,\\\"close_cnt\\\":0,\\\"view_time\\\":1780254939,\\\"close_time\\\":0}}; c_Z22Y2rV=1; cp=17470021; _gcl_gs=2.1.k1$i1781109974$u87880580; _gcl_aw=GCL.1781109977.Cj0KCQjwlqTRBhCBARIsANrkrxhJVvgAxjQuusue51L36VulZZSEVFc9l9pstvSSDsX_qSlkV5DShVIaAhGIEALw_wcB; _csrf=xSE_51ZrpzuKhjAxXNO--wHR; _mldataSessionId=b14ff46a-b003-4b35-8a89-71138bf205b4; cookiesPreferencesLogged=%7B%22userId%22%3A1505979876%2C%22categories%22%3A%7B%22advertising%22%3Atrue%2C%22functionality%22%3Atrue%2C%22performance%22%3Atrue%2C%22traceability%22%3Atrue%7D%7D; cookiesPreferencesLoggedFallback=%7B%22userId%22%3A1505979876%2C%22categories%22%3A%7B%22advertising%22%3Atrue%2C%22functionality%22%3Atrue%2C%22performance%22%3Atrue%2C%22traceability%22%3Atrue%7D%7D; c_s7dla=1; ml_cart-quantity=1; nsa_rotok=eyJhbGciOiJSUzI1NiIsImtpZCI6IjMiLCJ0eXAiOiJKV1QifQ.eyJpZGVudGlmaWVyIjoiNmQ2NDkwNzEtODY2YS00MzQ0LWI5MWQtMjBlZTk4ZTJmM2Y0Iiwicm90YXRpb25faWQiOiIzNTU4ODc2MC02OTY4LTQzYmEtOTUyNS0xZDU4NDBmZGUyYTkiLCJwbGF0Zm9ybSI6Ik1MIiwicm90YXRpb25fZGF0ZSI6MTc4MjE3NTkxMCwiZXhwIjoxNzg0NzY3MzEwLCJqdGkiOiJkZDhhNjcyOC1mZGNlLTQxYzYtOGEwZC0zMmFkYzdlNGY4ZTEiLCJpYXQiOjE3ODIxNzUzMTAsInN1YiI6IjZkNjQ5MDcxLTg2NmEtNDM0NC1iOTFkLTIwZWU5OGUyZjNmNCJ9.VsgmqN0S-IrODKIrIu0nOqjCPyrKT22rtvkLJm1ksuMDE-qSdMot7_QBUZPY9E8YWIGqXtYM3FcRRREYlxmOAe_xHcqGN1rwt4B1wZhsIRkpcbRnxpfM4Xd1MKNyzN57bOIBeg9PqD7h42iDP5QA5JtwqyhI0nZtU2I6fcvuZL36U51iGXZJYuO_k3kvw-MJwnp6jq2zzQjSPNGvCcy9IDEIefSZMR9qvuDHTGeXgZZpBgNpeDM3oGpOAzpcgaRFH-9l7XRZ6NhXG3a0m91-xBkz6CLPtLcIpc9_SI6BWIk7BLQeh-jTurd--kimqtZwKfGZxs1EwucPKq6cN1mjyg; NSESSIONID_pampa_session=s%3AfT5_8yRQhAhWGLphr6miz52KVA_VWkt_.32f%2FNAOhVfiyiFc8wM8GU%2F9xjSQzKEBiywnPY0Tya9A; _hjSessionUser_580848=eyJpZCI6IjkwYzIwNWU2LTA4MWItNWNiOC04ZTk3LTIyZTQzNmNmYTZlOSIsImNyZWF0ZWQiOjE3ODIxNzUzNjM0MTcsImV4aXN0aW5nIjp0cnVlfQ==; _hjSession_580848=eyJpZCI6IjIxNTM2OTg5LTExZDQtNGI0MS1hODdlLWUzNzU3MzU5NzFiOCIsImMiOjE3ODIxNzUzNjM0MTcsInMiOjEsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjoxLCJzcCI6MH0=; _gcl_au=1.1.109596757.1777856944.721305852.1782175379.1782175379; ttcsid_CPKRQ8RC77U8LS0GABLG=1782175368106::HmCHjEDxXMRwpm3t5y7f.1.1782175379465.1; __rtbh.uid=%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%221505979876%22%2C%22expiryDate%22%3A%222027-06-23T00%3A44%3A23.524Z%22%7D; __rtbh.lid=%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22CFF7G2SJG8lNERoFNker%22%2C%22expiryDate%22%3A%222027-06-23T00%3A44%3A23.524Z%22%7D; _derived_epik=dj0yJnU9SGk5bkVFdngzVUoyalJRNmpYNUhWUFUwMFFUYkNFcjEmbj0ycWZkR1RfVGljWkM3VUV4NUh6WEhnJm09MSZ0PUFBQUFBR281MXVjJnJtPTEmcnQ9QUFBQUFHbzUxdWMmc3A9Mg; _hjSessionUser_783944=eyJpZCI6IjA1NDEwOGRjLTIwY2EtNTQ0Yi1hNGI1LTNhOThmZWUwNzQ3NSIsImNyZWF0ZWQiOjE3Nzg3MTI5NzY1OTgsImV4aXN0aW5nIjp0cnVlfQ==; _hjSession_783944=eyJpZCI6IjlmMjE1OThjLTViNzAtNDU4YS1hNTNlLWY2ZDVmYjVjZmM3MSIsImMiOjE3ODIxNzU1MTg1MTYsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowLCJzcCI6MX0=; _uetsid=52c8b6d06e9c11f194e153cc2579cec0; _uetvid=d7969d00475511f1b5de8392a70644f4; ttcsid_C9SJ5SBC77UADFMAH8T0=1782175310786::Mkqd2pBPBAVt5_L7_i2x.6.1782175518771.1; ttcsid=1782175310787::uwi0OlON9nP1hQNQSqNa.6.1782175519033.0::1.206376.207980::5173.2.952.603::0.0.0; ttcsid_CFVSC2JC77U0ARCJTCJ0=1782175310789::mBCVSXiOn0344two4CHB.5.1782175519033.1; cto_bundle=WENznV9RV1Z0b3VoUldua3B3Mm93WUZGSVhmeG10VnYlMkZuS0k5QlZIZ0Mxb2Zib2MxcEdtaFUlMkJCTXlNZXVBTmpjNjBWYUxLT1pldnE0dXlwVG14YiUyQkJLalZNZFNzWDVWQWNrOEUwazR3YVdPcVJlUEhUQ2hnUVZXaFh0OFBhTVN6Nzd1ZDdlbURGSTElMkZEQ0hzR0NHeFNuZWdEJTJCNnczc05qTDhoaWpPUXdXOXFzRnkwJTNE; c_Z1ehcT0=1; hide-cookie-banner=1505979876-COOKIE_PREFERENCES_ALREADY_SET; _snoopy=eyJmaW5nZXJwcmludCI6IklBanZuUHFLWDFVQkUrOGdTRmR1RmYzUExWb1doNngyUjhqdWJ3eVk4MnlEZCtkczBFUnVUNGdTenNaOFRkTTV0TW9OZDhNNXA5cHhsbnRLSzFvdWEwc1Jic1p4cDZWLzVtNHVRSVNPajZGZGRjMUkrRVpEYTVmZjIwZ0xoa0RGK2RGa2huaVZzZHVhOS9XMzc5T0FSNDVvd0MyS3kyVlVaYmRoNXc1VEk5TjlvNTFPMWd3PSIsImtleSI6IjBkNGpNUGl6Q1FtR09PS2RFOU5RakVMa1g3Q3dYV3l0aTFZSVhrY2xkb3BZd3RuSDEvMWluSGwwYXdUanhMNi9aQXBLdW1YL3BOa1RDdDBqOGlQMU54WTU2Q3hmRUlWYSJ9"
+              "stringValue": "__ML_COOKIE__"
             },
             {
               "name": "ml_csrf_token",
-              "stringValue": "dzEj2DyD-AOybGDTsSAm5pHY1xrwvTN_ve5A"
+              "stringValue": "__ML_CSRF_TOKEN__"
             },
             {
               "name": "ml_affiliate_endpoint",
