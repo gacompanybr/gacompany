@@ -133,21 +133,6 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
 
   return (
     <div className="p-4 lg:p-6 pb-24 max-w-4xl mx-auto">
-      <Card className="p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          {local.status === "active" ? (
-            <Badge className="bg-green-500/15 text-green-400 border border-green-500/30">
-              <Power size={12} className="mr-1" /> IA ATIVA
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-muted-foreground">
-              <PowerOff size={12} className="mr-1" /> IA DESATIVADA
-            </Badge>
-          )}
-          <p className="text-xs text-muted-foreground hidden sm:block">
-            {local.status === "active"
-  return (
-    <div className="p-4 lg:p-6 pb-24 max-w-4xl mx-auto">
       {local.status === "active" && !isConnected && (
         <Card className="p-4 mb-4 border-amber-500/40 bg-amber-500/10 flex items-start gap-3">
           <AlertTriangle size={18} className="text-amber-400 mt-0.5 shrink-0" />
