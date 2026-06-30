@@ -1940,21 +1940,8 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       const tableName: string = job.data_table_name || `${(job.plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
-      const columns = [
-        { name: "productname", type: "string" },
-        { name: "price", type: "number" },
-        { name: "priceoriginal", type: "number" },
-        { name: "pricediscountrate", type: "number" },
-        { name: "shopname", type: "string" },
-        { name: "offerlink", type: "string" },
-        { name: "imageUrl", type: "string" },
-        { name: "sending", type: "boolean" },
-        { name: "commission_rate", type: "number" },
-        { name: "commission_value", type: "number" },
-        { name: "sales", type: "number" },
-        { name: "rating", type: "number" },
-        { name: "sent_at", type: "string" },
-      ];
+      const columns = SCRAPPER_DATATABLE_COLUMNS;
+
 
       // procura projeto
       let projectId: string | null = null;
