@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Save, Power, PowerOff } from "lucide-react";
+import { Loader2, Save, Power, PowerOff, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfigTab } from "./ConfigTab";
@@ -32,6 +32,22 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       return data as unknown as WhatsappAgent | null;
     },
   });
+
+  // Status da conexão WhatsApp do portfólio (refresca a cada 20s)
+  const { data: connection } = useQuery({
+    queryKey: ["whatsapp-connection-status", portfolioId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("whatsapp_connections")
+        .select("status, instance_name, updated_at")
+        .eq("portfolio_id", portfolioId)
+        .maybeSingle();
+      return data as { status: string | null; instance_name: string | null; updated_at: string | null } | null;
+    },
+    refetchInterval: 20_000,
+  });
+  const connectionStatus = connection?.status ?? null;
+  const isConnected = connectionStatus === "connected";
 
   // Garante que existe um agente (cria se não houver)
   useEffect(() => {
@@ -117,6 +133,21 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
 
   return (
     <div className="p-4 lg:p-6 pb-24 max-w-4xl mx-auto">
+      {local.status === "active" && !isConnected && (
+        <Card className="p-4 mb-4 border-amber-500/40 bg-amber-500/10 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-semibold text-amber-300">WhatsApp desconectado</p>
+            <p className="text-amber-200/80 mt-1">
+              A sessão do WhatsApp deste agente caiu (estado atual:{" "}
+              <span className="font-mono">{connectionStatus ?? "—"}</span>).
+              A IA até gera respostas, mas a Evolution não consegue entregar até reconectar.
+              Vai na aba <strong>Conectar</strong> e escaneia o QR de novo.
+            </p>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           {local.status === "active" ? (
@@ -148,7 +179,10 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
         <TabsList className="grid grid-cols-6 w-full mb-4">
           <TabsTrigger value="config">Configurações</TabsTrigger>
           <TabsTrigger value="faqs">FAQs</TabsTrigger>
-          <TabsTrigger value="conectar">Conectar</TabsTrigger>
+          <TabsTrigger value="conectar">
+            Conectar
+            {!isConnected && <span className="ml-1 inline-block w-2 h-2 rounded-full bg-amber-400" />}
+          </TabsTrigger>
           <TabsTrigger value="conversas">Conversas</TabsTrigger>
           <TabsTrigger value="preview">Pré-visualizar</TabsTrigger>
           <TabsTrigger value="sdr">SDR</TabsTrigger>
