@@ -117,6 +117,19 @@ function buildCron(job: any): string | null {
   return `0 0 ${hours.join(",")} * * ${dow}`;
 }
 
+function asStr(v: unknown, fallback = ""): string {
+  if (v === null || v === undefined) return fallback;
+  const s = String(v);
+  if (s === "undefined" || s === "null") return fallback;
+  return s;
+}
+
+function slugifyTermo(t: string): string {
+  return String(t || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWorkflow {
   const cfg = job.config ?? {};
   const wf = cloneTemplate();
@@ -129,10 +142,9 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     if (cron) {
       schedule.parameters = { rule: { interval: [{ field: "cronExpression", expression: cron }] } };
     }
-    // senão: preserva default do template
   }
 
-  // ---- CONFIG ML: credenciais (sempre substituídas) ----
+  // ---- CONFIG ML ----
   const cookie = sanitizeMlCredential(cfg.ml_cookie, ["ML_COOKIE", "COOKIE"]);
   const csrf = sanitizeMlCredential(cfg.ml_csrf_token, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
   const affiliateTag = sanitizeMlCredential(
@@ -140,29 +152,82 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"],
   );
 
+  if (!cookie) throw new Error("ml_cookie ausente no job (Cookie do Mercado Livre)");
+  if (!csrf) throw new Error("ml_csrf_token ausente no job (x-csrf-token)");
+  if (!affiliateTag) throw new Error("ml_affiliate_id ausente no job (Affiliate ID / matt_word)");
+
   const configNode = findNode(wf, "CONFIG ML");
   if (configNode) {
-    if (cookie) setConfigField(configNode, "ml_cookie", cookie);
-    if (csrf) setConfigField(configNode, "ml_csrf_token", csrf);
-    if (affiliateTag) setConfigField(configNode, "ml_affiliate_tag", affiliateTag);
+    // CREDENCIAIS — sempre injetadas
+    setConfigField(configNode, "ml_cookie", cookie);
+    setConfigField(configNode, "ml_csrf_token", csrf);
+    setConfigField(configNode, "ml_affiliate_tag", affiliateTag);
 
-    // Opcionais: só substitui se vier da UI; senão mantém o default do template
+    // FILTROS — sempre injetados com fallback numérico
+    const minCommissionValue = Number(cfg.min_commission_value ?? 0) || 0;
+    setConfigField(configNode, "min_commission_value", String(minCommissionValue));
+
+    if (cfg.commission_rate != null && cfg.commission_rate !== "") {
+      setConfigField(configNode, "commission_rate", String(Number(cfg.commission_rate) || 0));
+    } else if (cfg.ml_default_commission_rate != null) {
+      setConfigField(configNode, "commission_rate", String(Number(cfg.ml_default_commission_rate) || 0));
+    }
+
+    const minTotalFinal = cfg.min_total_final ?? cfg.min_products;
+    if (minTotalFinal != null && minTotalFinal !== "" && Number(minTotalFinal) > 0) {
+      setConfigField(configNode, "min_total_final", String(Number(minTotalFinal)));
+    }
+    const finalPick = cfg.final_pick ?? cfg.max_products;
+    if (finalPick != null && finalPick !== "" && Number(finalPick) > 0) {
+      setConfigField(configNode, "final_pick", String(Number(finalPick)));
+    }
+
+    // ml_queries: injeta pages + min_discount preservando o resto
+    try {
+      const qField = (configNode.parameters?.fields?.values ?? []).find((v: any) => v.name === "ml_queries");
+      const raw = asStr(qField?.stringValue, "{}");
+      const parsed = JSON.parse(raw || "{}");
+      parsed.settings = parsed.settings || {};
+      const pages = Number(cfg.ml_pages ?? parsed.settings.pages ?? 1);
+      const minDisc = Number(cfg.ml_min_discount ?? parsed.settings.min_discount ?? 10);
+      parsed.settings.pages = Math.max(1, pages);
+      parsed.settings.min_discount = Math.max(0, minDisc);
+      setConfigField(configNode, "ml_queries", JSON.stringify(parsed, null, 2));
+    } catch (_) { /* mantém default */ }
+
+    // CATEGORIAS / TERMOS — monta a partir de cfg.termos + cfg.categorias se ml_categories não vier explícito
+    let categoriesList: Array<{ nome: string; url: string }> | null = null;
+    if (Array.isArray(cfg.ml_categories) && cfg.ml_categories.length) {
+      categoriesList = cfg.ml_categories;
+    } else {
+      const termos: string[] = Array.isArray(cfg.termos) ? cfg.termos : [];
+      const cats: string[] = Array.isArray(cfg.categorias) ? cfg.categorias : [];
+      const minDisc = Math.max(0, Number(cfg.ml_min_discount ?? 10));
+      const items = [...termos, ...cats].filter(Boolean);
+      if (items.length) {
+        categoriesList = items.map((t) => {
+          const slug = slugifyTermo(t);
+          return {
+            nome: String(t),
+            url: `https://lista.mercadolivre.com.br/${slug}_CustoFrete_Gratis_DiscountRange_${minDisc}-100_NoIndex_True`,
+          };
+        });
+      }
+    }
+    if (categoriesList && categoriesList.length) {
+      setConfigField(configNode, "ml_categories", JSON.stringify(categoriesList, null, 2));
+    }
+
+    // Opcionais (mantém default se não vier)
     if (cfg.ml_base_url) setConfigField(configNode, "ml_base_url", String(cfg.ml_base_url));
     if (cfg.ml_category_name) setConfigField(configNode, "ml_category_name", String(cfg.ml_category_name));
-    if (cfg.max_price != null) setConfigField(configNode, "max_price", String(cfg.max_price));
-    if (cfg.final_pick != null) setConfigField(configNode, "final_pick", String(cfg.final_pick));
-    if (cfg.max_total != null) setConfigField(configNode, "max_total", String(cfg.max_total));
-    if (cfg.min_total != null) setConfigField(configNode, "min_total", String(cfg.min_total));
-    if (cfg.max_total_final != null) setConfigField(configNode, "max_total_final", String(cfg.max_total_final));
-    if (cfg.min_total_final != null) setConfigField(configNode, "min_total_final", String(cfg.min_total_final));
-    if (cfg.min_commission_value != null) setConfigField(configNode, "min_commission_value", String(cfg.min_commission_value));
-    if (cfg.commission_rate != null) setConfigField(configNode, "commission_rate", String(cfg.commission_rate));
-    if (Array.isArray(cfg.ml_categories) && cfg.ml_categories.length) {
-      setConfigField(configNode, "ml_categories", JSON.stringify(cfg.ml_categories, null, 2));
-    }
+    if (cfg.max_price != null && cfg.max_price !== "") setConfigField(configNode, "max_price", String(cfg.max_price));
+    if (cfg.max_total != null && cfg.max_total !== "") setConfigField(configNode, "max_total", String(cfg.max_total));
+    if (cfg.min_total != null && cfg.min_total !== "") setConfigField(configNode, "min_total", String(cfg.min_total));
+    if (cfg.max_total_final != null && cfg.max_total_final !== "") setConfigField(configNode, "max_total_final", String(cfg.max_total_final));
   }
 
-  // ---- Data Table do cliente (Upsert + Get Existing IDs) ----
+  // ---- Data Table do cliente ----
   const tableId = job.n8n_datatable_id;
   const tableName = job.data_table_name || "ML_SCRAPPER";
   if (tableId) {
@@ -179,7 +244,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     }
   }
 
-  // ---- cleanup pra evitar conflitos no POST do n8n ----
+  // ---- cleanup ----
   wf.settings = wf.settings || { executionOrder: "v1" };
   delete (wf as any).id;
   delete (wf as any).versionId;
@@ -191,3 +256,4 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
 
   return wf;
 }
+
