@@ -375,6 +375,14 @@ function JobDialog({
         return toast.error("Informe Cookie, CSRF token e Affiliate ID do Mercado Livre (para encurtar os links)");
       }
     }
+    if ((plataforma === "mercado_livre" || plataforma === "dup") && cleanMlCookie) {
+      const faltando = missingMlCookiePairs(cleanMlCookie);
+      if (faltando.length) {
+        return toast.error(
+          `Cookie do Mercado Livre parece ANÔNIMO. Faltam: ${faltando.join(", ")}. Cole o cookie de uma sessão LOGADA (Chrome > DevTools > Application > Cookies > mercadolivre.com.br > copiar TODOS).`,
+        );
+      }
+    }
     if (!dataTableName.trim()) return toast.error("Informe o nome da data table no n8n");
     const termosArr = termos.split(",").map((s) => s.trim()).filter(Boolean);
     const catsArr = categorias.split(",").map((s) => s.trim()).filter(Boolean);
