@@ -320,7 +320,7 @@ async function processCampaign(campaign: any) {
     }
   }
 
-  return { dispatched, fu1: (fu1 ?? []).length, fu2: (fu2 ?? []).length };
+  return { dispatched, fu1: fu1Count, fu2: fu2Count, fu3: fu3Count, followupEnabled };
 }
 
 Deno.serve(async (req) => {
