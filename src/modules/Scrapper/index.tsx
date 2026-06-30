@@ -77,30 +77,22 @@ function extractAssignedString(input: string, names: string[]) {
   return null;
 }
 
-function sanitizeMlCredential(value: string, names: string[]) {
-  let s = String(value ?? "")
+function sanitizeMlCredential(value: string, _names: string[] = []) {
+  // STRING OPACA. Não parseia. Só desembrulha `const X = "..."` se for o input INTEIRO.
+  const s = String(value ?? "")
     .replace(/^\uFEFF/, "")
     .replace(/[\u200B-\u200D\u2060]/g, "")
     .trim();
-  let assigned: string | null = null;
-  if (names.some((n) => /COOKIE/i.test(n))) {
-    for (const name of names) {
-      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
-      if (idx < 0) continue;
-      const eq = s.indexOf("=", idx);
-      if (eq < 0) continue;
-      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
-      break;
-    }
-  } else {
-    assigned = extractAssignedString(s, names);
-  }
-  if (assigned != null) s = assigned;
-  return s
-    .replace(/^['"`]|['"`]$/g, "")
-    .replace(/\r|\n/g, " ")
-    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
-    .trim();
+  const wrap = s.match(/^\s*(?:const|let|var)\s+[A-Za-z0-9_]+\s*=\s*(['"`])([\s\S]*)\1\s*;?\s*$/);
+  if (wrap) return wrap[2];
+  return s;
+}
+
+const REQUIRED_ML_COOKIE_PAIRS = ["ssid", "orguserid", "nsa_rotok", "_csrf"];
+function missingMlCookiePairs(cookie: string): string[] {
+  return REQUIRED_ML_COOKIE_PAIRS.filter(
+    (k) => !new RegExp(`(?:^|;\\s*)${k.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}=`, "i").test(cookie),
+  );
 }
 
 export default function ScrapperModule({ portfolioId }: { portfolioId: string }) {
