@@ -191,65 +191,102 @@ async function processCampaign(campaign: any) {
   const now = new Date();
   const nowIso = now.toISOString();
 
-  // Busca o nome do atendente configurado no Agente IA do portfólio
+  // Busca o nome do atendente + flag de follow-up ativo
   const { data: agentRow } = await admin
     .from("whatsapp_agents")
-    .select("nome_atendente")
+    .select("nome_atendente, sdr_followup_enabled")
     .eq("portfolio_id", campaign.portfolio_id)
     .maybeSingle();
   const nomeAtendente: string | null = agentRow?.nome_atendente?.trim() || null;
+  const followupEnabled: boolean = agentRow?.sdr_followup_enabled !== false;
 
-  // === Follow-ups ===
-  // Follow-up 1: enviado, sem resposta há ≥24h, follow_up_count=0
-  const fu1Cutoff = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
-  const { data: fu1 } = await admin
-    .from("sdr_leads")
-    .select("*")
-    .eq("campaign_id", campaign.id)
-    .eq("status", "enviado")
-    .eq("follow_up_count", 0)
-    .lte("ultima_mensagem_em", fu1Cutoff)
-    .limit(ratePerMinute);
+  let fu1Count = 0, fu2Count = 0, fu3Count = 0;
+  if (followupEnabled) {
+    // Cadência (sobre ultima_mensagem_em, só leads que ainda não responderam):
+    //   FU1: 30 min de silêncio
+    //   FU2: 4 h após FU1
+    //   FU3 (final): 24 h após FU2
+    const fu1Cutoff = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+    const { data: fu1 } = await admin
+      .from("sdr_leads")
+      .select("*")
+      .eq("campaign_id", campaign.id)
+      .eq("status", "enviado")
+      .eq("follow_up_count", 0)
+      .lte("ultima_mensagem_em", fu1Cutoff)
+      .limit(ratePerMinute);
 
-  for (const lead of fu1 ?? []) {
-    if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
-    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
-    const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
-    await logAssistant(lead, instance, sent, failed);
-    if (sent.length) {
+    for (const lead of fu1 ?? []) {
+      if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
+      const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
+      await logAssistant(lead, instance, sent, failed);
+      if (sent.length) {
+        await admin.from("sdr_leads").update({
+          follow_up_count: 1,
+          ultima_mensagem_em: nowIso,
+          mensagens_trocadas: (lead.mensagens_trocadas ?? 0) + sent.length,
+        }).eq("id", lead.id);
+      }
+      await sleep(rand(8000, 16000));
+    }
+    fu1Count = (fu1 ?? []).length;
+
+    const fu2Cutoff = new Date(now.getTime() - 4 * 3600 * 1000).toISOString();
+    const { data: fu2 } = await admin
+      .from("sdr_leads")
+      .select("*")
+      .eq("campaign_id", campaign.id)
+      .eq("status", "enviado")
+      .eq("follow_up_count", 1)
+      .lte("ultima_mensagem_em", fu2Cutoff)
+      .limit(ratePerMinute);
+
+    for (const lead of fu2 ?? []) {
+      if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
+      const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
+      await logAssistant(lead, instance, sent, failed);
+      if (sent.length) {
+        await admin.from("sdr_leads").update({
+          follow_up_count: 2,
+          ultima_mensagem_em: nowIso,
+          mensagens_trocadas: (lead.mensagens_trocadas ?? 0) + sent.length,
+        }).eq("id", lead.id);
+      }
+      await sleep(rand(8000, 16000));
+    }
+    fu2Count = (fu2 ?? []).length;
+
+    // FU final (24h após FU2) — limite máximo de tentativas
+    const fu3Cutoff = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
+    const { data: fu3 } = await admin
+      .from("sdr_leads")
+      .select("*")
+      .eq("campaign_id", campaign.id)
+      .eq("status", "enviado")
+      .eq("follow_up_count", 2)
+      .lte("ultima_mensagem_em", fu3Cutoff)
+      .limit(ratePerMinute);
+
+    for (const lead of fu3 ?? []) {
+      if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
+      const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true, nomeAtendente);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
+      await logAssistant(lead, instance, sent, failed);
       await admin.from("sdr_leads").update({
-        follow_up_count: 1,
+        follow_up_count: 3,
+        status: "sem_resposta",
         ultima_mensagem_em: nowIso,
         mensagens_trocadas: (lead.mensagens_trocadas ?? 0) + sent.length,
       }).eq("id", lead.id);
+      await sleep(rand(8000, 16000));
     }
-    await sleep(rand(8000, 16000));
+    fu3Count = (fu3 ?? []).length;
+  } else {
+    console.log("follow-up SDR desativado para portfolio", campaign.portfolio_id);
   }
 
-  // Follow-up 2 (final): enviado, sem resposta há ≥48h após follow-up 1
-  const fu2Cutoff = new Date(now.getTime() - 48 * 3600 * 1000).toISOString();
-  const { data: fu2 } = await admin
-    .from("sdr_leads")
-    .select("*")
-    .eq("campaign_id", campaign.id)
-    .eq("status", "enviado")
-    .eq("follow_up_count", 1)
-    .lte("ultima_mensagem_em", fu2Cutoff)
-    .limit(ratePerMinute);
-
-  for (const lead of fu2 ?? []) {
-    if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
-    const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true, nomeAtendente);
-    const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
-    await logAssistant(lead, instance, sent, failed);
-    await admin.from("sdr_leads").update({
-      follow_up_count: 2,
-      status: "sem_resposta",
-      ultima_mensagem_em: nowIso,
-      mensagens_trocadas: (lead.mensagens_trocadas ?? 0) + sent.length,
-    }).eq("id", lead.id);
-    await sleep(rand(8000, 16000));
-  }
 
   // === Aberturas ===
   const { data: pending } = await admin
