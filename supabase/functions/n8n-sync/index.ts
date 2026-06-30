@@ -99,6 +99,67 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
 }
 
 
+/**
+ * FONTE ÚNICA DE VERDADE das colunas da data table do Scrapper (ML/DUP).
+ * Deve bater 1:1 com os campos mapeados no nó "Upsert row(s)" do template
+ * (ml-scrapper-template.json). Se mudar o mapeamento do Upsert, mudar aqui.
+ */
+const SCRAPPER_DATATABLE_COLUMNS: Array<{ name: string; type: "string" | "number" | "boolean" }> = [
+  { name: "productname", type: "string" },
+  { name: "price", type: "number" },
+  { name: "priceoriginal", type: "number" },
+  { name: "pricediscountrate", type: "number" },
+  { name: "shopname", type: "string" },
+  { name: "offerlink", type: "string" },
+  { name: "imageUrl", type: "string" },
+  { name: "sending", type: "boolean" },
+  { name: "commission_rate", type: "number" },
+  { name: "commission_value", type: "number" },
+  { name: "sales", type: "number" },
+  { name: "rating", type: "number" },
+  { name: "sent_at", type: "string" },
+  { name: "link_compra", type: "string" },
+  { name: "categoria", type: "string" },
+];
+
+/**
+ * Garante que a data table tem todas as colunas que o Upsert grava.
+ * Lê o schema atual e cria só as faltantes — necessário pra tabelas antigas
+ * que foram criadas sem link_compra/categoria.
+ */
+async function ensureScrapperDatatableColumns(tableId: string) {
+  let existing: any[] = [];
+  try {
+    const meta = await n8nFetch(`/data-tables/${tableId}`);
+    const cols = meta?.columns ?? meta?.data?.columns ?? meta?.schema ?? [];
+    if (Array.isArray(cols)) existing = cols;
+  } catch (e) { console.warn("[ensureScrapperDatatableColumns] meta fetch failed:", e); }
+  if (!existing.length) {
+    try {
+      const c = await n8nFetch(`/data-tables/${tableId}/columns`);
+      const cols = c?.data ?? c ?? [];
+      if (Array.isArray(cols)) existing = cols;
+    } catch (_) {}
+  }
+  const have = new Set(existing.map((c: any) => String(c?.name ?? "")).filter(Boolean));
+  const missing = SCRAPPER_DATATABLE_COLUMNS.filter((c) => !have.has(c.name));
+  for (const col of missing) {
+    const attempts: Array<{ path: string; body: any }> = [
+      { path: `/data-tables/${tableId}/columns`, body: col },
+      { path: `/data-tables/${tableId}/columns`, body: { columns: [col] } },
+      { path: `/data-tables/${tableId}/schema`, body: col },
+    ];
+    let added = false;
+    for (const a of attempts) {
+      try { await n8nFetch(a.path, { method: "POST", body: JSON.stringify(a.body) }); added = true; break; }
+      catch (_) { /* tenta próximo formato */ }
+    }
+    if (!added) console.warn(`[ensureScrapperDatatableColumns] falhou ao adicionar coluna '${col.name}' em ${tableId}`);
+  }
+  return { added: missing.map((m) => m.name) };
+}
+
+
 
 async function evolutionFetch(path: string, init: RequestInit = {}) {
   const res = await fetch(`${EVO_URL}${path}`, {
@@ -1879,21 +1940,8 @@ Deno.serve(async (req) => {
       if (error) throw error;
 
       const tableName: string = job.data_table_name || `${(job.plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
-      const columns = [
-        { name: "productname", type: "string" },
-        { name: "price", type: "number" },
-        { name: "priceoriginal", type: "number" },
-        { name: "pricediscountrate", type: "number" },
-        { name: "shopname", type: "string" },
-        { name: "offerlink", type: "string" },
-        { name: "imageUrl", type: "string" },
-        { name: "sending", type: "boolean" },
-        { name: "commission_rate", type: "number" },
-        { name: "commission_value", type: "number" },
-        { name: "sales", type: "number" },
-        { name: "rating", type: "number" },
-        { name: "sent_at", type: "string" },
-      ];
+      const columns = SCRAPPER_DATATABLE_COLUMNS;
+
 
       // procura projeto
       let projectId: string | null = null;
@@ -1939,6 +1987,12 @@ Deno.serve(async (req) => {
       }
       if (!datatableId) return j({ error: `Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}` }, 500);
 
+      // Garante todas as colunas (idempotente — útil se o backend ignorar algum tipo na criação)
+      try { await ensureScrapperDatatableColumns(datatableId); }
+      catch (e) { console.warn("[recreate_datatable] ensure columns falhou:", e); }
+
+
+
       await admin.from("scrapper_jobs")
         .update({ n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
@@ -1967,21 +2021,8 @@ Deno.serve(async (req) => {
 
       // 1. Garante que a data table existe no n8n (cria se não existir)
       const tableName: string = job.data_table_name || `${(job.plataforma || "DATA").toUpperCase()}_${(job.nome || "JOB").toUpperCase().replace(/\s+/g, "_")}`;
-      const columns = [
-        { name: "productname", type: "string" },
-        { name: "price", type: "number" },
-        { name: "priceoriginal", type: "number" },
-        { name: "pricediscountrate", type: "number" },
-        { name: "shopname", type: "string" },
-        { name: "offerlink", type: "string" },
-        { name: "imageUrl", type: "string" },
-        { name: "sending", type: "boolean" },
-        { name: "commission_rate", type: "number" },
-        { name: "commission_value", type: "number" },
-        { name: "sales", type: "number" },
-        { name: "rating", type: "number" },
-        { name: "sent_at", type: "string" },
-      ];
+      const columns = SCRAPPER_DATATABLE_COLUMNS;
+
 
 
       let datatableId: string | null = null;
@@ -2024,6 +2065,12 @@ Deno.serve(async (req) => {
         }
         if (!datatableId) throw new Error(`Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}`);
       }
+
+      // Migra/garante colunas faltantes (link_compra, categoria etc.) em tabelas antigas
+      try { await ensureScrapperDatatableColumns(datatableId); }
+      catch (e) { console.warn("[upsert_scrapper_workflow] ensure columns falhou:", e); }
+
+
 
       // 2. Monta e faz upsert do workflow
       //    - DUP: builder próprio (whatsapp espelho)
