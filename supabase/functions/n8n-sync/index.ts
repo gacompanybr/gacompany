@@ -2060,6 +2060,12 @@ Deno.serve(async (req) => {
         if (!datatableId) throw new Error(`Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}`);
       }
 
+      // Migra/garante colunas faltantes (link_compra, categoria etc.) em tabelas antigas
+      try { await ensureScrapperDatatableColumns(datatableId); }
+      catch (e) { console.warn("[upsert_scrapper_workflow] ensure columns falhou:", e); }
+
+
+
       // 2. Monta e faz upsert do workflow
       //    - DUP: builder próprio (whatsapp espelho)
       //    - Mercado Livre: usa o template real do usuário (ML - Auto 12h)
