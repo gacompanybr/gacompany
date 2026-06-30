@@ -22,9 +22,60 @@ function j(data: unknown, status = 200) {
   });
 }
 
+const ALLOWED_N8N_SETTINGS = new Set([
+  "saveExecutionProgress",
+  "saveManualExecutions",
+  "saveDataErrorExecution",
+  "saveDataSuccessExecution",
+  "executionTimeout",
+  "errorWorkflow",
+  "timezone",
+  "executionOrder",
+]);
+
+/**
+ * n8n public API rejeita propriedades extras em `settings` e campos read-only
+ * (id, active, pinData, versionId, meta, tags, staticData) no body de
+ * create/update. Esta função normaliza para `{ name, nodes, connections, settings }`.
+ */
+export function toN8nBody(wf: any) {
+  const rawSettings = (wf && typeof wf.settings === "object" && wf.settings) || {};
+  const settings: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rawSettings)) {
+    if (ALLOWED_N8N_SETTINGS.has(k)) settings[k] = v;
+  }
+  if (!("executionOrder" in settings)) settings.executionOrder = "v1";
+  return {
+    name: wf?.name,
+    nodes: wf?.nodes ?? [],
+    connections: wf?.connections ?? {},
+    settings,
+  };
+}
+
+function sanitizeWorkflowBodyIfNeeded(path: string, method: string, body: BodyInit | null | undefined): BodyInit | null | undefined {
+  if (!body || typeof body !== "string") return body;
+  const m = method.toUpperCase();
+  const isWorkflowWrite =
+    (m === "POST" && /\/workflows\/?$/.test(path)) ||
+    (m === "PUT"  && /\/workflows\/[^/]+\/?$/.test(path));
+  if (!isWorkflowWrite) return body;
+  try {
+    const parsed = JSON.parse(body);
+    if (!parsed || typeof parsed !== "object" || !("nodes" in parsed)) return body;
+    return JSON.stringify(toN8nBody(parsed));
+  } catch {
+    return body;
+  }
+}
+
 async function n8nFetch(path: string, init: RequestInit = {}) {
+  const method = (init.method ?? "GET").toUpperCase();
+  const body = sanitizeWorkflowBodyIfNeeded(path, method, init.body as any);
   const res = await fetch(`${N8N_BASE}${path}`, {
     ...init,
+    method,
+    body,
     headers: {
       "X-N8N-API-KEY": N8N_KEY,
       "Content-Type": "application/json",
@@ -39,6 +90,7 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
   }
   return data;
 }
+
 
 async function evolutionFetch(path: string, init: RequestInit = {}) {
   const res = await fetch(`${EVO_URL}${path}`, {
