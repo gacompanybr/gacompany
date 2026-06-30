@@ -73,10 +73,10 @@ export function ConectarTab({
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [conn?.status, portfolioId, refetch, onRefresh]);
 
-  async function handleConnect() {
+  async function handleConnect(opts: { force?: boolean } = {}) {
     setGenerating(true);
     const { data, error } = await supabase.functions.invoke("whatsapp-connection", {
-      body: { action: "connect", portfolioId },
+      body: { action: "connect", portfolioId, force: !!opts.force },
     });
     setGenerating(false);
     if (error || (data as any)?.error) {
@@ -177,7 +177,7 @@ export function ConectarTab({
           instance_name: <code className="bg-muted px-1.5 py-0.5 rounded">{conn.instance_name}</code>
         </div>
         <div className="flex gap-2 pt-2 border-t border-border">
-          <Button onClick={handleConnect} variant="outline" size="sm" className="gap-2" disabled={generating}>
+          <Button onClick={() => handleConnect({ force: true })} variant="outline" size="sm" className="gap-2" disabled={generating}>
             <RefreshCw size={14} /> Gerar novo QR
           </Button>
           <Button onClick={handleDisconnect} variant="ghost" size="sm">Cancelar</Button>
@@ -201,7 +201,7 @@ export function ConectarTab({
           Última instância: <code className="bg-muted px-1.5 py-0.5 rounded">{conn.instance_name}</code> ({conn.status})
         </div>
       )}
-      <Button onClick={handleConnect} disabled={generating} className="gap-2">
+      <Button onClick={() => handleConnect()} disabled={generating} className="gap-2">
         {generating ? <Loader2 className="animate-spin" size={14} /> : <QrCode size={14} />}
         {generating ? "Gerando..." : "Conectar WhatsApp"}
       </Button>
