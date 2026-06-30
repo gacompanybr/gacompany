@@ -433,7 +433,10 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
   return false;
 }
 
-const SPLIT_DELAY_MS = 2200;
+// Delay aleatório entre 6 e 10 segundos para parecer humano
+function randomSplitDelayMs(): number {
+  return 6000 + Math.floor(Math.random() * 4001);
+}
 
 async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
   const parts = splitMessage(text);
@@ -443,7 +446,7 @@ async function sendText(instance: string, targets: string[], text: string): Prom
     const ok = await sendOnce(instance, targets, parts[i]);
     if (ok) sent.push(parts[i]); else failed.push(parts[i]);
     if (i < parts.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, SPLIT_DELAY_MS));
+      await new Promise((resolve) => setTimeout(resolve, randomSplitDelayMs()));
     }
   }
   return { sent, failed };
@@ -663,7 +666,9 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    // Memória: reconstrói a conversa por lead ou por telefone/JID equivalente.
+    // Memória: últimas 36h da MESMA conversa (por lead SDR ou por telefone equivalente).
+    const MEMORY_WINDOW_HOURS = 36;
+    const memoryCutoffIso = new Date(Date.now() - MEMORY_WINDOW_HOURS * 3600 * 1000).toISOString();
     let history: { role: string; mensagem: string; created_at?: string; contato_telefone?: string }[] | null = null;
     if (sdrLead) {
       const { data } = await admin
@@ -671,6 +676,7 @@ async function processPayload(payload: any) {
         .select("role, mensagem, created_at")
         .eq("portfolio_id", portfolioId)
         .eq("sdr_lead_id", sdrLead.id)
+        .gte("created_at", memoryCutoffIso)
         .order("created_at", { ascending: false })
         .limit(100);
       history = data;
@@ -689,20 +695,22 @@ async function processPayload(payload: any) {
           .select("role, mensagem, contato_telefone, created_at")
           .eq("portfolio_id", portfolioId)
           .in("contato_telefone", exactPhones)
+          .gte("created_at", memoryCutoffIso)
           .order("created_at", { ascending: false })
           .limit(200);
         exactRows = data ?? [];
       }
 
-      // Fallback para conversas antigas salvas com outro formato do mesmo número (@lid/9º dígito/DDI).
+      // Fallback para conversas do mesmo número salvas com outro formato (@lid/9º dígito/DDI), ainda dentro da janela.
       let fallbackRows: any[] = [];
       if (phoneSuffixList.length && exactRows.length < 20) {
         const { data } = await admin
           .from("whatsapp_conversas")
           .select("role, mensagem, contato_telefone, created_at")
           .eq("portfolio_id", portfolioId)
+          .gte("created_at", memoryCutoffIso)
           .order("created_at", { ascending: false })
-          .limit(2000);
+          .limit(1000);
         fallbackRows = (data ?? []).filter((row: any) => matchesPhone(row.contato_telefone, phoneSuffixList));
       }
 
@@ -718,6 +726,7 @@ async function processPayload(payload: any) {
         .slice(0, 160);
     }
 
+
     const recent = (history ?? []).reverse();
 
     const modelMap: Record<string, string> = {
@@ -729,23 +738,34 @@ async function processPayload(payload: any) {
     // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
     const trimmedRecent = recent.slice(-60);
 
-    // System prompt: padrão OU SDR (com contexto isolado por lead)
+    // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
-    systemPrompt = [systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
+    const modeLine = sdrLead ? `MODO: SDR` : `MODO: RECEPTIVO`;
+    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
     if (sdrLead) {
       systemPrompt = [
         systemPrompt,
         ``,
-        `[MODO SDR ATIVO]`,
+        `[CONTEXTO DO LEAD — ISOLADO POR CONVERSA, NÃO MISTURAR COM OUTROS CONTATOS]`,
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
         `Nicho: ${sdrLead.nicho}`,
-        `Motivo de contato: ${sdrLead.motivo_contato}`,
+        `Motivo de contato (registro interno — NUNCA assumir que o lead já aceitou ou respondeu nada): ${sdrLead.motivo_contato}`,
+        `Status atual do lead: ${sdrLead.status}.`,
+        `Mensagens trocadas até agora: ${sdrLead.mensagens_trocadas ?? 0}.`,
         `Seu objetivo nesta conversa é vender o serviço da GA Company e conduzir até o agendamento de uma call de 15 minutos.`,
-        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca abra com "Olá, como posso ajudar?", nunca pergunte "sobre o que você quer falar?" e nunca aja como se fosse a primeira mensagem.`,
-        `Se o lead responder com objeção, desinteresse ou dúvida, responda usando o contexto da abordagem anterior, trate a objeção e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
-        `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
+        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou.`,
+        `NUNCA escreva frases como "que bom que você topou", "obrigado pelo aceite", "confirmando seu interesse" ou qualquer outra que assuma uma resposta que o lead AINDA não deu — a menos que o histórico acima mostre explicitamente essa resposta dele.`,
+        `Se o lead responder com objeção, desinteresse ou dúvida, trate a objeção usando o contexto anterior e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
+      ].join("\n");
+    } else {
+      systemPrompt = [
+        systemPrompt,
+        ``,
+        `[MODO RECEPTIVO]`,
+        `O contato chegou até você espontaneamente (não é uma prospecção). Apenas responda o que ele perguntar; não faça follow-up ativo nem cobre resposta.`,
       ].join("\n");
     }
+
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

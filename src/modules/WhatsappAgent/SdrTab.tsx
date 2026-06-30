@@ -4,11 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, Pause, Square, RotateCw, Download, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Loader2, Play, Pause, Square, RotateCw, Download, Trash2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { SdrUpload } from "./SdrUpload";
 import { SdrDashboard } from "./SdrDashboard";
+
 
 type Campaign = {
   id: string;
@@ -45,6 +48,42 @@ const STATUS_LABEL: Record<string, string> = {
 export function SdrTab({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [followupBusy, setFollowupBusy] = useState(false);
+
+  const { data: agent } = useQuery({
+    queryKey: ["sdr-followup-flag", portfolioId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_agents")
+        .select("id, sdr_followup_enabled")
+        .eq("portfolio_id", portfolioId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; sdr_followup_enabled: boolean } | null;
+    },
+  });
+
+  async function toggleFollowup(next: boolean) {
+    if (!agent?.id) {
+      toast.error("Configure o Agente IA primeiro");
+      return;
+    }
+    setFollowupBusy(true);
+    try {
+      const { error } = await supabase
+        .from("whatsapp_agents")
+        .update({ sdr_followup_enabled: next })
+        .eq("id", agent.id);
+      if (error) throw error;
+      toast.success(next ? "Follow-up ativo ligado" : "Follow-up ativo desligado");
+      qc.invalidateQueries({ queryKey: ["sdr-followup-flag", portfolioId] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao atualizar");
+    } finally {
+      setFollowupBusy(false);
+    }
+  }
+
 
   const { data: campaigns } = useQuery({
     queryKey: ["sdr-campaigns", portfolioId],
@@ -137,9 +176,34 @@ export function SdrTab({ portfolioId }: { portfolioId: string }) {
     XLSX.writeFile(wb, `sdr-${active.nome.replace(/\s+/g, "_")}-${active.id.slice(0, 8)}.xlsx`);
   }
 
+  const followupCard = (
+    <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <Bell size={18} className="mt-0.5 text-muted-foreground" />
+        <div>
+          <Label htmlFor="sdr-followup-toggle" className="font-semibold cursor-pointer">
+            Follow-up ativo (SDR)
+          </Label>
+          <p className="text-xs text-muted-foreground max-w-md">
+            Quando ligado, o agente envia mensagens de retomada para leads SDR em silêncio
+            (30 min → 4 h → 24 h, máx. 3 tentativas). Pára assim que o lead responde.
+            Contatos receptivos (sem tag SDR) nunca recebem follow-up.
+          </p>
+        </div>
+      </div>
+      <Switch
+        id="sdr-followup-toggle"
+        checked={agent?.sdr_followup_enabled !== false}
+        disabled={followupBusy || !agent?.id}
+        onCheckedChange={toggleFollowup}
+      />
+    </Card>
+  );
+
   if (!active) {
     return (
       <div className="space-y-4">
+        {followupCard}
         <SdrUpload portfolioId={portfolioId} onCreated={() => qc.invalidateQueries({ queryKey: ["sdr-campaigns", portfolioId] })} />
         {(campaigns ?? []).filter((c) => c.status === "finished").length > 0 && (
           <Card className="p-4">
@@ -160,7 +224,9 @@ export function SdrTab({ portfolioId }: { portfolioId: string }) {
 
   return (
     <div className="space-y-4">
+      {followupCard}
       <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-semibold">{active.nome}</h3>
