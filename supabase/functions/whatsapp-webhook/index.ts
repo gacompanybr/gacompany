@@ -738,23 +738,34 @@ async function processPayload(payload: any) {
     // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
     const trimmedRecent = recent.slice(-60);
 
-    // System prompt: padrão OU SDR (com contexto isolado por lead)
+    // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
-    systemPrompt = [systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
+    const modeLine = sdrLead ? `MODO: SDR` : `MODO: RECEPTIVO`;
+    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
     if (sdrLead) {
       systemPrompt = [
         systemPrompt,
         ``,
-        `[MODO SDR ATIVO]`,
+        `[CONTEXTO DO LEAD — ISOLADO POR CONVERSA, NÃO MISTURAR COM OUTROS CONTATOS]`,
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
         `Nicho: ${sdrLead.nicho}`,
-        `Motivo de contato: ${sdrLead.motivo_contato}`,
+        `Motivo de contato (registro interno — NUNCA assumir que o lead já aceitou ou respondeu nada): ${sdrLead.motivo_contato}`,
+        `Status atual do lead: ${sdrLead.status}.`,
+        `Mensagens trocadas até agora: ${sdrLead.mensagens_trocadas ?? 0}.`,
         `Seu objetivo nesta conversa é vender o serviço da GA Company e conduzir até o agendamento de uma call de 15 minutos.`,
-        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico acima foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou. Nunca abra com "Olá, como posso ajudar?", nunca pergunte "sobre o que você quer falar?" e nunca aja como se fosse a primeira mensagem.`,
-        `Se o lead responder com objeção, desinteresse ou dúvida, responda usando o contexto da abordagem anterior, trate a objeção e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
-        `Importante: este contexto se aplica APENAS a esta conversa. Não misture com outros leads.`,
+        `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou.`,
+        `NUNCA escreva frases como "que bom que você topou", "obrigado pelo aceite", "confirmando seu interesse" ou qualquer outra que assuma uma resposta que o lead AINDA não deu — a menos que o histórico acima mostre explicitamente essa resposta dele.`,
+        `Se o lead responder com objeção, desinteresse ou dúvida, trate a objeção usando o contexto anterior e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
+      ].join("\n");
+    } else {
+      systemPrompt = [
+        systemPrompt,
+        ``,
+        `[MODO RECEPTIVO]`,
+        `O contato chegou até você espontaneamente (não é uma prospecção). Apenas responda o que ele perguntar; não faça follow-up ativo nem cobre resposta.`,
       ].join("\n");
     }
+
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
