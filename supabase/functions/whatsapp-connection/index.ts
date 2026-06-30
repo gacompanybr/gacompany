@@ -222,29 +222,6 @@ Deno.serve(async (req) => {
     if (action === "connect") {
       const shortId = String(portfolioId).replace(/-/g, "").slice(0, 8);
 
-      // Apaga todas as instâncias anteriores deste portfólio para evitar sessão zumbi/orfã.
-      const oldInstances = await listInstancesForPortfolio(portfolioId);
-      const namesToDelete = new Set(oldInstances.map((item) => item.name));
-      if (existing?.instance_name) namesToDelete.add(existing.instance_name);
-      for (const name of namesToDelete) await deleteInstance(name);
-      if (namesToDelete.size) await wait(1200);
-
-      // Apaga workflows antigos do n8n referenciados pelo agente (evita duplicatas)
-      const { data: agentRow } = await admin
-        .from("whatsapp_agents").select("n8n_workflow_id").eq("portfolio_id", portfolioId).maybeSingle();
-      if (agentRow?.n8n_workflow_id) {
-        await deleteN8nWorkflow(agentRow.n8n_workflow_id);
-        await admin.from("whatsapp_agents")
-          .update({ n8n_workflow_id: null, n8n_webhook_path: null })
-          .eq("portfolio_id", portfolioId);
-      }
-      // Limpeza global de workflows órfãos do n8n
-      await cleanupOrphanN8nWorkflows(admin);
-
-
-      // Nome novo a cada conexão garante QR limpo
-      const instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
-
       const createInstance = async (name: string) => evo("/instance/create", {
         method: "POST",
         body: JSON.stringify({
@@ -267,21 +244,57 @@ Deno.serve(async (req) => {
         return { code: null as string | null, raw: lastRaw };
       };
 
-      const create = await createInstance(instanceName);
-      console.log("evo create status:", create.status);
-      let qrCode = extractQr(create.body);
-      let raw: any = create.body;
+      // === REUSO DE INSTÂNCIA ===
+      // WhatsApp bloqueia ("Não é possível conectar novos dispositivos no momento")
+      // quando o mesmo número recebe várias tentativas de vincular DISPOSITIVOS DIFERENTES
+      // em curto intervalo. Antes recriávamos a instância a cada clique (chaves Baileys
+      // novas => dispositivo novo). Agora reaproveitamos a instância existente se ela
+      // ainda não está "open"; só recriamos quando o usuário pedir explicitamente (force)
+      // ou quando a instância atual já está conectada a outro número.
+      let instanceName: string | null = null;
+      let reused = false;
 
-      if (!qrCode) {
-        const firstQr = await getQr(instanceName);
-        qrCode = firstQr.code;
-        raw = firstQr.raw;
+      if (!force && existing?.instance_name) {
+        const state = await evo(`/instance/connectionState/${existing.instance_name}`);
+        const currentState = state.body?.instance?.state ?? state.body?.state ?? null;
+        // 'connecting' / 'close' / 'unknown' => reusar (Baileys ainda não vinculou)
+        if (currentState && currentState !== "open") {
+          instanceName = existing.instance_name;
+          reused = true;
+          console.log("connect: reusing instance", instanceName, "state=", currentState);
+        }
       }
+
+      if (!instanceName) {
+        // Recriação real: apaga tudo antes (instância antiga + workflows órfãos).
+        const oldInstances = await listInstancesForPortfolio(portfolioId);
+        const namesToDelete = new Set(oldInstances.map((item) => item.name));
+        if (existing?.instance_name) namesToDelete.add(existing.instance_name);
+        for (const name of namesToDelete) await deleteInstance(name);
+        if (namesToDelete.size) await wait(1200);
+
+        const { data: agentRow } = await admin
+          .from("whatsapp_agents").select("n8n_workflow_id").eq("portfolio_id", portfolioId).maybeSingle();
+        if (agentRow?.n8n_workflow_id) {
+          await deleteN8nWorkflow(agentRow.n8n_workflow_id);
+          await admin.from("whatsapp_agents")
+            .update({ n8n_workflow_id: null, n8n_webhook_path: null })
+            .eq("portfolio_id", portfolioId);
+        }
+        await cleanupOrphanN8nWorkflows(admin);
+
+        instanceName = `port_${shortId}_${Date.now().toString(36).slice(-5)}`;
+        const create = await createInstance(instanceName);
+        console.log("evo create status:", create.status);
+      }
+
+      // Busca QR (na instância reusada ou recém-criada)
+      const qrResult = await getQr(instanceName);
+      let qrCode = qrResult.code;
+      let raw: any = qrResult.raw;
 
       await ensureWebhook(instanceName);
 
-
-      // Upsert na tabela
       await admin.from("whatsapp_connections").upsert({
         portfolio_id: portfolioId,
         instance_name: instanceName,
@@ -292,8 +305,8 @@ Deno.serve(async (req) => {
         .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
 
-      if (!qrCode) return json({ error: "QR não retornado pela Evolution.", raw });
-      return json({ instanceName, qr: qrCode });
+      if (!qrCode) return json({ error: "QR não retornado pela Evolution.", raw, instanceName, reused });
+      return json({ instanceName, qr: qrCode, reused });
     }
 
     if (action === "status") {
