@@ -35,7 +35,6 @@
       ]
     }
   ],
-  "pinData": {},
   "connections": {
     "Schedule": {
       "main": [
@@ -49,15 +48,8 @@
       ]
     }
   },
-  "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
-  },
-  "versionId": "5ac0240a-6032-41c7-aa71-1910dc27e7ff",
-  "meta": {
-    "instanceId": "46e97c6bc4cb568d61957b38d805c753a8cccf7bfd319c0b1421245984621085"
-  },
-  "id": "E0lXnVC11Mnq23ox",
-  "tags": []
+    "timezone": "America/Sao_Paulo"
+  }
 }
