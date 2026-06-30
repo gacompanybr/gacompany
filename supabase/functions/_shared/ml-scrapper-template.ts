@@ -1,15 +1,13 @@
 // Builder do workflow ML Scrapper.
 //
-// IMPORTANTE: este builder NÃO reescreve a lógica dos nós Code do template.
-// O JSON em ml-scrapper-template.json é a versão "ML - Lar em Ofertas — CORRIGIDO"
-// (depurada em produção). Aqui só substituímos campos dinâmicos por job:
-//   - CONFIG ML: ml_cookie, ml_csrf_token, ml_affiliate_tag (sempre)
-//                ml_categories, ml_base_url, ml_category_name, max_price,
-//                final_pick (apenas se vierem do cfg da UI; senão mantém default)
-//   - Upsert row(s) / Get Existing IDs: dataTableId do cliente
-//   - Schedule Trigger 12h: cron gerado a partir da UI (horários/dias/intervalo)
+// REGRA: NÃO injetamos campo-a-campo no "CONFIG ML". O template já tem defaults
+// válidos em TODOS os campos. Aqui só substituímos 4 tokens pelos valores do job:
+//   __ML_COOKIE__         -> cfg.ml_cookie
+//   __ML_CSRF_TOKEN__     -> cfg.ml_csrf_token
+//   __ML_AFFILIATE_TAG__  -> cfg.ml_affiliate_id (ou ml_affiliate_tag)
+//   __DATA_TABLE_ID__     -> job.n8n_datatable_id
 //
-// Qualquer alteração de lógica nos Code nodes reintroduz bugs.
+// Substituição feita no OBJETO (parse/walk/set), nunca em texto cru.
 
 import templateRaw from "./ml-scrapper-template.json" with { type: "json" };
 
@@ -27,52 +25,16 @@ function cleanText(v: unknown): string {
     .trim();
 }
 
-function extractAssignedString(input: string, names: string[]): string | null {
-  for (const name of names) {
-    const idx = input.search(new RegExp(`\\b${name}\\b`, "i"));
-    if (idx < 0) continue;
-    const eq = input.indexOf("=", idx);
-    if (eq < 0) continue;
-    let i = eq + 1;
-    while (/\s/.test(input[i] || "")) i++;
-    const quote = input[i];
-    if (!["'", '"', "`"].includes(quote)) continue;
-    i++;
-    let out = "";
-    for (; i < input.length; i++) {
-      const ch = input[i];
-      if (ch === "\\" && i + 1 < input.length) {
-        const next = input[++i];
-        out += next === "n" || next === "r" ? " " : next;
-        continue;
-      }
-      if (ch === quote) return out;
-      out += ch;
-    }
-  }
-  return null;
-}
-
-function sanitizeMlCredential(value: unknown, names: string[] = []): string {
+function sanitizeMlCredential(value: unknown): string {
   let s = cleanText(value);
-  let assigned: string | null = null;
-  if (names.some((n) => /COOKIE/i.test(n))) {
-    for (const name of names) {
-      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
-      if (idx < 0) continue;
-      const eq = s.indexOf("=", idx);
-      if (eq < 0) continue;
-      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
-      break;
-    }
-  } else {
-    assigned = names.length ? extractAssignedString(s, names) : null;
+  // remove prefixos tipo "const ML_COOKIE = '...'"
+  const eq = s.indexOf("=");
+  if (/^\s*(const|let|var)\s+[A-Z0-9_]+\s*=/i.test(s) && eq >= 0) {
+    s = s.slice(eq + 1).trim();
   }
-  if (assigned != null) s = assigned;
   return s
-    .replace(/^['"`]|['"`]$/g, "")
+    .replace(/^['"`]|['"`]\s*;?\s*$/g, "")
     .replace(/\r|\n/g, " ")
-    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
     .trim();
 }
 
@@ -80,23 +42,6 @@ function findNode(wf: AnyWorkflow, name: string): AnyNode | undefined {
   return wf.nodes.find((n: AnyNode) => n.name === name);
 }
 
-function setConfigField(node: AnyNode, name: string, stringValue: string) {
-  const values: any[] = node.parameters?.fields?.values ?? [];
-  const existing = values.find((v) => v.name === name);
-  if (existing) {
-    existing.stringValue = stringValue;
-    existing.type = existing.type || "string";
-  } else {
-    values.push({ name, type: "string", stringValue });
-  }
-}
-
-/**
- * Monta cron de 6 campos (segundos incluídos, formato n8n) a partir da UI.
- * - cfg.agendamento_cron: usado direto se vier preenchido
- * - intervalo_horas + hora_inicio + hora_fim: monta "0 0 H1,H2,... * * *"
- * - dias da semana: se cfg.dias_semana = ["seg","ter",...], adiciona DOW
- */
 function buildCron(job: any): string | null {
   const cfg = job.config ?? {};
   if (typeof cfg.agendamento_cron === "string" && cfg.agendamento_cron.trim()) {
@@ -117,25 +62,45 @@ function buildCron(job: any): string | null {
   return `0 0 ${hours.join(",")} * * ${dow}`;
 }
 
-function asStr(v: unknown, fallback = ""): string {
-  if (v === null || v === undefined) return fallback;
-  const s = String(v);
-  if (s === "undefined" || s === "null") return fallback;
-  return s;
-}
-
-function slugifyTermo(t: string): string {
-  return String(t || "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-
 export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWorkflow {
   const cfg = job.config ?? {};
+
+  // --- valores obrigatórios ---
+  const cookie = sanitizeMlCredential(cfg.ml_cookie);
+  const csrf = sanitizeMlCredential(cfg.ml_csrf_token);
+  const tag = sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const tableId = cleanText(job.n8n_datatable_id);
+
+  if (!cookie) throw new Error("Faltando: ml_cookie (Cookie do Mercado Livre)");
+  if (!csrf) throw new Error("Faltando: ml_csrf_token (x-csrf-token)");
+  if (!tag) throw new Error("Faltando: ml_affiliate_id (Affiliate ID / matt_word)");
+  if (!tableId) throw new Error("Faltando: data table id do cliente");
+
   const wf = cloneTemplate();
   wf.name = workflowName;
 
-  // ---- Schedule ----
+  // --- replace tokens no CONFIG ML ---
+  const configNode = findNode(wf, "CONFIG ML");
+  if (!configNode) throw new Error("Template inválido: node CONFIG ML não encontrado");
+  const values: any[] = configNode.parameters?.fields?.values ?? [];
+  for (const f of values) {
+    if (f?.stringValue === "__ML_COOKIE__") f.stringValue = cookie;
+    else if (f?.stringValue === "__ML_CSRF_TOKEN__") f.stringValue = csrf;
+    else if (f?.stringValue === "__ML_AFFILIATE_TAG__") f.stringValue = tag;
+  }
+
+  // --- replace __DATA_TABLE_ID__ nos nodes de data table ---
+  const tableName = job.data_table_name || "ML_SCRAPPER";
+  for (const nm of ["Upsert row(s)", "Get Existing IDs"]) {
+    const node = findNode(wf, nm);
+    if (!node?.parameters?.dataTableId) continue;
+    node.parameters.dataTableId.value = tableId;
+    node.parameters.dataTableId.cachedResultName = tableName;
+    node.parameters.dataTableId.__rl = true;
+    node.parameters.dataTableId.mode = node.parameters.dataTableId.mode || "list";
+  }
+
+  // --- schedule opcional ---
   const schedule = findNode(wf, "Schedule Trigger 12h");
   if (schedule) {
     const cron = buildCron(job);
@@ -144,107 +109,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     }
   }
 
-  // ---- CONFIG ML ----
-  const cookie = sanitizeMlCredential(cfg.ml_cookie, ["ML_COOKIE", "COOKIE"]);
-  const csrf = sanitizeMlCredential(cfg.ml_csrf_token, ["ML_CSRF", "ML_CSRF_TOKEN", "X_CSRF_TOKEN", "CSRF"]);
-  const affiliateTag = sanitizeMlCredential(
-    cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag,
-    ["ML_AFFILIATE_ID", "ML_AFFILIATE_TAG", "AFFILIATE_ID"],
-  );
-
-  if (!cookie) throw new Error("ml_cookie ausente no job (Cookie do Mercado Livre)");
-  if (!csrf) throw new Error("ml_csrf_token ausente no job (x-csrf-token)");
-  if (!affiliateTag) throw new Error("ml_affiliate_id ausente no job (Affiliate ID / matt_word)");
-
-  const configNode = findNode(wf, "CONFIG ML");
-  if (configNode) {
-    // CREDENCIAIS — sempre injetadas
-    setConfigField(configNode, "ml_cookie", cookie);
-    setConfigField(configNode, "ml_csrf_token", csrf);
-    setConfigField(configNode, "ml_affiliate_tag", affiliateTag);
-
-    // FILTROS — sempre injetados com fallback numérico
-    const minCommissionValue = Number(cfg.min_commission_value ?? 0) || 0;
-    setConfigField(configNode, "min_commission_value", String(minCommissionValue));
-
-    if (cfg.commission_rate != null && cfg.commission_rate !== "") {
-      setConfigField(configNode, "commission_rate", String(Number(cfg.commission_rate) || 0));
-    } else if (cfg.ml_default_commission_rate != null) {
-      setConfigField(configNode, "commission_rate", String(Number(cfg.ml_default_commission_rate) || 0));
-    }
-
-    const minTotalFinal = cfg.min_total_final ?? cfg.min_products;
-    if (minTotalFinal != null && minTotalFinal !== "" && Number(minTotalFinal) > 0) {
-      setConfigField(configNode, "min_total_final", String(Number(minTotalFinal)));
-    }
-    const finalPick = cfg.final_pick ?? cfg.max_products;
-    if (finalPick != null && finalPick !== "" && Number(finalPick) > 0) {
-      setConfigField(configNode, "final_pick", String(Number(finalPick)));
-    }
-
-    // ml_queries: injeta pages + min_discount preservando o resto
-    try {
-      const qField = (configNode.parameters?.fields?.values ?? []).find((v: any) => v.name === "ml_queries");
-      const raw = asStr(qField?.stringValue, "{}");
-      const parsed = JSON.parse(raw || "{}");
-      parsed.settings = parsed.settings || {};
-      const pages = Number(cfg.ml_pages ?? parsed.settings.pages ?? 1);
-      const minDisc = Number(cfg.ml_min_discount ?? parsed.settings.min_discount ?? 10);
-      parsed.settings.pages = Math.max(1, pages);
-      parsed.settings.min_discount = Math.max(0, minDisc);
-      setConfigField(configNode, "ml_queries", JSON.stringify(parsed, null, 2));
-    } catch (_) { /* mantém default */ }
-
-    // CATEGORIAS / TERMOS — monta a partir de cfg.termos + cfg.categorias se ml_categories não vier explícito
-    let categoriesList: Array<{ nome: string; url: string }> | null = null;
-    if (Array.isArray(cfg.ml_categories) && cfg.ml_categories.length) {
-      categoriesList = cfg.ml_categories;
-    } else {
-      const termos: string[] = Array.isArray(cfg.termos) ? cfg.termos : [];
-      const cats: string[] = Array.isArray(cfg.categorias) ? cfg.categorias : [];
-      const minDisc = Math.max(0, Number(cfg.ml_min_discount ?? 10));
-      const items = [...termos, ...cats].filter(Boolean);
-      if (items.length) {
-        categoriesList = items.map((t) => {
-          const slug = slugifyTermo(t);
-          return {
-            nome: String(t),
-            url: `https://lista.mercadolivre.com.br/${slug}_CustoFrete_Gratis_DiscountRange_${minDisc}-100_NoIndex_True`,
-          };
-        });
-      }
-    }
-    if (categoriesList && categoriesList.length) {
-      setConfigField(configNode, "ml_categories", JSON.stringify(categoriesList, null, 2));
-    }
-
-    // Opcionais (mantém default se não vier)
-    if (cfg.ml_base_url) setConfigField(configNode, "ml_base_url", String(cfg.ml_base_url));
-    if (cfg.ml_category_name) setConfigField(configNode, "ml_category_name", String(cfg.ml_category_name));
-    if (cfg.max_price != null && cfg.max_price !== "") setConfigField(configNode, "max_price", String(cfg.max_price));
-    if (cfg.max_total != null && cfg.max_total !== "") setConfigField(configNode, "max_total", String(cfg.max_total));
-    if (cfg.min_total != null && cfg.min_total !== "") setConfigField(configNode, "min_total", String(cfg.min_total));
-    if (cfg.max_total_final != null && cfg.max_total_final !== "") setConfigField(configNode, "max_total_final", String(cfg.max_total_final));
-  }
-
-  // ---- Data Table do cliente ----
-  const tableId = job.n8n_datatable_id;
-  const tableName = job.data_table_name || "ML_SCRAPPER";
-  if (tableId) {
-    for (const nm of ["Upsert row(s)", "Get Existing IDs"]) {
-      const node = findNode(wf, nm);
-      if (!node) continue;
-      node.parameters = node.parameters || {};
-      node.parameters.dataTableId = {
-        __rl: true,
-        value: tableId,
-        mode: "list",
-        cachedResultName: tableName,
-      };
-    }
-  }
-
-  // ---- cleanup ----
+  // --- cleanup ---
   wf.settings = wf.settings || { executionOrder: "v1" };
   delete (wf as any).id;
   delete (wf as any).versionId;
@@ -256,4 +121,3 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
 
   return wf;
 }
-
