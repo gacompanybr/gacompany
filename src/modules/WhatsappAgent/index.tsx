@@ -33,6 +33,22 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
     },
   });
 
+  // Status da conexão WhatsApp do portfólio (refresca a cada 20s)
+  const { data: connection } = useQuery({
+    queryKey: ["whatsapp-connection-status", portfolioId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("whatsapp_connections")
+        .select("status, instance_name, updated_at")
+        .eq("portfolio_id", portfolioId)
+        .maybeSingle();
+      return data as { status: string | null; instance_name: string | null; updated_at: string | null } | null;
+    },
+    refetchInterval: 20_000,
+  });
+  const connectionStatus = connection?.status ?? null;
+  const isConnected = connectionStatus === "connected";
+
   // Garante que existe um agente (cria se não houver)
   useEffect(() => {
     if (isLoading) return;
