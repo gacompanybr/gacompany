@@ -55,30 +55,17 @@ function extractAssignedString(input: string, names: string[]): string | null {
   return null;
 }
 
-export function sanitizeMlCredential(value: unknown, names: string[] = []): string {
-  let s = String(value ?? "")
+// Trata a credencial como STRING OPACA. NÃO faz split/parse interno.
+// Só desembrulha um wrapper explícito `const/let/var NAME = "..."` quando ele
+// começa no início absoluto do input (caso o usuário cole a linha de código).
+export function sanitizeMlCredential(value: unknown, _names: string[] = []): string {
+  const s = String(value ?? "")
     .replace(/^\uFEFF/, "")
     .replace(/[\u200B-\u200D\u2060]/g, "")
     .trim();
-  let assigned: string | null = null;
-  if (names.some((n) => /COOKIE/i.test(n))) {
-    for (const name of names) {
-      const idx = s.search(new RegExp(`\\b${name}\\b`, "i"));
-      if (idx < 0) continue;
-      const eq = s.indexOf("=", idx);
-      if (eq < 0) continue;
-      assigned = s.slice(eq + 1).trim().replace(/^['"`]/, "").replace(/['"`]?\s*[);]*\s*$/, "");
-      break;
-    }
-  } else {
-    assigned = names.length ? extractAssignedString(s, names) : null;
-  }
-  if (assigned != null) s = assigned;
-  return s
-    .replace(/^['"`]|['"`]$/g, "")
-    .replace(/\r|\n/g, " ")
-    .replace(/\s*;\s*(?:const|let|var)\s+[A-Z0-9_]+\s*=.*$/i, "")
-    .trim();
+  const wrap = s.match(/^\s*(?:const|let|var)\s+[A-Za-z0-9_]+\s*=\s*(['"`])([\s\S]*)\1\s*;?\s*$/);
+  if (wrap) return wrap[2];
+  return s;
 }
 
 function decodeMlEscapes(s: string): string {
