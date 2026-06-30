@@ -72,6 +72,12 @@ function sanitizeWorkflowBodyIfNeeded(path: string, method: string, body: BodyIn
 async function n8nFetch(path: string, init: RequestInit = {}) {
   const method = (init.method ?? "GET").toUpperCase();
   const body = sanitizeWorkflowBodyIfNeeded(path, method, init.body as any);
+  if (body !== init.body && typeof body === "string") {
+    try {
+      const parsedDbg = JSON.parse(body);
+      console.log("[n8nFetch] write", method, path, "topKeys=", Object.keys(parsedDbg), "settings=", parsedDbg.settings);
+    } catch {/*noop*/}
+  }
   const res = await fetch(`${N8N_BASE}${path}`, {
     ...init,
     method,
@@ -86,10 +92,12 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
+    console.error("[n8nFetch] FAIL", method, path, res.status, text.slice(0, 300));
     throw new Error(`n8n ${res.status}: ${typeof data === "string" ? data : JSON.stringify(data)}`);
   }
   return data;
 }
+
 
 
 async function evolutionFetch(path: string, init: RequestInit = {}) {
