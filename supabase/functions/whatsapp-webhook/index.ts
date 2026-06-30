@@ -792,18 +792,24 @@ async function processPayload(payload: any) {
     if (!reply) continue;
 
     const { sent, failed } = await sendText(instance, sendTargets, reply);
-    const rows = [
-      ...sent.map((m) => ({ role: "assistant" as const, mensagem: m })),
-      ...failed.map((m) => ({ role: "assistant" as const, mensagem: `[FALHA AO ENVIAR] ${m}` })),
-    ];
-    if (rows.length) {
-      await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
+    // Só persistimos no histórico o que foi REALMENTE entregue. Mensagens
+    // falhadas poluíam o contexto da próxima resposta (a IA "lia" como se
+    // já tivesse falado aquilo). Falhas viram só log.
+    if (failed.length) {
+      console.warn("whatsapp send fail", JSON.stringify({
+        instance, portfolioId, remoteJid,
+        failedParts: failed.length,
+        sample: failed[0]?.slice(0, 120),
+      }));
+    }
+    if (sent.length) {
+      await admin.from("whatsapp_conversas").insert(sent.map((m) => ({
         portfolio_id: portfolioId,
         instance_name: instance,
         contato_telefone: storagePhone,
         contato_nome: pushName,
-        role: r.role,
-        mensagem: r.mensagem,
+        role: "assistant" as const,
+        mensagem: m,
         sdr_lead_id: sdrLead?.id ?? null,
       })));
     }
