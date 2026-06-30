@@ -201,7 +201,7 @@ export function ConectarTab({
           Última instância: <code className="bg-muted px-1.5 py-0.5 rounded">{conn.instance_name}</code> ({conn.status})
         </div>
       )}
-      <Button onClick={handleConnect} disabled={generating} className="gap-2">
+      <Button onClick={() => handleConnect()} disabled={generating} className="gap-2">
         {generating ? <Loader2 className="animate-spin" size={14} /> : <QrCode size={14} />}
         {generating ? "Gerando..." : "Conectar WhatsApp"}
       </Button>
