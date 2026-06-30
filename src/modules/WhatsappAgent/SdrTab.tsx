@@ -176,9 +176,34 @@ export function SdrTab({ portfolioId }: { portfolioId: string }) {
     XLSX.writeFile(wb, `sdr-${active.nome.replace(/\s+/g, "_")}-${active.id.slice(0, 8)}.xlsx`);
   }
 
+  const followupCard = (
+    <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <Bell size={18} className="mt-0.5 text-muted-foreground" />
+        <div>
+          <Label htmlFor="sdr-followup-toggle" className="font-semibold cursor-pointer">
+            Follow-up ativo (SDR)
+          </Label>
+          <p className="text-xs text-muted-foreground max-w-md">
+            Quando ligado, o agente envia mensagens de retomada para leads SDR em silêncio
+            (30 min → 4 h → 24 h, máx. 3 tentativas). Pára assim que o lead responde.
+            Contatos receptivos (sem tag SDR) nunca recebem follow-up.
+          </p>
+        </div>
+      </div>
+      <Switch
+        id="sdr-followup-toggle"
+        checked={agent?.sdr_followup_enabled !== false}
+        disabled={followupBusy || !agent?.id}
+        onCheckedChange={toggleFollowup}
+      />
+    </Card>
+  );
+
   if (!active) {
     return (
       <div className="space-y-4">
+        {followupCard}
         <SdrUpload portfolioId={portfolioId} onCreated={() => qc.invalidateQueries({ queryKey: ["sdr-campaigns", portfolioId] })} />
         {(campaigns ?? []).filter((c) => c.status === "finished").length > 0 && (
           <Card className="p-4">
@@ -199,7 +224,9 @@ export function SdrTab({ portfolioId }: { portfolioId: string }) {
 
   return (
     <div className="space-y-4">
+      {followupCard}
       <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+
         <div>
           <div className="flex items-center gap-2">
             <h3 className="font-semibold">{active.nome}</h3>
