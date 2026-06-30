@@ -4,11 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, Pause, Square, RotateCw, Download, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Loader2, Play, Pause, Square, RotateCw, Download, Trash2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { SdrUpload } from "./SdrUpload";
 import { SdrDashboard } from "./SdrDashboard";
+
 
 type Campaign = {
   id: string;
