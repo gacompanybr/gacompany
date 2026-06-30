@@ -22,9 +22,30 @@ function json(data: unknown, status = 200) {
   });
 }
 
+const ALLOWED_N8N_SETTINGS = new Set([
+  "saveExecutionProgress","saveManualExecutions","saveDataErrorExecution",
+  "saveDataSuccessExecution","executionTimeout","errorWorkflow","timezone","executionOrder",
+]);
+function toN8nBody(wf: any) {
+  const raw = (wf && typeof wf.settings === "object" && wf.settings) || {};
+  const settings: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) if (ALLOWED_N8N_SETTINGS.has(k)) settings[k] = v;
+  if (!("executionOrder" in settings)) settings.executionOrder = "v1";
+  return { name: wf?.name, nodes: wf?.nodes ?? [], connections: wf?.connections ?? {}, settings };
+}
+
 async function n8n(path: string, init: RequestInit = {}) {
+  let body = init.body as any;
+  const method = (init.method ?? "GET").toUpperCase();
+  const isWrite =
+    (method === "POST" && /\/workflows\/?$/.test(path)) ||
+    (method === "PUT"  && /\/workflows\/[^/]+\/?$/.test(path));
+  if (isWrite && typeof body === "string") {
+    try { body = JSON.stringify(toN8nBody(JSON.parse(body))); } catch { /* noop */ }
+  }
   const r = await fetch(`${N8N_BASE_URL}${path}`, {
     ...init,
+    body,
     headers: {
       "X-N8N-API-KEY": N8N_API_KEY,
       "Content-Type": "application/json",
@@ -33,10 +54,11 @@ async function n8n(path: string, init: RequestInit = {}) {
     },
   });
   const text = await r.text();
-  let body: any = text;
-  try { body = JSON.parse(text); } catch { /* keep */ }
-  return { ok: r.ok, status: r.status, body };
+  let parsed: any = text;
+  try { parsed = JSON.parse(text); } catch { /* keep */ }
+  return { ok: r.ok, status: r.status, body: parsed };
 }
+
 
 function buildSystemPrompt(agent: any): string {
   const tomMap: Record<string, string> = {

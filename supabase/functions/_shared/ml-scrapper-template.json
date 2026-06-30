@@ -825,7 +825,6 @@
       "name": "Extrair HTML"
     }
   ],
-  "pinData": {},
   "connections": {
     "Dedupe Precoce por ID": {
       "main": [
@@ -1082,26 +1081,8 @@
       ]
     }
   },
-  "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate",
-    "timeSavedMode": "fixed",
-    "timezone": "America/Sao_Paulo",
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
-  },
-  "versionId": "ead37e38-2b13-45f2-b458-74893954e99a",
-  "meta": {
-    "instanceId": "46e97c6bc4cb568d61957b38d805c753a8cccf7bfd319c0b1421245984621085"
-  },
-  "id": "xdavkp9zenOUEzle",
-  "tags": [
-    {
-      "updatedAt": "2026-05-19T13:13:42.236Z",
-      "createdAt": "2026-05-19T13:13:42.236Z",
-      "id": "Ld7XaOcNcpQ7hyo2",
-      "name": "mlb"
-    }
-  ]
+    "timezone": "America/Sao_Paulo"
+  }
 }
