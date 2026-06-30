@@ -177,7 +177,7 @@ export function ConectarTab({
           instance_name: <code className="bg-muted px-1.5 py-0.5 rounded">{conn.instance_name}</code>
         </div>
         <div className="flex gap-2 pt-2 border-t border-border">
-          <Button onClick={handleConnect} variant="outline" size="sm" className="gap-2" disabled={generating}>
+          <Button onClick={() => handleConnect({ force: true })} variant="outline" size="sm" className="gap-2" disabled={generating}>
             <RefreshCw size={14} /> Gerar novo QR
           </Button>
           <Button onClick={handleDisconnect} variant="ghost" size="sm">Cancelar</Button>
