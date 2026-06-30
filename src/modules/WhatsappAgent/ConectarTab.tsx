@@ -73,10 +73,10 @@ export function ConectarTab({
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [conn?.status, portfolioId, refetch, onRefresh]);
 
-  async function handleConnect() {
+  async function handleConnect(opts: { force?: boolean } = {}) {
     setGenerating(true);
     const { data, error } = await supabase.functions.invoke("whatsapp-connection", {
-      body: { action: "connect", portfolioId },
+      body: { action: "connect", portfolioId, force: !!opts.force },
     });
     setGenerating(false);
     if (error || (data as any)?.error) {
