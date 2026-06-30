@@ -44,24 +44,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let currentUserId: string | null = null;
 
-    async function applySession(s: Session | null) {
+    async function applySession(s: Session | null, opts: { initial?: boolean } = {}) {
       if (!active) return;
-      setLoading(true);
+      const nextUserId = s?.user?.id ?? null;
+      const userChanged = nextUserId !== currentUserId;
+
+      // Sempre atualiza o objeto de session (tokens podem ter mudado),
+      // mas só dispara loading/refetch de role quando o usuário muda de fato.
       setSession(s);
+
+      if (!userChanged && !opts.initial) return;
+
+      currentUserId = nextUserId;
+      if (opts.initial) setLoading(true);
 
       if (s?.user) {
         const admin = await fetchRole(s.user.id);
         if (active) setIsAdmin(admin);
-      } else {
-        if (active) setIsAdmin(false);
+      } else if (active) {
+        setIsAdmin(false);
       }
 
-      if (active) setLoading(false);
+      if (active && opts.initial) setLoading(false);
     }
 
     supabase.auth.getSession().then(({ data }) => {
-      applySession(data.session);
+      applySession(data.session, { initial: true });
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
@@ -73,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe();
     };
   }, []);
+
 
   const getUserPortfolios = useCallback(async (): Promise<PortfolioMini[]> => {
     if (!session?.user) return [];
