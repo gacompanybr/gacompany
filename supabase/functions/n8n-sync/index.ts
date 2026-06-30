@@ -1987,6 +1987,12 @@ Deno.serve(async (req) => {
       }
       if (!datatableId) return j({ error: `Não consegui criar data table "${tableName}" no n8n: ${lastErr?.message ?? "desconhecido"}` }, 500);
 
+      // Garante todas as colunas (idempotente — útil se o backend ignorar algum tipo na criação)
+      try { await ensureScrapperDatatableColumns(datatableId); }
+      catch (e) { console.warn("[recreate_datatable] ensure columns falhou:", e); }
+
+
+
       await admin.from("scrapper_jobs")
         .update({ n8n_datatable_id: datatableId, data_table_name: tableName, ultimo_erro: null })
         .eq("id", jobId);
