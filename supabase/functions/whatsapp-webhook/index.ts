@@ -621,7 +621,7 @@ async function processPayload(payload: any) {
     }
 
     // Salvar mensagem do usuário (com vínculo SDR se aplicável)
-    await admin.from("whatsapp_conversas").insert({
+    const { data: insertedUserMsg } = await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,
       instance_name: instance,
       contato_telefone: storagePhone,
@@ -629,7 +629,38 @@ async function processPayload(payload: any) {
       role: "user",
       mensagem: text,
       sdr_lead_id: sdrLead?.id ?? null,
-    });
+    }).select("id, created_at").maybeSingle();
+
+    // === DEBOUNCE ANTI-BURST ===
+    // Se o cliente manda várias mensagens seguidas ("oi", "opa", "call?"),
+    // cada webhook chamava a IA e respondia 3x cada = enxurrada de bolhas.
+    // Aqui esperamos 7s: se chegou outra mensagem do mesmo contato nesse
+    // intervalo, ESTA execução para e deixa a próxima responder por todas.
+    const DEBOUNCE_MS = 7000;
+    await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
+    {
+      const phonesForCheck = Array.from(new Set([
+        storagePhone,
+        ...phoneCandidates,
+      ].filter(Boolean))).slice(0, 20);
+      const cutoff = insertedUserMsg?.created_at ?? new Date(Date.now() - DEBOUNCE_MS).toISOString();
+      if (phonesForCheck.length) {
+        const { data: newer } = await admin
+          .from("whatsapp_conversas")
+          .select("id")
+          .eq("portfolio_id", portfolioId)
+          .eq("role", "user")
+          .in("contato_telefone", phonesForCheck)
+          .gt("created_at", cutoff)
+          .limit(1);
+        if (newer && newer.length > 0) {
+          console.log("[DEBOUNCE] skip — chegou mensagem mais nova", {
+            portfolioId, storagePhone, thisId: insertedUserMsg?.id,
+          });
+          continue;
+        }
+      }
+    }
 
     // Se é lead SDR: atualiza status (primeira resposta vira "respondeu") e métricas
     if (sdrLead) {
