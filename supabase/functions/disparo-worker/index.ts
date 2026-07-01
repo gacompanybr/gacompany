@@ -84,30 +84,55 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
   const loteTamanho = Math.max(1, Number(campanha.lote_tamanho ?? 10));
   const pausaLoteMin = Math.max(0, Number(campanha.pausa_lote_min ?? 15));
 
-  const { data: pendentes } = await admin
+  // 0) Devolve para 'pendente' qualquer reserva presa há mais de 10min
+  //    (worker morreu no meio, deploy, timeout, etc).
+  const stuckCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+  await admin
     .from("disparo_contatos")
-    .select("*")
+    .update({ status: "pendente" })
+    .eq("campanha_id", campanha.id)
+    .eq("status", "enviando")
+    .lt("enviado_em", stuckCutoff);
+
+  // 1) Seleciona candidatos e RESERVA atomicamente via update com filtro
+  //    status='pendente'. Só as linhas efetivamente devolvidas viraram nossas.
+  //    Isso é o que impede dois workers concorrentes (cron + play manual) de
+  //    pegarem o mesmo contato e enviarem 2x/3x.
+  const { data: candidatos } = await admin
+    .from("disparo_contatos")
+    .select("id")
     .eq("campanha_id", campanha.id)
     .eq("status", "pendente")
     .order("created_at", { ascending: true })
     .limit(loteTamanho);
 
-
-
-  if (!pendentes || pendentes.length === 0) {
-    // marcar como concluida
+  if (!candidatos || candidatos.length === 0) {
     await admin.from("disparo_campanhas").update({ status: "concluida" }).eq("id", campanha.id);
     return { sent: 0, errors: 0, reason: "vazio_concluida" };
   }
 
-  // Telefones já enviados nessa campanha (normalizados), para evitar duplicata
+  const candidateIds = candidatos.map((c: any) => c.id);
+  const { data: pendentes } = await admin
+    .from("disparo_contatos")
+    .update({ status: "enviando", enviado_em: new Date().toISOString() })
+    .in("id", candidateIds)
+    .eq("status", "pendente")
+    .select("*");
+
+  if (!pendentes || pendentes.length === 0) {
+    return { sent: 0, errors: 0, reason: "outro_worker_pegou_o_lote" };
+  }
+
+  // Telefones já enviados/em envio nessa campanha (normalizados), para evitar duplicata
   const { data: jaEnviados } = await admin
     .from("disparo_contatos")
     .select("telefone")
     .eq("campanha_id", campanha.id)
-    .eq("status", "enviado");
+    .in("status", ["enviado", "enviando"]);
   const sentSet = new Set<string>(
-    (jaEnviados ?? []).map((r: any) => normalizePhone(r.telefone))
+    (jaEnviados ?? [])
+      .filter((r: any) => !pendentes.some((p: any) => p.telefone === r.telefone))
+      .map((r: any) => normalizePhone(r.telefone))
   );
 
   let sent = 0;
