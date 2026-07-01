@@ -225,14 +225,54 @@ Deno.serve(async (req) => {
       if (!number || !message) return json({ error: "number e message obrigatórios" }, 400);
       const raw = String(number).replace(/\D/g, "");
       if (raw.length < 8) return json({ error: "Número inválido" }, 400);
-      // Envia exatamente o número informado (sem adicionar DDI automaticamente)
-      const r = await evo(`/message/sendText/${instanceName}`, {
-        method: "POST",
-        body: JSON.stringify({ number: raw, text: String(message), delay: 1200, linkPreview: false }),
-      });
-      if (r.ok) return json({ ok: true, result: r.body, sentTo: raw });
-      return json({ error: "Falha ao enviar", detail: r.body ?? "sem detalhe", sentTo: raw }, r.status || 500);
+
+      const trySend = async (name: string) =>
+        evo(`/message/sendText/${name}`, {
+          method: "POST",
+          body: JSON.stringify({ number: raw, text: String(message), delay: 1200, linkPreview: false }),
+        });
+
+      let r = await trySend(instanceName);
+
+      // Fallback: instância registrada não existe mais no Evolution (404 / "does not exist").
+      // Procura outra instância desse portfólio que esteja conectada e reutiliza.
+      const notFound = r.status === 404 || /does not exist|not.*found/i.test(JSON.stringify(r.body ?? ""));
+      if (!r.ok && notFound) {
+        const portfolioSlug = String(agent.portfolio_id).replace(/-/g, "").slice(0, 8);
+        const prefix = `port_${portfolioSlug}_`;
+        const list = await evo(`/instance/fetchInstances`);
+        const instances: any[] = Array.isArray(list.body) ? list.body : (list.body?.data ?? []);
+        const candidates = instances
+          .map((it: any) => ({
+            name: it?.name ?? it?.instance?.instanceName ?? it?.instanceName ?? "",
+            state: String(it?.connectionStatus ?? it?.instance?.state ?? it?.state ?? "").toLowerCase(),
+          }))
+          .filter((it) => it.name && it.name.startsWith(prefix));
+        const preferred =
+          candidates.find((c) => c.state === "open" || c.state === "connected") ??
+          candidates[0];
+        if (preferred?.name) {
+          console.log("send_test fallback instance", { was: instanceName, now: preferred.name });
+          instanceName = preferred.name;
+          await admin
+            .from("whatsapp_connections")
+            .update({ instance_name: preferred.name, updated_at: new Date().toISOString() })
+            .eq("portfolio_id", agent.portfolio_id);
+          r = await trySend(preferred.name);
+        }
+      }
+
+      if (r.ok) return json({ ok: true, result: r.body, sentTo: raw, instance: instanceName });
+      const detailStr = typeof r.body === "string" ? r.body : JSON.stringify(r.body ?? "");
+      const friendly =
+        r.status === 404
+          ? "Instância do WhatsApp não existe no Evolution. Vá em Agente IA → Conectar e gere um novo QR."
+          : /not.*connected|close|disconnect/i.test(detailStr)
+          ? "WhatsApp desconectado. Reconecte na aba Agente IA → Conectar."
+          : "Falha ao enviar";
+      return json({ error: friendly, detail: r.body ?? "sem detalhe", sentTo: raw, instance: instanceName }, 200);
     }
+
 
     return json({ error: "action inválido" }, 400);
   } catch (e) {
