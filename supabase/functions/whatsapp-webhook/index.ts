@@ -859,8 +859,19 @@ async function processPayload(payload: any) {
     }
 
     const aiJson = await aiResp.json();
-    const reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
+    let reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
     if (!reply) continue;
+
+    // === SANITIZAÇÃO: bloqueia mensagem-relatório vazando pro contato ===
+    // A IA às vezes tentava enviar o card "Nome: X | Empresa: Y | Segmento: Z"
+    // como resposta pro cliente. Esse formato é reservado ao grupo interno.
+    const looksLikeLeadCard =
+      /(^|\n)\s*(nome|empresa\s*\/?\s*segmento|whatsapp|o que procura|n[íi]vel de urg[êe]ncia|observa[çc][ãa]o relevante)\s*[:\-]/i.test(reply) &&
+      /(empresa|segmento|whatsapp|urg[êe]ncia)/i.test(reply);
+    if (looksLikeLeadCard) {
+      console.warn("[SANITIZE] IA tentou enviar card de lead pro contato — substituindo", { preview: reply.slice(0, 200) });
+      reply = "Perfeito! Já anotei aqui suas informações. Vou passar pro nosso especialista e ele te chama em instantes pra alinhar os próximos passos. Enquanto isso, tem algum horário que funciona melhor pra você hoje ou amanhã?";
+    }
 
     const { sent, failed } = await sendText(instance, sendTargets, reply);
     // Só persistimos no histórico o que foi REALMENTE entregue. Mensagens
