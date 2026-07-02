@@ -640,6 +640,26 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // === DEDUPE DE ENTREGA (Evolution reenvia webhook às vezes) ===
+    // Se o mesmo texto do mesmo telefone chegou nos últimos 15s, ignora esta entrega
+    // — evita a IA responder 2x a mesma mensagem.
+    {
+      const dedupeCutoff = new Date(Date.now() - 15000).toISOString();
+      const { data: dupe } = await admin
+        .from("whatsapp_conversas")
+        .select("id")
+        .eq("portfolio_id", portfolioId)
+        .eq("role", "user")
+        .eq("contato_telefone", storagePhone)
+        .eq("mensagem", text)
+        .gte("created_at", dedupeCutoff)
+        .limit(1);
+      if (dupe && dupe.length > 0) {
+        console.log("[DEDUPE] entrega duplicada ignorada", { storagePhone, preview: text.slice(0, 60) });
+        continue;
+      }
+    }
+
     // Salvar mensagem do usuário (com vínculo SDR se aplicável)
     const { data: insertedUserMsg } = await admin.from("whatsapp_conversas").insert({
       portfolio_id: portfolioId,
