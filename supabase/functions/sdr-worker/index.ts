@@ -354,6 +354,28 @@ async function processCampaign(campaign: any) {
       .select("*");
 
     for (const lead of reservados ?? []) {
+      // Dedupe por telefone: se já existe QUALQUER outro lead com esse número
+      // no mesmo portfólio que já foi contatado (enviado/enviando/respondeu/sem_resposta),
+      // marca este como duplicado e pula. Isso evita 4-8 aberturas pro mesmo contato
+      // quando a planilha tem números repetidos ou campanhas se sobrepõem.
+      const telefoneLimpo = String(lead.telefone).replace(/\D/g, "");
+      const { data: jaContatado } = await admin
+        .from("sdr_leads")
+        .select("id")
+        .eq("portfolio_id", lead.portfolio_id)
+        .eq("telefone", telefoneLimpo)
+        .neq("id", lead.id)
+        .in("status", ["enviado", "enviando", "respondeu", "sem_resposta"])
+        .limit(1);
+      if (jaContatado && jaContatado.length > 0) {
+        await admin.from("sdr_leads").update({
+          status: "invalido",
+          ultima_mensagem_em: nowIso,
+        }).eq("id", lead.id);
+        console.log("lead duplicado (telefone já contatado), pulando", lead.id, telefoneLimpo);
+        continue;
+      }
+
       const nameResolved = await resolveName(instance, lead);
       const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
       await sleep(rand(8000, 16000));
