@@ -23,22 +23,39 @@ function json(d: unknown, s = 200) {
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
+const MAX_BUBBLES = 4;
+
 function splitMessage(text: string): string[] {
   const raw = (text ?? "").trim();
   if (!raw) return [];
-  if (raw.includes("|||")) return raw.split("|||").map((s) => s.trim()).filter(Boolean);
-  const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
-  if (byParagraph.length > 1) return byParagraph;
-  if (raw.length <= 250 && raw.split(/\n/).length <= 3) return [raw];
-  const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
-  const chunks: string[] = [];
-  let cur = "";
-  for (const s of sentences) {
-    if ((cur + s).length > 200 && cur.length > 0) { chunks.push(cur.trim()); cur = s; }
-    else cur += s;
+  let parts: string[];
+  if (raw.includes("|||")) {
+    parts = raw.split("|||").map((s) => s.trim()).filter(Boolean);
+  } else {
+    const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+    if (byParagraph.length > 1) {
+      parts = byParagraph;
+    } else if (raw.length <= 250 && raw.split(/\n/).length <= 3) {
+      parts = [raw];
+    } else {
+      const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
+      const chunks: string[] = [];
+      let cur = "";
+      for (const s of sentences) {
+        if ((cur + s).length > 200 && cur.length > 0) { chunks.push(cur.trim()); cur = s; }
+        else cur += s;
+      }
+      if (cur.trim()) chunks.push(cur.trim());
+      parts = chunks.filter(Boolean);
+    }
   }
-  if (cur.trim()) chunks.push(cur.trim());
-  return chunks.filter(Boolean);
+  // Nunca mandar mais que MAX_BUBBLES — se sobrar, junta o resto na última bolha
+  if (parts.length > MAX_BUBBLES) {
+    const head = parts.slice(0, MAX_BUBBLES - 1);
+    const tail = parts.slice(MAX_BUBBLES - 1).join(" ");
+    parts = [...head, tail];
+  }
+  return parts;
 }
 
 const SPLIT_DELAY_MS = 8000;
