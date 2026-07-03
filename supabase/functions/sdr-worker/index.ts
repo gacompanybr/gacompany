@@ -303,39 +303,76 @@ async function processCampaign(campaign: any) {
 
 
   // === Aberturas ===
-  const { data: pending } = await admin
+  // 0) Devolve para 'pendente' qualquer reserva presa (>10min em 'enviando')
+  const stuckCutoff = new Date(now.getTime() - 10 * 60_000).toISOString();
+  await admin
     .from("sdr_leads")
-    .select("*")
+    .update({ status: "pendente" })
+    .eq("campaign_id", campaign.id)
+    .eq("status", "enviando")
+    .lte("ultima_mensagem_em", stuckCutoff);
+
+  // 1) Seleciona candidatos e RESERVA atomicamente (pendente → enviando)
+  //    Isso impede que múltiplos ticks do cron peguem o mesmo lead.
+  const { data: candidatos } = await admin
+    .from("sdr_leads")
+    .select("id")
     .eq("campaign_id", campaign.id)
     .eq("status", "pendente")
     .order("created_at", { ascending: true })
     .limit(ratePerMinute);
 
   let dispatched = 0;
-  for (const lead of pending ?? []) {
-    const nameResolved = await resolveName(instance, lead);
-    const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
-    await sleep(rand(8000, 16000));
-    const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
-    await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, sent, failed);
-    if (sent.length) {
-      await admin.from("sdr_leads").update({
-        enviado: true,
-        status: "enviado",
-        nome_resolvido: nameResolved,
-        primeira_mensagem_em: nowIso,
-        ultima_mensagem_em: nowIso,
-        mensagens_trocadas: sent.length,
-      }).eq("id", lead.id);
-      dispatched++;
-    } else {
-      // Mantém pendente para retry no próximo tick
-      console.error("falha total ao enviar abertura", lead.id);
+  let invalidos = 0;
+
+  if (candidatos && candidatos.length > 0) {
+    const candidateIds = candidatos.map((c: any) => c.id);
+    const { data: reservados } = await admin
+      .from("sdr_leads")
+      .update({ status: "enviando", ultima_mensagem_em: nowIso })
+      .in("id", candidateIds)
+      .eq("status", "pendente")
+      .select("*");
+
+    for (const lead of reservados ?? []) {
+      const nameResolved = await resolveName(instance, lead);
+      const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
+      await sleep(rand(8000, 16000));
+      const { sent, failed, invalidNumber } = await sendInBubbles(instance, lead.telefone, text);
+      await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, sent, failed);
+      if (sent.length) {
+        await admin.from("sdr_leads").update({
+          enviado: true,
+          status: "enviado",
+          nome_resolvido: nameResolved,
+          primeira_mensagem_em: nowIso,
+          ultima_mensagem_em: nowIso,
+          mensagens_trocadas: sent.length,
+        }).eq("id", lead.id);
+        dispatched++;
+      } else if (invalidNumber) {
+        // Número não tem WhatsApp — marca como inválido pra não travar a fila
+        await admin.from("sdr_leads").update({
+          status: "invalido",
+          ultima_mensagem_em: nowIso,
+        }).eq("id", lead.id);
+        invalidos++;
+        console.error("lead sem WhatsApp, marcado invalido", lead.id, lead.telefone);
+      } else {
+        // Falha transitória (instância caiu, rate limit, etc) → volta pra pendente
+        // com cooldown de 5min pra tentar depois
+        await admin.from("sdr_leads").update({
+          status: "pendente",
+          cooldown_ate: new Date(now.getTime() + 5 * 60_000).toISOString(),
+        }).eq("id", lead.id);
+        console.error("falha transitória ao enviar abertura", lead.id);
+      }
     }
   }
 
-  return { dispatched, fu1: fu1Count, fu2: fu2Count, fu3: fu3Count, followupEnabled };
+  return { dispatched, invalidos, fu1: fu1Count, fu2: fu2Count, fu3: fu3Count, followupEnabled };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
