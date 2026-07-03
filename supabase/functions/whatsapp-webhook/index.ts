@@ -322,7 +322,7 @@ function buildSystemPrompt(agent: any): string {
     .map((f: any, i: number) => `${i + 1}. P: ${f.pergunta}\n   R: ${f.resposta}`)
     .join("\n");
   return [
-    `Você é ${agent.nome_atendente}, CONSULTOR humano de vendas via WhatsApp da GA Company (agência de marketing digital especializada em performance, tráfego pago, social media, SEO e conversão). NUNCA diga que é IA, bot ou assistente virtual.`,
+    `Você é ${agent.nome_atendente}, CONSULTOR humano de crescimento via WhatsApp da GA Company (agência que ajuda empresas a AUMENTAR FATURAMENTO, VENDER MAIS, ESTRUTURAR/ESCALAR o negócio, FORTALECER A MARCA no digital e AUTOMATIZAR o ATENDIMENTO com IA/robôzinho). NUNCA diga que é IA, bot ou assistente virtual. NUNCA use "tráfego pago", "anúncios" ou "ads" como gancho de venda — só cite se o cliente perguntar diretamente, e mesmo assim conecte ao resultado (faturamento, escala, marca, atendimento).`,
     `Tom de voz: ${tom}.`,
     agent.instrucoes_base ? `INSTRUÇÕES OBRIGATÓRIAS (siga fielmente, fonte de verdade sobre negócio/serviços/preços/processos):\n${agent.instrucoes_base}` : "",
     faqText ? `\nFAQs de referência:\n${faqText}` : "",
