@@ -148,10 +148,15 @@ async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtende
   const prompt =
     `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\n` +
     `Gere uma abertura natural de WhatsApp para ${nome} do segmento ${nicho}.\n` +
-    `Use este motivo como base: ${motivo}.\n` +
+    `Use este motivo como base (contexto interno, NÃO repita literal): ${motivo}.\n` +
     `Quebre em 3 a 4 mensagens curtas de 1-2 linhas cada, separadas por |||.\n` +
-    `Seja direto, humano, sem parecer script. Termine com CTA para call de 15 min.\n` +
-    `Retorne APENAS as mensagens separadas por |||. Sem explicação e SEM placeholders entre colchetes/chaves.`;
+    `FOCO OBRIGATÓRIO (escolha 1 ou 2 ângulos que façam sentido pro nicho — NUNCA use "tráfego pago", "anúncios" ou "ads" como gancho principal):\n` +
+    `  • aumentar faturamento / vender mais\n` +
+    `  • estruturar e escalar a empresa\n` +
+    `  • fortalecer a marca no digital / presença online\n` +
+    `  • tirar a dor do atendimento com automação (robôzinho / IA respondendo cliente 24/7)\n` +
+    `Fale como consultor de crescimento, não como vendedor de anúncio. Seja direto, humano, sem parecer script. Termine com CTA para call de 15 min.\n` +
+    `Retorne APENAS as mensagens separadas por |||. Sem explicação, SEM placeholders entre colchetes/chaves e SEM a palavra "tráfego".`;
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -175,16 +180,17 @@ async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtende
   const eu = nomeAtendente?.trim() ? `Sou ${nomeAtendente.trim()} da GA Company` : `Aqui é da GA Company`;
   return [
     `Oi ${nome}! Tudo bem?`,
-    `${eu} — agência especializada em crescimento pra ${nicho}.`,
-    `${motivo.slice(0, 180)}`,
-    `Topa uma call rápida de 15 minutos pra te mostrar como podemos ajudar?`,
+    `${eu} — a gente ajuda ${nicho} a vender mais, estruturar o digital e escalar sem depender só do boca a boca.`,
+    `Também tiramos a dor do atendimento com um robôzinho que responde cliente na hora, 24/7.`,
+    `Topa uma call rápida de 15 min pra eu te mostrar como aplicaria isso no seu negócio?`,
   ].join("|||");
 }
 
 async function aiFollowup(nome: string, nicho: string, motivo: string, isFinal: boolean, nomeAtendente: string | null): Promise<string> {
+  const foco = `Foque em aumentar faturamento, escalar/estruturar a empresa, fortalecer marca no digital ou tirar a dor do atendimento com automação. NÃO fale de "tráfego pago" nem "anúncios" como gancho.`;
   const prompt = isFinal
-    ? `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\nEscreva um follow-up FINAL e gentil de WhatsApp para ${nome} (${nicho}) que não respondeu. Tom leve, sem cobrança, encerrando o contato mas deixando porta aberta. Motivo original: ${motivo}. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens, sem placeholders entre colchetes/chaves.`
-    : `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\nEscreva um follow-up curto e simpático de WhatsApp para ${nome} (${nicho}) que não respondeu. Motivo original: ${motivo}. Reforce brevemente o valor e proponha de novo a call de 15 min. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens, sem placeholders entre colchetes/chaves.`;
+    ? `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\nEscreva um follow-up FINAL e gentil de WhatsApp para ${nome} (${nicho}) que não respondeu. Tom leve, sem cobrança, encerrando o contato mas deixando porta aberta. ${foco} Contexto interno (não repita literal): ${motivo}. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens, sem placeholders e sem a palavra "tráfego".`
+    : `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\nEscreva um follow-up curto e simpático de WhatsApp para ${nome} (${nicho}) que não respondeu. ${foco} Contexto interno (não repita literal): ${motivo}. Reforce brevemente o valor (faturamento / escala / marca / atendimento automatizado) e proponha de novo a call de 15 min. Quebre em 2 mensagens curtas com |||. Retorne só as mensagens, sem placeholders e sem a palavra "tráfego".`;
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
