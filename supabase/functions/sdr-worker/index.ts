@@ -43,31 +43,45 @@ function splitMessage(text: string): string[] {
 
 const SPLIT_DELAY_MS = 8000;
 
-async function evoSend(instance: string, number: string, text: string): Promise<boolean> {
-  const r = await fetch(`${EVO_URL}/message/sendText/${instance}`, {
-    method: "POST",
-    headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ number, text }),
-  });
-  if (!r.ok) {
+type SendResult = { ok: boolean; invalidNumber: boolean };
+
+async function evoSend(instance: string, number: string, text: string): Promise<SendResult> {
+  try {
+    const r = await fetch(`${EVO_URL}/message/sendText/${instance}`, {
+      method: "POST",
+      headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ number, text }),
+    });
+    if (r.ok) return { ok: true, invalidNumber: false };
     const t = await r.text();
     console.error("evoSend fail", instance, number, r.status, t.slice(0, 300));
-    return false;
+    // Evolution retorna 400 com "exists":false quando o número não tem WhatsApp
+    const invalid = r.status === 400 && /"exists"\s*:\s*false/i.test(t);
+    return { ok: false, invalidNumber: invalid };
+  } catch (e) {
+    console.error("evoSend exception", instance, number, e);
+    return { ok: false, invalidNumber: false };
   }
-  return true;
 }
 
-async function sendInBubbles(instance: string, number: string, text: string): Promise<{ sent: string[]; failed: string[] }> {
+async function sendInBubbles(instance: string, number: string, text: string): Promise<{ sent: string[]; failed: string[]; invalidNumber: boolean }> {
   const parts = splitMessage(text);
   const sent: string[] = [];
   const failed: string[] = [];
+  let invalidNumber = false;
   for (let i = 0; i < parts.length; i++) {
-    const ok = await evoSend(instance, number, parts[i]);
-    if (ok) sent.push(parts[i]); else failed.push(parts[i]);
+    const res = await evoSend(instance, number, parts[i]);
+    if (res.ok) {
+      sent.push(parts[i]);
+    } else {
+      failed.push(parts[i]);
+      if (res.invalidNumber) { invalidNumber = true; break; } // não adianta insistir
+    }
     if (i < parts.length - 1) await sleep(SPLIT_DELAY_MS);
   }
-  return { sent, failed };
+  return { sent, failed, invalidNumber };
 }
+
 
 async function logAssistant(lead: any, instance: string, parts: string[], failed: string[]) {
   const rows = [
