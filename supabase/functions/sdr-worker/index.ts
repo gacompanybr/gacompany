@@ -319,8 +319,10 @@ async function processCampaign(campaign: any) {
     .select("id")
     .eq("campaign_id", campaign.id)
     .eq("status", "pendente")
+    .or(`cooldown_ate.is.null,cooldown_ate.lte.${nowIso}`)
     .order("created_at", { ascending: true })
     .limit(ratePerMinute);
+
 
   let dispatched = 0;
   let invalidos = 0;
