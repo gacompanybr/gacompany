@@ -23,22 +23,39 @@ function json(d: unknown, s = 200) {
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
+const MAX_BUBBLES = 4;
+
 function splitMessage(text: string): string[] {
   const raw = (text ?? "").trim();
   if (!raw) return [];
-  if (raw.includes("|||")) return raw.split("|||").map((s) => s.trim()).filter(Boolean);
-  const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
-  if (byParagraph.length > 1) return byParagraph;
-  if (raw.length <= 250 && raw.split(/\n/).length <= 3) return [raw];
-  const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
-  const chunks: string[] = [];
-  let cur = "";
-  for (const s of sentences) {
-    if ((cur + s).length > 200 && cur.length > 0) { chunks.push(cur.trim()); cur = s; }
-    else cur += s;
+  let parts: string[];
+  if (raw.includes("|||")) {
+    parts = raw.split("|||").map((s) => s.trim()).filter(Boolean);
+  } else {
+    const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+    if (byParagraph.length > 1) {
+      parts = byParagraph;
+    } else if (raw.length <= 250 && raw.split(/\n/).length <= 3) {
+      parts = [raw];
+    } else {
+      const sentences = raw.match(/[^.!?\n]+[.!?\n]+/g) ?? [raw];
+      const chunks: string[] = [];
+      let cur = "";
+      for (const s of sentences) {
+        if ((cur + s).length > 200 && cur.length > 0) { chunks.push(cur.trim()); cur = s; }
+        else cur += s;
+      }
+      if (cur.trim()) chunks.push(cur.trim());
+      parts = chunks.filter(Boolean);
+    }
   }
-  if (cur.trim()) chunks.push(cur.trim());
-  return chunks.filter(Boolean);
+  // Nunca mandar mais que MAX_BUBBLES — se sobrar, junta o resto na última bolha
+  if (parts.length > MAX_BUBBLES) {
+    const head = parts.slice(0, MAX_BUBBLES - 1);
+    const tail = parts.slice(MAX_BUBBLES - 1).join(" ");
+    parts = [...head, tail];
+  }
+  return parts;
 }
 
 const SPLIT_DELAY_MS = 8000;
@@ -337,6 +354,28 @@ async function processCampaign(campaign: any) {
       .select("*");
 
     for (const lead of reservados ?? []) {
+      // Dedupe por telefone: se já existe QUALQUER outro lead com esse número
+      // no mesmo portfólio que já foi contatado (enviado/enviando/respondeu/sem_resposta),
+      // marca este como duplicado e pula. Isso evita 4-8 aberturas pro mesmo contato
+      // quando a planilha tem números repetidos ou campanhas se sobrepõem.
+      const telefoneLimpo = String(lead.telefone).replace(/\D/g, "");
+      const { data: jaContatado } = await admin
+        .from("sdr_leads")
+        .select("id")
+        .eq("portfolio_id", lead.portfolio_id)
+        .eq("telefone", telefoneLimpo)
+        .neq("id", lead.id)
+        .in("status", ["enviado", "enviando", "respondeu", "sem_resposta"])
+        .limit(1);
+      if (jaContatado && jaContatado.length > 0) {
+        await admin.from("sdr_leads").update({
+          status: "invalido",
+          ultima_mensagem_em: nowIso,
+        }).eq("id", lead.id);
+        console.log("lead duplicado (telefone já contatado), pulando", lead.id, telefoneLimpo);
+        continue;
+      }
+
       const nameResolved = await resolveName(instance, lead);
       const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
       await sleep(rand(8000, 16000));
