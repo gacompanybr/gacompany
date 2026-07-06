@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
+        "operation": "insert",
         "dataTableId": {
           "__rl": true,
           "value": "__DATA_TABLE_ID__",
@@ -24,18 +24,9 @@
           "cachedResultName": "JOB_DATA_TABLE",
           "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
         },
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "offerlink",
-              "keyValue": "={{ $json.offerlink }}"
-            }
-          ]
-        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "sending": false,
             "price": "={{ $json.price }}",
             "priceoriginal": "={{ $json.priceoriginal }}",
             "pricediscountrate": "={{ $json.pricediscountrate }}",
@@ -48,7 +39,8 @@
             "imageUrl": "={{ $json.imageURL }}",
             "offerlink": "={{ $json.offerlink }}",
             "link_compra": "={{ $json.link_compra }}",
-            "categoria": "={{ $json.categoria }}"
+            "categoria": "={{ $json.categoria }}",
+            "sending": false
           },
           "matchingColumns": [],
           "schema": [
