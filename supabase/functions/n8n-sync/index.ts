@@ -321,8 +321,12 @@ function normalizeProductName(value: unknown): string {
 
 function extractProductIdFromRow(row: any): string {
   const joined = [row?.link_compra, row?.offerlink, row?.imageUrl].map((v) => String(v ?? "")).join(" ");
-  const m = joined.match(/\b(MLB(?:U)?\d{6,})\b/i) || joined.match(/\/p\/(MLB\d{6,})/i);
-  return m?.[1]?.toUpperCase() ?? "";
+  const m =
+    joined.match(/\b(MLB-?U?\d{6,})\b/i) ||
+    joined.match(/\/p\/(MLBU?\d{6,})/i) ||
+    joined.match(/\/up\/(MLBU?\d{6,})/i) ||
+    joined.match(/(?:item_id[:=]|item_id%3A|wid=)(MLB-?\d{6,})/i);
+  return m?.[1]?.replace("-", "").toUpperCase() ?? "";
 }
 
 function productHistoryKey(row: any): string {
