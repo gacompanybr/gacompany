@@ -156,31 +156,52 @@ async function fetchExistingRows() {
     const PAGE = 200;
     let skip = 0;
     for (let page = 0; page < 500; page++) {
-      let resp;
-      try {
-        resp = await http({
-          method: 'GET',
-          url: _BASE + '/data-tables/' + _TABLE + '/rows',
-          qs: page === 0 ? { limit: PAGE } : { limit: PAGE, offset: skip, skip, take: PAGE },
-          headers: { 'X-N8N-API-KEY': _KEY },
-          json: true,
-        });
-      } catch (_) { break; }
-      const batch = Array.isArray(resp?.data) ? resp.data
-        : Array.isArray(resp?.data?.rows) ? resp.data.rows
-        : Array.isArray(resp?.rows) ? resp.rows
-        : Array.isArray(resp) ? resp
-        : [];
-      if (!batch.length) break;
-      let added = 0;
-      for (const r of batch) {
+      const candidates = page === 0
+        ? [{ take: PAGE }, { limit: PAGE }]
+        : [
+            { take: PAGE, skip },
+            { skip, take: PAGE },
+            { limit: PAGE, offset: skip },
+            { offset: skip, limit: PAGE },
+            { limit: PAGE, skip },
+            { page: page + 1, limit: PAGE },
+          ];
+      let chosenBatch = [];
+      let chosenAdded = 0;
+      for (const qs of candidates) {
+        let resp;
+        try {
+          resp = await http({
+            method: 'GET',
+            url: _BASE + '/data-tables/' + _TABLE + '/rows',
+            qs,
+            headers: { 'X-N8N-API-KEY': _KEY },
+            json: true,
+          });
+        } catch (_) { continue; }
+        const batch = Array.isArray(resp?.data) ? resp.data
+          : Array.isArray(resp?.data?.rows) ? resp.data.rows
+          : Array.isArray(resp?.rows) ? resp.rows
+          : Array.isArray(resp) ? resp
+          : [];
+        if (!batch.length) continue;
+        let added = 0;
+        for (const r of batch) {
+          const k = String(r?.id ?? JSON.stringify(r?.data ?? r)).slice(0, 500);
+          if (!seen.has(k)) added++;
+        }
+        if (page === 0 || added > 0) { chosenBatch = batch; chosenAdded = added; break; }
+      }
+      if (!chosenBatch.length || (page > 0 && chosenAdded === 0)) break;
+      let addedNow = 0;
+      for (const r of chosenBatch) {
         const k = String(r?.id ?? JSON.stringify(r?.data ?? r)).slice(0, 500);
         if (seen.has(k)) continue;
         seen.add(k);
         rows.push(r);
-        added++;
+        addedNow++;
       }
-      if (!added || batch.length < PAGE) break;
+      if (!addedNow || chosenBatch.length < PAGE) break;
       skip += PAGE;
     }
   }
