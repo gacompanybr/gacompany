@@ -453,9 +453,9 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
   return false;
 }
 
-// Delay aleatório entre 6 e 10 segundos para parecer humano
+// Delay aleatório entre 2.5 e 4.5 segundos para parecer humano sem demorar demais
 function randomSplitDelayMs(): number {
-  return 6000 + Math.floor(Math.random() * 4001);
+  return 2500 + Math.floor(Math.random() * 2001);
 }
 
 async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
