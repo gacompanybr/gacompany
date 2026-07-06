@@ -2371,24 +2371,41 @@ Deno.serve(async (req) => {
       const PAGE = 200;
       let skip = 0;
       for (let page = 0; page < 500; page++) {
-        let resp: any = null;
-        try {
-          resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=${PAGE}&offset=${skip}&skip=${skip}&take=${PAGE}`);
-        } catch (_) {
-          if (page === 0) resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=${PAGE}`);
-          else break;
+        const candidates = page === 0
+          ? [`take=${PAGE}`, `limit=${PAGE}`]
+          : [
+              `take=${PAGE}&skip=${skip}`,
+              `skip=${skip}&take=${PAGE}`,
+              `limit=${PAGE}&offset=${skip}`,
+              `offset=${skip}&limit=${PAGE}`,
+              `limit=${PAGE}&skip=${skip}`,
+              `page=${page + 1}&limit=${PAGE}`,
+            ];
+        let chosenBatch: any[] = [];
+        let chosenAdded = 0;
+        for (const qs of candidates) {
+          let resp: any = null;
+          try { resp = await n8nFetch(`/data-tables/${finalTableId}/rows?${qs}`); }
+          catch (_) { continue; }
+          const batch: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+          if (!batch.length) continue;
+          let added = 0;
+          for (const r of batch) {
+            const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
+            if (!seenPageRows.has(k)) added++;
+          }
+          if (page === 0 || added > 0) { chosenBatch = batch; chosenAdded = added; break; }
         }
-        const batch: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
-        if (!batch.length) break;
-        let added = 0;
-        for (const r of batch) {
+        if (!chosenBatch.length || (page > 0 && chosenAdded === 0)) break;
+        let addedNow = 0;
+        for (const r of chosenBatch) {
           const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
           if (seenPageRows.has(k)) continue;
           seenPageRows.add(k);
           rows.push(r);
-          added++;
+          addedNow++;
         }
-        if (!added || batch.length < PAGE) break;
+        if (!addedNow || chosenBatch.length < PAGE) break;
         skip += PAGE;
       }
 
