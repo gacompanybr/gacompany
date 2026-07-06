@@ -42,6 +42,21 @@ function findNode(wf: AnyWorkflow, name: string): AnyNode | undefined {
   return wf.nodes.find((n: AnyNode) => n.name === name);
 }
 
+function replaceStringsDeep(value: any, replacements: Record<string, string>): any {
+  if (typeof value === "string") {
+    let out = value;
+    for (const [from, to] of Object.entries(replacements)) {
+      out = out.split(from).join(to);
+    }
+    return out;
+  }
+  if (Array.isArray(value)) return value.map((v) => replaceStringsDeep(v, replacements));
+  if (value && typeof value === "object") {
+    for (const key of Object.keys(value)) value[key] = replaceStringsDeep(value[key], replacements);
+  }
+  return value;
+}
+
 function buildCron(job: any): string | null {
   const cfg = job.config ?? {};
   if (typeof cfg.agendamento_cron === "string" && cfg.agendamento_cron.trim()) {
@@ -78,6 +93,15 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
 
   const wf = cloneTemplate();
   wf.name = workflowName;
+
+  // O template original carregava um ID fixo de data table dentro de alguns
+  // campos texto/JS (ex.: o node "Dedupe Precoce por ID"). Isso fazia o dedupe
+  // consultar a tabela de outro job e deixava duplicados entrarem na tabela real
+  // do cliente. Troca qualquer ocorrência pelo ID dinâmico do job antes de salvar.
+  replaceStringsDeep(wf, {
+    "__DATA_TABLE_ID__": tableId,
+    "HHVRHOgRDCza0NBQ": tableId,
+  });
 
   // --- replace tokens no CONFIG ML ---
   const configNode = findNode(wf, "CONFIG ML");
