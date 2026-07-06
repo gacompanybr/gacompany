@@ -57,6 +57,168 @@ function replaceStringsDeep(value: any, replacements: Record<string, string>): a
   return value;
 }
 
+function buildDedupePrecoceJs(tableId: string): string {
+  const n8nBase = (Deno.env.get("N8N_BASE_URL") ?? "https://n8n.gacompany.online").replace(/\/$/, "");
+  const n8nKey = Deno.env.get("N8N_API_KEY") ?? "";
+  return `// ============================================================
+// Nó: "Dedupe Precoce por ID"
+// Bloqueia produto já salvo ANTES de gerar link afiliado/inserir.
+// Usa ID ML, link real e fallback nome+preço para cobrir CSV/API flat ou nested.
+// ============================================================
+
+const _BASE = ${JSON.stringify(n8nBase)};
+const _KEY = ${JSON.stringify(n8nKey)};
+const _TABLE = ${JSON.stringify(tableId)};
+
+function decodeText(v) {
+  let s = String(v ?? '');
+  for (let i = 0; i < 2; i++) { try { s = decodeURIComponent(s); } catch (_) { break; } }
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/\\u002F/gi, '/')
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\\//g, '/');
+}
+function normText(v) {
+  return decodeText(v)
+    .toLowerCase()
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\\s+/g, ' ');
+}
+function cleanLink(v) {
+  let s = decodeText(v).trim();
+  const urlM = s.match(/[?&](?:url|go)=([^&]+)/i);
+  if (urlM) { try { s = decodeURIComponent(urlM[1]); } catch (_) {} }
+  const clickM = s.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s"']+)/i);
+  if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch (_) { s = clickM[1]; } }
+  return s.split('#')[0].split('?')[0].replace(/\/$/, '');
+}
+function extractId(...values) {
+  for (const value of values) {
+    const s = decodeText(value);
+    const variants = [s];
+    try { variants.push(decodeURIComponent(s)); } catch (_) {}
+    for (const text of variants) {
+      const m =
+        text.match(/\\/p\\/(MLBU?\\d{6,})/i) ||
+        text.match(/\\/up\\/(MLBU?\\d{6,})/i) ||
+        text.match(/(?:item_id[:=]|item_id%3A|wid=)(MLB-?\\d{6,})/i) ||
+        text.match(/\\b(MLB-?U?\\d{6,})\\b/i);
+      if (m && m[1]) return m[1].replace('-', '').toUpperCase();
+    }
+  }
+  return '';
+}
+function flatRow(row) {
+  const r = row && row.json ? row.json : row;
+  if (r && r.data && typeof r.data === 'object' && !Array.isArray(r.data)) return { ...r.data, _row_id: r.id };
+  return r || {};
+}
+function linkOf(j) {
+  return j.link_compra || j.link_compra_original || j.link_produtos || j.link || j.url || '';
+}
+function offerOf(j) {
+  return j.offerlink || j.link_produtos_afiliado || j.short_url || '';
+}
+function titleOf(j) {
+  return j.productname || j.nome_produtos || j.nome || j.title || j.name || j['Nomes Produtos'] || j["['Nomes Produtos']"] || '';
+}
+function priceOf(j) {
+  const raw = j.price ?? j.preco ?? j.valor ?? j.price_new ?? '';
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  const m = String(raw).match(/([0-9]{1,3}(?:\\.[0-9]{3})*(?:,[0-9]{1,2})?|[0-9]+(?:\\.[0-9]+)?)/);
+  if (!m) return 0;
+  const n = Number(m[1].replace(/\\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+function productKeys(j) {
+  const keys = [];
+  const link = cleanLink(linkOf(j));
+  const offer = cleanLink(offerOf(j));
+  const id = extractId(link, offer, j.imageUrl, j.imageURL, j.ID, j.product_id, j.productId, j.ml_id);
+  if (id) keys.push('id:' + id);
+  if (link) keys.push('link:' + link.toLowerCase());
+  if (offer) keys.push('offer:' + offer.toLowerCase());
+  const title = normText(titleOf(j));
+  const price = priceOf(j);
+  if (title && price > 0) keys.push('nameprice:' + title + '|' + price.toFixed(2));
+  return [...new Set(keys)];
+}
+
+async function fetchExistingRows() {
+  const rows = [];
+  if (_BASE && _KEY && _TABLE) {
+    const http = this.helpers.httpRequest;
+    const seen = new Set();
+    const PAGE = 200;
+    let skip = 0;
+    for (let page = 0; page < 500; page++) {
+      let resp;
+      try {
+        resp = await http({
+          method: 'GET',
+          url: _BASE + '/data-tables/' + _TABLE + '/rows',
+          qs: page === 0 ? { limit: PAGE } : { limit: PAGE, offset: skip, skip, take: PAGE },
+          headers: { 'X-N8N-API-KEY': _KEY },
+          json: true,
+        });
+      } catch (_) { break; }
+      const batch = Array.isArray(resp?.data) ? resp.data
+        : Array.isArray(resp?.data?.rows) ? resp.data.rows
+        : Array.isArray(resp?.rows) ? resp.rows
+        : Array.isArray(resp) ? resp
+        : [];
+      if (!batch.length) break;
+      let added = 0;
+      for (const r of batch) {
+        const k = String(r?.id ?? JSON.stringify(r?.data ?? r)).slice(0, 500);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        rows.push(r);
+        added++;
+      }
+      if (!added || batch.length < PAGE) break;
+      skip += PAGE;
+    }
+  }
+  if (!rows.length) {
+    try { return $('Get Existing IDs').all().map(r => r.json || r); } catch (_) { return []; }
+  }
+  return rows;
+}
+
+const existingRows = await fetchExistingRows.call(this);
+const existingKeys = new Set();
+for (const row of existingRows) {
+  for (const key of productKeys(flatRow(row))) existingKeys.add(key);
+}
+
+const seenThisRun = new Set();
+const out = [];
+let semChave = 0, dropExisting = 0, dropDupRun = 0;
+
+for (const it of $input.all()) {
+  const keys = productKeys(it.json || {});
+  if (!keys.length) { semChave++; out.push(it); continue; }
+  if (keys.some(k => existingKeys.has(k))) { dropExisting++; continue; }
+  if (keys.some(k => seenThisRun.has(k))) { dropDupRun++; continue; }
+  for (const k of keys) seenThisRun.add(k);
+  out.push(it);
+}
+
+console.log('[Dedupe Precoce] entrada=' + $input.all().length +
+  ' | na_tabela=' + dropExisting +
+  ' | dup_rodada=' + dropDupRun +
+  ' | sem_chave=' + semChave +
+  ' | novos=' + out.length +
+  ' | chaves_existentes=' + existingKeys.size +
+  ' | table=' + _TABLE);
+
+return out;`;
+}
+
 function buildCron(job: any): string | null {
   const cfg = job.config ?? {};
   if (typeof cfg.agendamento_cron === "string" && cfg.agendamento_cron.trim()) {
@@ -102,6 +264,11 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     "__DATA_TABLE_ID__": tableId,
     "HHVRHOgRDCza0NBQ": tableId,
   });
+
+  const dedupeNode = findNode(wf, "Dedupe Precoce por ID");
+  if (dedupeNode?.parameters) {
+    dedupeNode.parameters.jsCode = buildDedupePrecoceJs(tableId);
+  }
 
   // --- replace tokens no CONFIG ML ---
   const configNode = findNode(wf, "CONFIG ML");
