@@ -2487,6 +2487,43 @@ Deno.serve(async (req) => {
       return j({ ok: true, tableId: finalTableId, checked: rows.length, duplicates: duplicates.length, burned, seeded });
     }
 
+    if (action === "burn_datatable_rows_by_ids") {
+      const tableId: string | null = body?.tableId ?? null;
+      const jobId: string | null = body?.jobId ?? null;
+      const rowIds: Array<string | number> = Array.isArray(body?.rowIds) ? body.rowIds : [];
+      let finalTableId = tableId;
+      if (!finalTableId && jobId) {
+        const { data, error } = await admin
+          .from("scrapper_jobs")
+          .select("n8n_datatable_id")
+          .eq("id", jobId)
+          .single();
+        if (error) throw error;
+        finalTableId = data?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId ou jobId requerido" }, 400);
+      if (!rowIds.length) return j({ error: "rowIds requerido" }, 400);
+
+      const nowIso = new Date().toISOString();
+      let burned = 0;
+      const errors: any[] = [];
+      for (const rowId of rowIds) {
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: rowId }] },
+              data: { sending: true, sent_at: nowIso },
+            }),
+          });
+          burned++;
+        } catch (e) {
+          errors.push({ rowId, error: (e as Error).message });
+        }
+      }
+      return j({ ok: errors.length === 0, tableId: finalTableId, requested: rowIds.length, burned, errors });
+    }
+
     if (action === "repair_sent_product_history") {
       const tableId: string | null = body?.tableId ?? null;
       const roboId: string | null = body?.roboId ?? null;
