@@ -326,6 +326,27 @@ async function processCampaign(campaign: any) {
 
 
   // === Aberturas ===
+  // Espaçamento uniforme: distribui rate_per_hour ao longo da hora inteira.
+  // Ex.: 4/h → 1 abertura a cada 15 min; 20/h → 1 a cada 3 min.
+  // Isso evita rajada (mandar tudo no início) e reduz risco de ban.
+  const intervalMs = Math.floor(3_600_000 / Math.max(1, campaign.rate_per_hour));
+
+  // Última abertura dessa campanha (pega o maior primeira_mensagem_em)
+  const { data: ultimaAbertura } = await admin
+    .from("sdr_leads")
+    .select("primeira_mensagem_em")
+    .eq("campaign_id", campaign.id)
+    .not("primeira_mensagem_em", "is", null)
+    .order("primeira_mensagem_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const lastMs = ultimaAbertura?.primeira_mensagem_em
+    ? new Date(ultimaAbertura.primeira_mensagem_em).getTime()
+    : 0;
+  const elapsed = now.getTime() - lastMs;
+  const podeDisparar = lastMs === 0 || elapsed >= intervalMs;
+
   // 0) Devolve para 'pendente' qualquer reserva presa (>10min em 'enviando')
   const stuckCutoff = new Date(now.getTime() - 10 * 60_000).toISOString();
   await admin
@@ -335,16 +356,19 @@ async function processCampaign(campaign: any) {
     .eq("status", "enviando")
     .lte("ultima_mensagem_em", stuckCutoff);
 
-  // 1) Seleciona candidatos e RESERVA atomicamente (pendente → enviando)
-  //    Isso impede que múltiplos ticks do cron peguem o mesmo lead.
-  const { data: candidatos } = await admin
-    .from("sdr_leads")
-    .select("id")
-    .eq("campaign_id", campaign.id)
-    .eq("status", "pendente")
-    .or(`cooldown_ate.is.null,cooldown_ate.lte.${nowIso}`)
-    .order("created_at", { ascending: true })
-    .limit(ratePerMinute);
+  // 1) Seleciona apenas 1 candidato por tick (respeitando o intervalo acima).
+  const { data: candidatos } = podeDisparar
+    ? await admin
+        .from("sdr_leads")
+        .select("id")
+        .eq("campaign_id", campaign.id)
+        .eq("status", "pendente")
+        .or(`cooldown_ate.is.null,cooldown_ate.lte.${nowIso}`)
+        .order("created_at", { ascending: true })
+        .limit(1)
+    : { data: [] as any[] };
+
+
 
 
   let dispatched = 0;
