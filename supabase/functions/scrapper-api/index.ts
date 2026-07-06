@@ -420,6 +420,71 @@ Deno.serve(async (req) => {
         return json({ sent: false, key });
       }
 
+      if (bodyAction === "claim_scrapper_products") {
+        const jobId = body.scrapper_job_id;
+        if (!jobId) return json({ error: "scrapper_job_id obrigatório" }, 400);
+        const products = Array.isArray(body.products) ? body.products : [];
+        if (!products.length) return json({ allowed: [], duplicates: [] });
+
+        const { data: job, error: jobErr } = await admin
+          .from("scrapper_jobs")
+          .select("id, n8n_datatable_id")
+          .eq("id", jobId)
+          .maybeSingle();
+        if (jobErr) return json({ error: jobErr.message }, 500);
+        if (!job) return json({ error: "scrapper job não encontrado" }, 404);
+
+        const allowed: any[] = [];
+        const duplicates: any[] = [];
+        const nowIso = new Date().toISOString();
+
+        for (const product of products) {
+          const keys = Array.isArray(product?.keys)
+            ? [...new Set(product.keys.map((k: unknown) => String(k ?? "").trim()).filter(Boolean))]
+            : [];
+          if (!keys.length) {
+            allowed.push({ index: product?.index, keys: [] });
+            continue;
+          }
+
+          const { data: existing, error: existingErr } = await admin
+            .from("scrapper_product_history")
+            .select("id, product_key, productname, first_seen_at")
+            .eq("scrapper_job_id", jobId)
+            .in("product_key", keys)
+            .limit(1);
+          if (existingErr) return json({ error: existingErr.message }, 500);
+          if ((existing ?? []).length > 0) {
+            duplicates.push({ index: product?.index, keys, match: existing![0] });
+            await admin
+              .from("scrapper_product_history")
+              .update({ last_seen_at: nowIso })
+              .eq("id", existing![0].id);
+            continue;
+          }
+
+          const rows = keys.map((key: string) => ({
+            scrapper_job_id: jobId,
+            table_id: body.table_id ?? job.n8n_datatable_id ?? null,
+            product_key: key,
+            productname: product?.productname ?? null,
+            offerlink: product?.offerlink ?? null,
+            link_compra: product?.link_compra ?? null,
+            price: Number.isFinite(Number(product?.price)) ? Number(product.price) : null,
+            first_seen_at: nowIso,
+            last_seen_at: nowIso,
+          }));
+
+          const { error: insertErr } = await admin
+            .from("scrapper_product_history")
+            .upsert(rows, { onConflict: "scrapper_job_id,product_key", ignoreDuplicates: true });
+          if (insertErr) return json({ error: insertErr.message }, 500);
+          allowed.push({ index: product?.index, keys });
+        }
+
+        return json({ allowed, duplicates });
+      }
+
       if (bodyAction === "claim_sent_product") {
         const roboId = body.robo_id;
         if (!roboId) return json({ error: "robo_id obrigatório" }, 400);

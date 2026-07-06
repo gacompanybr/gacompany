@@ -319,7 +319,20 @@ function normalizeProductName(value: unknown): string {
     .replace(/\s+/g, " ");
 }
 
+function flatDataTableRow(row: any): any {
+  if (row && row.data && typeof row.data === "object" && !Array.isArray(row.data)) {
+    return { ...row.data, _row_id: row.id };
+  }
+  return row ?? {};
+}
+
+function dataTableRowId(row: any): any {
+  const flat = flatDataTableRow(row);
+  return flat?._row_id ?? flat?.id ?? row?.id;
+}
+
 function extractProductIdFromRow(row: any): string {
+  row = flatDataTableRow(row);
   const joined = [row?.link_compra, row?.offerlink, row?.imageUrl].map((v) => String(v ?? "")).join(" ");
   const m =
     joined.match(/\b(MLB-?U?\d{6,})\b/i) ||
@@ -330,6 +343,7 @@ function extractProductIdFromRow(row: any): string {
 }
 
 function productHistoryKey(row: any): string {
+  row = flatDataTableRow(row);
   const mlId = extractProductIdFromRow(row);
   if (mlId) return `ml:${mlId}`;
   return `name:${normalizeProductName(row?.productname).slice(0, 160)}`;
@@ -347,6 +361,8 @@ function productTokens(value: unknown): string[] {
 }
 
 function rowsLookDuplicated(a: any, b: any): boolean {
+  a = flatDataTableRow(a);
+  b = flatDataTableRow(b);
   const ida = extractProductIdFromRow(a);
   const idb = extractProductIdFromRow(b);
   if (ida && idb && ida === idb) return true;
@@ -2369,8 +2385,23 @@ Deno.serve(async (req) => {
       const rows: any[] = [];
       const seenPageRows = new Set<string>();
       const PAGE = 200;
+      for (const qs of [`take=10000`, `limit=10000`]) {
+        try {
+          const resp: any = await n8nFetch(`/data-tables/${finalTableId}/rows?${qs}`);
+          const batch: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp?.data?.rows) ? resp.data.rows : Array.isArray(resp) ? resp : [];
+          if (batch.length > PAGE) {
+            for (const r of batch) {
+              const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
+              if (seenPageRows.has(k)) continue;
+              seenPageRows.add(k);
+              rows.push(r);
+            }
+            break;
+          }
+        } catch (_) {}
+      }
       let skip = 0;
-      for (let page = 0; page < 500; page++) {
+      for (let page = rows.length ? 500 : 0; page < 500; page++) {
         const candidates = page === 0
           ? [`take=${PAGE}`, `limit=${PAGE}`]
           : [
@@ -2409,8 +2440,9 @@ Deno.serve(async (req) => {
         skip += PAGE;
       }
 
-      const normOffer = (r: any) => String(r?.offerlink ?? "").trim().toLowerCase().replace(/\/$/, "");
+      const normOffer = (r: any) => String(flatDataTableRow(r)?.offerlink ?? "").trim().toLowerCase().replace(/\/$/, "");
       const namePriceKey = (r: any) => {
+        r = flatDataTableRow(r);
         const name = normalizeProductName(r?.productname);
         const price = Number(r?.price);
         return name && Number.isFinite(price) && price > 0 ? `np:${name}|${price.toFixed(2)}` : "";
@@ -2425,13 +2457,18 @@ Deno.serve(async (req) => {
         if (np) keys.add(np);
         return [...keys];
       };
-      const isRealSent = (r: any) => r?.sending === true || (String(r?.sent_at ?? "").trim() && !String(r?.sent_at ?? "").startsWith("__CLAIM__:"));
+      const isRealSent = (r: any) => {
+        const flat = flatDataTableRow(r);
+        return flat?.sending === true || String(flat?.sending).toLowerCase() === "true" || (String(flat?.sent_at ?? "").trim() && !String(flat?.sent_at ?? "").startsWith("__CLAIM__:"));
+      };
       const sorted = rows.slice().sort((a, b) => {
         const sa = isRealSent(a) ? 0 : 1;
         const sb = isRealSent(b) ? 0 : 1;
         if (sa !== sb) return sa - sb;
-        const ta = Date.parse(a?.createdAt || a?.sent_at || "") || Number(a?.id) || 0;
-        const tb = Date.parse(b?.createdAt || b?.sent_at || "") || Number(b?.id) || 0;
+        const fa = flatDataTableRow(a);
+        const fb = flatDataTableRow(b);
+        const ta = Date.parse(fa?.createdAt || fa?.sent_at || "") || Number(dataTableRowId(a)) || 0;
+        const tb = Date.parse(fb?.createdAt || fb?.sent_at || "") || Number(dataTableRowId(b)) || 0;
         return ta - tb;
       });
 
@@ -2452,12 +2489,14 @@ Deno.serve(async (req) => {
       let burned = 0;
       let seeded = 0;
       for (const r of duplicates) {
+        const flat = flatDataTableRow(r);
+        const rowId = dataTableRowId(r);
         if (!isRealSent(r)) {
           try {
             await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
               method: "PATCH",
               body: JSON.stringify({
-                filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+                filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: rowId }] },
                 data: { sending: true, sent_at: nowIso },
               }),
             });
@@ -2471,13 +2510,13 @@ Deno.serve(async (req) => {
               portfolio_id: robo.portfolio_id,
               robo_id: robo.id,
               table_id: finalTableId,
-              row_id: r.id == null ? null : String(r.id),
+              row_id: rowId == null ? null : String(rowId),
               product_key: key,
-              productname: r.productname ?? null,
-              offerlink: r.offerlink ?? null,
-              link_compra: r.link_compra ?? null,
-              image_url: r.imageUrl ?? null,
-              sent_at: String(r.sent_at || nowIso),
+              productname: flat.productname ?? null,
+              offerlink: flat.offerlink ?? null,
+              link_compra: flat.link_compra ?? null,
+              image_url: flat.imageUrl ?? null,
+              sent_at: String(flat.sent_at || nowIso),
             }, { onConflict: "robo_id,product_key" });
             if (!error) seeded++;
           }
