@@ -93,7 +93,8 @@ function cleanLink(v) {
   if (urlM) { try { s = decodeURIComponent(urlM[1]); } catch (_) {} }
   const clickM = s.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s"']+)/i);
   if (clickM) { try { s = decodeURIComponent(clickM[1]); } catch (_) { s = clickM[1]; } }
-  return s.split('#')[0].split('?')[0].replace(/\/$/, '');
+  s = s.split('#')[0].split('?')[0];
+  return s.endsWith('/') ? s.slice(0, -1) : s;
 }
 function extractId(...values) {
   for (const value of values) {
