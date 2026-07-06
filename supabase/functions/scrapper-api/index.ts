@@ -60,8 +60,12 @@ function productsAreSimilar(a: unknown, b: unknown): boolean {
   for (const token of at) if (bt.has(token)) inter++;
   const union = at.size + bt.size - inter;
   const jaccard = union > 0 ? inter / union : 0;
-  return inter >= 3 || jaccard >= 0.55;
+  // Threshold apertado: só bloqueia título praticamente idêntico (re-listagem
+  // do mesmo produto). O antigo (inter>=3 OU jac>=0.55) marcava produtos
+  // diferentes como "já enviado" e por isso o gate foi desligado no dispatcher.
+  return jaccard >= 0.8;
 }
+
 
 // ---- Cron helpers ---------------------------------------------------------
 function parseCronField(expr: string, min: number, max: number): number[] {
