@@ -676,7 +676,7 @@ async function processPayload(payload: any) {
     // cada webhook chamava a IA e respondia 3x cada = enxurrada de bolhas.
     // Aqui esperamos 7s: se chegou outra mensagem do mesmo contato nesse
     // intervalo, ESTA execução para e deixa a próxima responder por todas.
-    const DEBOUNCE_MS = 7000;
+    const DEBOUNCE_MS = 3000;
     await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
     {
       const phonesForCheck = Array.from(new Set([
