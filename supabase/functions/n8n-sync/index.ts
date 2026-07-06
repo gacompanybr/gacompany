@@ -2338,6 +2338,138 @@ Deno.serve(async (req) => {
       return j({ ok: true, tableId: finalTableId, checked: rows.length, released, sinceMinutes });
     }
 
+    if (action === "burn_duplicate_datatable_rows") {
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const jobId: string | null = body?.jobId ?? null;
+      let finalTableId = tableId;
+      let robo: any = null;
+
+      if (!finalTableId && roboId) {
+        const { data, error } = await admin
+          .from("robo_campanhas")
+          .select("id, portfolio_id, n8n_datatable_id")
+          .eq("id", roboId)
+          .single();
+        if (error) throw error;
+        robo = data;
+        finalTableId = data?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId && jobId) {
+        const { data, error } = await admin
+          .from("scrapper_jobs")
+          .select("n8n_datatable_id")
+          .eq("id", jobId)
+          .single();
+        if (error) throw error;
+        finalTableId = data?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId, roboId ou jobId requerido" }, 400);
+
+      const rows: any[] = [];
+      const seenPageRows = new Set<string>();
+      const PAGE = 200;
+      let skip = 0;
+      for (let page = 0; page < 500; page++) {
+        let resp: any = null;
+        try {
+          resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=${PAGE}&offset=${skip}&skip=${skip}&take=${PAGE}`);
+        } catch (_) {
+          if (page === 0) resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=${PAGE}`);
+          else break;
+        }
+        const batch: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+        if (!batch.length) break;
+        let added = 0;
+        for (const r of batch) {
+          const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
+          if (seenPageRows.has(k)) continue;
+          seenPageRows.add(k);
+          rows.push(r);
+          added++;
+        }
+        if (!added || batch.length < PAGE) break;
+        skip += PAGE;
+      }
+
+      const normOffer = (r: any) => String(r?.offerlink ?? "").trim().toLowerCase().replace(/\/$/, "");
+      const namePriceKey = (r: any) => {
+        const name = normalizeProductName(r?.productname);
+        const price = Number(r?.price);
+        return name && Number.isFinite(price) && price > 0 ? `np:${name}|${price.toFixed(2)}` : "";
+      };
+      const keysFor = (r: any) => {
+        const keys = new Set<string>();
+        const hist = productHistoryKey(r);
+        if (hist && hist !== "name:") keys.add(hist);
+        const offer = normOffer(r);
+        if (offer) keys.add(`offer:${offer}`);
+        const np = namePriceKey(r);
+        if (np) keys.add(np);
+        return [...keys];
+      };
+      const isRealSent = (r: any) => r?.sending === true || (String(r?.sent_at ?? "").trim() && !String(r?.sent_at ?? "").startsWith("__CLAIM__:"));
+      const sorted = rows.slice().sort((a, b) => {
+        const sa = isRealSent(a) ? 0 : 1;
+        const sb = isRealSent(b) ? 0 : 1;
+        if (sa !== sb) return sa - sb;
+        const ta = Date.parse(a?.createdAt || a?.sent_at || "") || Number(a?.id) || 0;
+        const tb = Date.parse(b?.createdAt || b?.sent_at || "") || Number(b?.id) || 0;
+        return ta - tb;
+      });
+
+      const ownerByKey = new Map<string, any>();
+      const duplicates: any[] = [];
+      for (const r of sorted) {
+        const keys = keysFor(r);
+        if (!keys.length) continue;
+        const duplicateOf = keys.map((k) => ownerByKey.get(k)).find(Boolean);
+        if (duplicateOf) {
+          duplicates.push(r);
+          continue;
+        }
+        for (const k of keys) ownerByKey.set(k, r);
+      }
+
+      const nowIso = new Date().toISOString();
+      let burned = 0;
+      let seeded = 0;
+      for (const r of duplicates) {
+        if (!isRealSent(r)) {
+          try {
+            await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+              method: "PATCH",
+              body: JSON.stringify({
+                filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+                data: { sending: true, sent_at: nowIso },
+              }),
+            });
+            burned++;
+          } catch (_) {}
+        }
+        if (robo?.id) {
+          const key = productHistoryKey(r);
+          if (key && key !== "name:") {
+            const { error } = await admin.from("robo_produtos_enviados").upsert({
+              portfolio_id: robo.portfolio_id,
+              robo_id: robo.id,
+              table_id: finalTableId,
+              row_id: r.id == null ? null : String(r.id),
+              product_key: key,
+              productname: r.productname ?? null,
+              offerlink: r.offerlink ?? null,
+              link_compra: r.link_compra ?? null,
+              image_url: r.imageUrl ?? null,
+              sent_at: String(r.sent_at || nowIso),
+            }, { onConflict: "robo_id,product_key" });
+            if (!error) seeded++;
+          }
+        }
+      }
+
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, duplicates: duplicates.length, burned, seeded });
+    }
+
     if (action === "repair_sent_product_history") {
       const tableId: string | null = body?.tableId ?? null;
       const roboId: string | null = body?.roboId ?? null;
