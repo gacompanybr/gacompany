@@ -1295,6 +1295,56 @@ export type Database = {
         }
         Relationships: []
       }
+      scrapper_product_history: {
+        Row: {
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          link_compra: string | null
+          offerlink: string | null
+          price: number | null
+          product_key: string
+          productname: string | null
+          scrapper_job_id: string
+          table_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          link_compra?: string | null
+          offerlink?: string | null
+          price?: number | null
+          product_key: string
+          productname?: string | null
+          scrapper_job_id: string
+          table_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          link_compra?: string | null
+          offerlink?: string | null
+          price?: number | null
+          product_key?: string
+          productname?: string | null
+          scrapper_job_id?: string
+          table_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrapper_product_history_scrapper_job_id_fkey"
+            columns: ["scrapper_job_id"]
+            isOneToOne: false
+            referencedRelation: "scrapper_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sdr_campaigns: {
         Row: {
           created_at: string

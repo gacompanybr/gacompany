@@ -8,6 +8,8 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 const ML_APP_ID = Deno.env.get("MERCADOLIVRE_APP_ID") ?? "";
 const ML_SECRET = Deno.env.get("MERCADOLIVRE_SECRET") ?? "";
+const N8N_BASE = (Deno.env.get("N8N_BASE_URL") ?? "").replace(/\/$/, "");
+const N8N_KEY = Deno.env.get("N8N_API_KEY") ?? "";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -54,6 +56,76 @@ function productKey(input: { productname?: unknown; link_compra?: unknown; offer
   const mlId = extractMlProductId(input.link_compra, input.offerlink, input.imageUrl);
   if (mlId) return `ml:${mlId}`;
   return `name:${normProductText(input.productname).slice(0, 160)}`;
+}
+
+function cleanOfferLink(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase().replace(/\/$/, "");
+}
+
+function sameNamePrice(a: any, b: any): boolean {
+  const an = normProductText(a?.productname);
+  const bn = normProductText(b?.productname);
+  const ap = Number(a?.price);
+  const bp = Number(b?.price);
+  return !!an && an === bn && Number.isFinite(ap) && Number.isFinite(bp) && Math.abs(ap - bp) < 0.01;
+}
+
+function sameOffer(a: any, b: any): boolean {
+  const ao = cleanOfferLink(a?.offerlink);
+  const bo = cleanOfferLink(b?.offerlink);
+  return !!ao && ao === bo;
+}
+
+async function n8nFetch(path: string, init: RequestInit = {}) {
+  if (!N8N_BASE || !N8N_KEY) throw new Error("N8N não configurado");
+  const res = await fetch(`${N8N_BASE}${path}`, {
+    ...init,
+    headers: {
+      "X-N8N-API-KEY": N8N_KEY,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+  return data;
+}
+
+async function findDataTableDuplicate(tableId: string | null | undefined, product: any): Promise<any | null> {
+  if (!tableId || !N8N_BASE || !N8N_KEY) return null;
+  const filters: any[] = [];
+  const offer = String(product?.offerlink ?? "").trim();
+  if (offer) filters.push({ columnName: "offerlink", condition: "eq", value: offer });
+  const name = String(product?.productname ?? "").trim();
+  const price = Number(product?.price);
+  if (name) filters.push({ columnName: "productname", condition: "eq", value: name });
+
+  const attempts: string[] = [];
+  for (const filter of filters) {
+    attempts.push(`/data-tables/${tableId}/rows?filter=${encodeURIComponent(JSON.stringify({ type: "and", filters: [filter] }))}`);
+  }
+  if (name && Number.isFinite(price)) {
+    attempts.push(`/data-tables/${tableId}/rows?filter=${encodeURIComponent(JSON.stringify({ type: "and", filters: [
+      { columnName: "productname", condition: "eq", value: name },
+      { columnName: "price", condition: "eq", value: price },
+    ] }))}`);
+  }
+
+  for (const path of attempts) {
+    try {
+      const resp = await n8nFetch(path);
+      const rows = Array.isArray(resp?.data) ? resp.data
+        : Array.isArray(resp?.data?.rows) ? resp.data.rows
+        : Array.isArray(resp?.rows) ? resp.rows
+        : Array.isArray(resp) ? resp
+        : [];
+      const match = rows.find((row: any) => sameOffer(product, row?.data ?? row) || sameNamePrice(product, row?.data ?? row));
+      if (match) return match?.data ? { ...match.data, _row_id: match.id } : match;
+    } catch (_) {}
+  }
+  return null;
 }
 
 function productsAreSimilar(a: unknown, b: unknown): boolean {
@@ -418,6 +490,90 @@ Deno.serve(async (req) => {
         const match = (recent ?? []).find((r: any) => productsAreSimilar(incoming.productname, r.productname));
         if (match) return json({ sent: true, reason: "similar", key, match });
         return json({ sent: false, key });
+      }
+
+      if (bodyAction === "claim_scrapper_products") {
+        const jobId = body.scrapper_job_id;
+        if (!jobId) return json({ error: "scrapper_job_id obrigatório" }, 400);
+        const products = Array.isArray(body.products) ? body.products : [];
+        if (!products.length) return json({ allowed: [], duplicates: [] });
+
+        const { data: job, error: jobErr } = await admin
+          .from("scrapper_jobs")
+          .select("id, n8n_datatable_id")
+          .eq("id", jobId)
+          .maybeSingle();
+        if (jobErr) return json({ error: jobErr.message }, 500);
+        if (!job) return json({ error: "scrapper job não encontrado" }, 404);
+
+        const allowed: any[] = [];
+        const duplicates: any[] = [];
+        const nowIso = new Date().toISOString();
+
+        for (const product of products) {
+          const keys = Array.isArray(product?.keys)
+            ? [...new Set(product.keys.map((k: unknown) => String(k ?? "").trim()).filter(Boolean))]
+            : [];
+          if (!keys.length) {
+            allowed.push({ index: product?.index, keys: [] });
+            continue;
+          }
+
+          const { data: existing, error: existingErr } = await admin
+            .from("scrapper_product_history")
+            .select("id, product_key, productname, first_seen_at")
+            .eq("scrapper_job_id", jobId)
+            .in("product_key", keys)
+            .limit(1);
+          if (existingErr) return json({ error: existingErr.message }, 500);
+          if ((existing ?? []).length > 0) {
+            duplicates.push({ index: product?.index, keys, match: existing![0] });
+            await admin
+              .from("scrapper_product_history")
+              .update({ last_seen_at: nowIso })
+              .eq("id", existing![0].id);
+            continue;
+          }
+
+          const tableDuplicate = await findDataTableDuplicate(body.table_id ?? job.n8n_datatable_id, product);
+          if (tableDuplicate) {
+            duplicates.push({ index: product?.index, keys, reason: "datatable", match: { id: tableDuplicate._row_id ?? tableDuplicate.id, productname: tableDuplicate.productname } });
+            await admin
+              .from("scrapper_product_history")
+              .upsert(keys.map((key: string) => ({
+                scrapper_job_id: jobId,
+                table_id: body.table_id ?? job.n8n_datatable_id ?? null,
+                product_key: key,
+                productname: product?.productname ?? tableDuplicate.productname ?? null,
+                offerlink: product?.offerlink ?? tableDuplicate.offerlink ?? null,
+                link_compra: product?.link_compra ?? tableDuplicate.link_compra ?? null,
+                price: Number.isFinite(Number(product?.price)) ? Number(product.price) : (Number.isFinite(Number(tableDuplicate.price)) ? Number(tableDuplicate.price) : null),
+                first_seen_at: nowIso,
+                last_seen_at: nowIso,
+              })), { onConflict: "scrapper_job_id,product_key", ignoreDuplicates: true });
+            continue;
+          }
+
+          const rows = keys.map((key: string) => ({
+            scrapper_job_id: jobId,
+            table_id: body.table_id ?? job.n8n_datatable_id ?? null,
+            product_key: key,
+            productname: product?.productname ?? null,
+            offerlink: product?.offerlink ?? null,
+            link_compra: product?.link_compra ?? null,
+            price: Number.isFinite(Number(product?.price)) ? Number(product.price) : null,
+            first_seen_at: nowIso,
+            last_seen_at: nowIso,
+          }));
+
+          const { error: insertErr } = await admin
+            .from("scrapper_product_history")
+            .upsert(rows, { onConflict: "scrapper_job_id,product_key", ignoreDuplicates: true });
+          if (insertErr) return json({ error: insertErr.message }, 500);
+          allowed.push({ index: product?.index, keys });
+        }
+
+        return json({ allowed, duplicates });
       }
 
       if (bodyAction === "claim_sent_product") {
