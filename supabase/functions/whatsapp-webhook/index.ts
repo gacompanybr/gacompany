@@ -896,35 +896,89 @@ async function processPayload(payload: any) {
       })));
     }
 
-    // === Detecção de gatilhos (SDR) ===
-    if (sdrLead && sent.length) {
-      const lower = (text + " " + reply).toLowerCase();
+    // === Detecção de gatilhos (funciona para SDR e conversas RECEPTIVAS) ===
+    if (sent.length) {
       const userLower = text.toLowerCase();
+      const replyLower = reply.toLowerCase();
       let newStatus: string | null = null;
       let trigger: "meeting_confirmed" | "human_requested" | null = null;
 
-      if (/(agendad|marcad|confirmad|combinad|fechad|pode ser|vamos marcar|t[aá] marcado)/i.test(lower)) {
-        newStatus = "reuniao_confirmada";
+      // 1) Regex robusta — só sobre a FALA DO USUÁRIO (evita falso positivo da IA)
+      const meetingRegex = /(pode (marcar|ser|agendar|confirmar)|vamos (marcar|fechar|agendar)|bora (marcar|fechar)|combinad|fechad|fechou|t[aá] fechado|t[aá] marcado|t[aá] combinado|t[oô] dentro|topo|aceito|quero (contratar|fechar|marcar|agendar)|manda o (link|convite)|me manda o (link|convite)|pode mandar (o )?link|confirmo|confirmad[oa]|ok pode ser|beleza pode|amanh[ãa].{0,20}(h|hora|:)|segunda.{0,20}(h|hora|:)|ter[çc]a.{0,20}(h|hora|:)|quarta.{0,20}(h|hora|:)|quinta.{0,20}(h|hora|:)|sexta.{0,20}(h|hora|:)|\bhoje\b.{0,20}(h|hora|:))/i;
+      const humanRegex = /(falar com (humano|pessoa|atendente|respons[aá]vel|gerente|vendedor|dono|algu[eé]m|voc[eê]s)|quero (humano|atendente|falar com algu[eé]m)|atendimento humano|passa pra algu[eé]m|chama (o|a) (respons[aá]vel|gerente|dono|vendedor)|prefiro falar com (uma )?pessoa)/i;
+      const rejectRegex = /(n[aã]o (tenho|temos)?\s*interesse|n[aã]o quero|n[aã]o me interessa|parar de receber|n[aã]o entre em contato|remove(r)? meu (n[uú]mero|contato))/i;
+
+      if (meetingRegex.test(userLower)) {
         trigger = "meeting_confirmed";
-      } else if (/(falar com (humano|pessoa|atendente|respons[aá]vel|gerente)|quero (humano|atendente)|atendimento humano)/i.test(userLower)) {
-        newStatus = "aguardando_humano";
+        newStatus = "reuniao_confirmada";
+      } else if (humanRegex.test(userLower)) {
         trigger = "human_requested";
-      } else if (/(n[aã]o (tenho|temos)?\s*interesse|n[aã]o quero|n[aã]o me interessa|parar de receber|n[aã]o entre em contato)/i.test(userLower)) {
+        newStatus = "aguardando_humano";
+      } else if (rejectRegex.test(userLower)) {
         newStatus = "rejeitou";
       }
 
-      // Detecção simples de IA do outro lado (resposta muito rápida + padrão genérico)
+      // 2) Classificador de IA (fallback rápido) — só roda se a regex NÃO pegou nada.
+      //    Muito mais robusto em variação de nicho ("firmei", "vamos nessa", "manda o Zoom", etc).
+      if (!trigger && !newStatus) {
+        try {
+          const lastTurns = trimmedRecent.slice(-6).map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`).join("\n");
+          const clsResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-lite",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "Você classifica a ÚLTIMA mensagem do CLIENTE em uma conversa de vendas por WhatsApp. " +
+                    "Responda APENAS em JSON válido com o formato: {\"meeting_confirmed\":bool,\"human_requested\":bool,\"rejected\":bool}. " +
+                    "meeting_confirmed=true quando o cliente aceita agendar/marcar/fechar reunião, confirma horário, pede o link da call, ou diz que topa avançar. " +
+                    "human_requested=true quando pede pra falar com uma pessoa/atendente/gerente/vendedor. " +
+                    "rejected=true quando recusa explicitamente ou pede pra parar de receber contato. " +
+                    "Se nenhum se aplica, retorne todos false. NÃO explique.",
+                },
+                {
+                  role: "user",
+                  content: `Histórico recente:\n${lastTurns}\n\nÚLTIMA mensagem do CLIENTE: "${text}"\nResposta que a IA acabou de mandar: "${reply}"`,
+                },
+              ],
+              temperature: 0,
+              max_tokens: 60,
+            }),
+          });
+          if (clsResp.ok) {
+            const clsJson = await clsResp.json();
+            const raw = clsJson.choices?.[0]?.message?.content ?? "{}";
+            const match = raw.match(/\{[\s\S]*\}/);
+            const parsed = match ? JSON.parse(match[0]) : {};
+            if (parsed.meeting_confirmed === true) {
+              trigger = "meeting_confirmed";
+              newStatus = "reuniao_confirmada";
+            } else if (parsed.human_requested === true) {
+              trigger = "human_requested";
+              newStatus = "aguardando_humano";
+            } else if (parsed.rejected === true) {
+              newStatus = "rejeitou";
+            }
+          }
+        } catch (e) {
+          console.error("classifier fail", e);
+        }
+      }
+
+      // Detecção de IA do outro lado
       const isLikelyBot = /(sou (uma )?intelig[eê]ncia artificial|sou um (bot|assistente virtual|rob[oô])|assistente virtual)/i.test(userLower);
-      if (isLikelyBot) {
-        newStatus = "ia_detectada";
+      if (isLikelyBot && sdrLead) {
         await admin.from("sdr_leads")
-          .update({ status: newStatus, cooldown_ate: new Date(Date.now() + 2 * 3600 * 1000).toISOString() })
+          .update({ status: "ia_detectada", cooldown_ate: new Date(Date.now() + 2 * 3600 * 1000).toISOString() })
           .eq("id", sdrLead.id);
-      } else if (newStatus) {
+      } else if (newStatus && sdrLead) {
         await admin.from("sdr_leads").update({ status: newStatus }).eq("id", sdrLead.id);
       }
 
-      // Dispara o relatório no grupo quando há gatilho
+      // Dispara o relatório no grupo — SDR ou RECEPTIVO
       if (trigger) {
         const { data: agentRow } = await admin
           .from("whatsapp_agents")
@@ -933,26 +987,38 @@ async function processPayload(payload: any) {
           .maybeSingle();
         if (agentRow?.report_group_id) {
           const triggerLabel = trigger === "meeting_confirmed" ? "✅ Reunião confirmada" : "🙋 Solicitou falar com humano";
-          const reportText = [
+          const leadNome = sdrLead?.nome_resolvido ?? sdrLead?.nome ?? pushName ?? "—";
+          const leadFone = sdrLead?.telefone ?? storagePhone;
+          const linhas = [
             `📋 *NOVO LEAD — GA COMPANY*`,
             `_${triggerLabel}_`,
             ``,
-            `👤 *Lead:* ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "—"}`,
-            `📱 *WhatsApp:* +${sdrLead.telefone}`,
-            `🏢 *Empresa:* ${sdrLead.nome ?? "—"}`,
-            `📂 *Segmento:* ${sdrLead.nicho}`,
-            `🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`,
-            `💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`,
-            sdrLead.instagram ? `📷 *Instagram:* ${sdrLead.instagram}` : "",
-          ].filter(Boolean).join("\n");
+            `👤 *Lead:* ${leadNome}`,
+            `📱 *WhatsApp:* +${leadFone}`,
+          ];
+          if (sdrLead) {
+            linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
+            linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
+            linhas.push(`🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`);
+            linhas.push(`💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`);
+            if (sdrLead.instagram) linhas.push(`📷 *Instagram:* ${sdrLead.instagram}`);
+          } else {
+            linhas.push(`📨 *Origem:* conversa receptiva (cliente iniciou o contato)`);
+            const ultimaFala = text.length > 240 ? text.slice(0, 240) + "…" : text;
+            linhas.push(`💬 *Última mensagem do cliente:* "${ultimaFala}"`);
+          }
+          const reportText = linhas.filter(Boolean).join("\n");
           fetch(`${EVO_URL}/message/sendText/${instance}`, {
             method: "POST",
             headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
             body: JSON.stringify({ number: agentRow.report_group_id, text: reportText }),
-          }).catch((e) => console.error("send-report SDR fail", e));
+          }).catch((e) => console.error("send-report fail", e));
+        } else {
+          console.log("gatilho detectado mas nenhum report_group_id configurado", { portfolioId, trigger });
         }
       }
     }
+
   }
 }
 
