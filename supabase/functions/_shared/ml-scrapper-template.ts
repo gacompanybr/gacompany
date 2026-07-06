@@ -487,7 +487,9 @@ if (out.length && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSec
 
 return out;`;
 
-  return originalCode.replace(/\nreturn out;\s*$/m, claimCode);
+  return originalCode
+    .replace("const out = [];", "let out = [];")
+    .replace(/\nreturn out;\s*$/m, claimCode);
 }
 
 function buildCron(job: any): string | null {
