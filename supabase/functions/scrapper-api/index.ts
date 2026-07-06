@@ -29,8 +29,12 @@ function normProductText(value: unknown): string {
 function extractMlProductId(...values: unknown[]): string {
   for (const value of values) {
     const s = String(value ?? "");
-    const m = s.match(/\b(MLB(?:U)?\d{6,})\b/i) || s.match(/\/p\/(MLB\d{6,})/i);
-    if (m?.[1]) return m[1].toUpperCase();
+    const m =
+      s.match(/\b(MLB-?U?\d{6,})\b/i) ||
+      s.match(/\/p\/(MLBU?\d{6,})/i) ||
+      s.match(/\/up\/(MLBU?\d{6,})/i) ||
+      s.match(/(?:item_id[:=]|item_id%3A|wid=)(MLB-?\d{6,})/i);
+    if (m?.[1]) return m[1].replace("-", "").toUpperCase();
   }
   return "";
 }
