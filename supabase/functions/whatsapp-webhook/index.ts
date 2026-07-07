@@ -440,6 +440,7 @@ function splitMessage(text: string): string[] {
 async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
+  let acceptedPending = false;
   for (const [index, target] of targets.entries()) {
     const body = { number: target, text };
     const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
@@ -448,9 +449,16 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
     try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
     const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
     console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-    if (r.ok) return true;
+    if (r.ok && deliveryStatus !== "PENDING") return true;
+    if (r.ok) {
+      acceptedPending = true;
+      // Algumas sessões aceitam o número limpo mas só entregam usando o JID
+      // alternativo (@s.whatsapp.net/@lid). Se houver outro alvo, tenta também
+      // antes de considerar o envio como aceito.
+      continue;
+    }
   }
-  return false;
+  return acceptedPending;
 }
 
 // Delay aleatório entre 2.5 e 4.5 segundos para parecer humano sem demorar demais
