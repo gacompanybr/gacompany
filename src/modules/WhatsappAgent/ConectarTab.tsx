@@ -36,6 +36,7 @@ export function ConectarTab({
   const [generating, setGenerating] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [health, setHealth] = useState<{ deviceRemoved?: boolean; disconnectionAt?: string | null } | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const portfolioId = agent.portfolio_id;
