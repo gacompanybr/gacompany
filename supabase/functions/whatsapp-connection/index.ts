@@ -313,22 +313,34 @@ Deno.serve(async (req) => {
       if (!existing?.instance_name) return json({ state: "disconnected" });
       const s = await evo(`/instance/connectionState/${existing.instance_name}`);
       const state = s.body?.instance?.state ?? s.body?.state ?? "unknown";
+      let deviceRemoved = false;
+      let disconnectionAt: string | null = null;
+      let disconnectionReasonCode: number | null = null;
       if (state === "open") {
         await ensureSettings(existing.instance_name);
-        // Garante que o webhook da Evolution aponta para o webhook LOCAL
-        // (que tem memória de 24h e respeita o toggle Ativar/Desativar IA).
         await ensureWebhook(existing.instance_name);
         const info = await evo(`/instance/fetchInstances?instanceName=${existing.instance_name}`);
+        const row = Array.isArray(info.body) ? info.body[0] : info.body;
         const phone = extractOwnerPhone(info.body);
+        disconnectionAt = row?.disconnectionAt ?? null;
+        disconnectionReasonCode = row?.disconnectionReasonCode ?? null;
+        // Detecta sessão removida do celular: Evolution mantém state=open
+        // mas registra disconnectionReasonCode=401 (device_removed / conflict).
+        // Nesse caso as mensagens ficam PENDING e nunca são entregues.
+        const disc = row?.disconnectionObject;
+        const discStr = typeof disc === "string" ? disc : JSON.stringify(disc ?? "");
+        if (disconnectionReasonCode === 401 && /device_removed|conflict/i.test(discStr)) {
+          deviceRemoved = true;
+        }
         await admin.from("whatsapp_connections")
-          .update({ status: "connected", phone })
+          .update({ status: deviceRemoved ? "device_removed" : "connected", phone })
           .eq("portfolio_id", portfolioId);
       } else {
         await admin.from("whatsapp_connections")
           .update({ status: state === "close" ? "disconnected" : state })
           .eq("portfolio_id", portfolioId);
       }
-      return json({ state });
+      return json({ state, deviceRemoved, disconnectionAt, disconnectionReasonCode });
     }
 
     if (action === "repair") {
