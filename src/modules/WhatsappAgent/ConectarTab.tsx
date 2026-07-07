@@ -74,6 +74,23 @@ export function ConectarTab({
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [conn?.status, portfolioId, refetch, onRefresh]);
 
+  // Health check quando conectado (detecta device_removed no lado do WhatsApp)
+  useEffect(() => {
+    if (conn?.status !== "connected" && conn?.status !== "device_removed") {
+      setHealth(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.functions.invoke("whatsapp-connection", {
+        body: { action: "status", portfolioId },
+      });
+      if (!cancelled) setHealth(data as any);
+      if ((data as any)?.deviceRemoved) refetch();
+    })();
+    return () => { cancelled = true; };
+  }, [conn?.status, conn?.instance_name, portfolioId, refetch]);
+
   async function handleConnect(opts: { force?: boolean } = {}) {
     setGenerating(true);
     const { data, error } = await supabase.functions.invoke("whatsapp-connection", {
