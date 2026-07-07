@@ -805,10 +805,10 @@ async function processPayload(payload: any) {
     const recent = (history ?? []).reverse();
 
     const modelMap: Record<string, string> = {
-      gemini: "google/gemini-2.5-flash",
+      gemini: "google/gemini-2.5-pro",
       openai: "openai/gpt-5-mini",
     };
-    const model = modelMap[agent.modelo_ia] ?? "google/gemini-2.5-flash";
+    const model = modelMap[agent.modelo_ia] ?? "openai/gpt-5-mini";
 
     // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
     const trimmedRecent = recent.slice(-60);
