@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, QrCode, Smartphone, CheckCircle2, RefreshCw, Copy } from "lucide-react";
+import { Loader2, QrCode, Smartphone, CheckCircle2, RefreshCw, Copy, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import QRCode from "qrcode";
@@ -36,6 +36,7 @@ export function ConectarTab({
   const [generating, setGenerating] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [health, setHealth] = useState<{ deviceRemoved?: boolean; disconnectionAt?: string | null } | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const portfolioId = agent.portfolio_id;
@@ -72,6 +73,23 @@ export function ConectarTab({
     }, 3000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [conn?.status, portfolioId, refetch, onRefresh]);
+
+  // Health check quando conectado (detecta device_removed no lado do WhatsApp)
+  useEffect(() => {
+    if (conn?.status !== "connected" && conn?.status !== "device_removed") {
+      setHealth(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.functions.invoke("whatsapp-connection", {
+        body: { action: "status", portfolioId },
+      });
+      if (!cancelled) setHealth(data as any);
+      if ((data as any)?.deviceRemoved) refetch();
+    })();
+    return () => { cancelled = true; };
+  }, [conn?.status, conn?.instance_name, portfolioId, refetch]);
 
   async function handleConnect(opts: { force?: boolean } = {}) {
     setGenerating(true);
@@ -125,16 +143,23 @@ export function ConectarTab({
     }
   }
 
-  // ===== Conectado =====
-  if (conn?.status === "connected") {
+  // ===== Conectado / device_removed =====
+  if (conn?.status === "connected" || conn?.status === "device_removed") {
+    const deviceRemoved = conn.status === "device_removed" || health?.deviceRemoved;
     return (
       <Card className="p-6 space-y-4">
         <div className="flex items-center gap-3">
-          <CheckCircle2 className="text-green-500" size={28} />
+          <CheckCircle2 className={deviceRemoved ? "text-yellow-500" : "text-green-500"} size={28} />
           <div className="flex-1">
-            <Badge variant="outline" className="bg-green-500/15 text-green-400 border-green-500/30 mb-1">
-              ✅ Conectado
-            </Badge>
+            {deviceRemoved ? (
+              <Badge variant="outline" className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 mb-1">
+                ⚠️ Sessão inválida
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-green-500/15 text-green-400 border-green-500/30 mb-1">
+                ✅ Conectado
+              </Badge>
+            )}
             <p className="text-sm">Número: <strong>{conn.phone ?? "—"}</strong></p>
             <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
               <span>instance_name: <code className="bg-muted px-1.5 py-0.5 rounded">{conn.instance_name}</code></span>
@@ -142,6 +167,27 @@ export function ConectarTab({
             </div>
           </div>
         </div>
+
+        {deviceRemoved && (
+          <div className="flex gap-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm">
+            <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
+            <div className="space-y-1">
+              <p className="font-medium text-yellow-200">O aparelho foi removido do WhatsApp deste número.</p>
+              <p className="text-xs text-yellow-100/80">
+                A Evolution ainda mostra "conectado", mas as mensagens ficam pendentes e nada é entregue nem
+                respondido (isso acontece quando você desvincula o dispositivo pelo celular, ou quando o WhatsApp
+                Web derruba a sessão por conflito). Clique em <strong>Desconectar</strong> e depois em
+                <strong> Conectar WhatsApp</strong> para escanear um novo QR Code.
+              </p>
+              {health?.disconnectionAt && (
+                <p className="text-[11px] text-yellow-100/60">
+                  Última desconexão detectada: {new Date(health.disconnectionAt).toLocaleString("pt-BR")}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         <p className="text-xs text-muted-foreground border-t border-border pt-3">
           Use este <strong>instance_name</strong> no campo <code>instancia_id</code> das campanhas do Robô para este cliente.
         </p>
