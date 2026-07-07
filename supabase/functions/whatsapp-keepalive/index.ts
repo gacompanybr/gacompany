@@ -36,15 +36,63 @@ async function evo(path: string, init: RequestInit = {}) {
   return { ok: r.ok, status: r.status, body };
 }
 
+async function ensureWebhook(instanceName: string) {
+  const webhookUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+  const setWebhook = await evo(`/webhook/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      webhook: {
+        enabled: true,
+        url: webhookUrl,
+        webhookByEvents: false,
+        webhook_by_events: false,
+        byEvents: false,
+        base64: false,
+        webhookBase64: false,
+        webhook_base64: false,
+        events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "SEND_MESSAGE_UPDATE", "CONNECTION_UPDATE"],
+      },
+      enabled: true,
+      url: webhookUrl,
+      webhookByEvents: false,
+      webhook_by_events: false,
+      webhookBase64: false,
+      webhook_base64: false,
+      byEvents: false,
+      base64: false,
+      events: ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "SEND_MESSAGE_UPDATE", "CONNECTION_UPDATE"],
+    }),
+  });
+  return { status: setWebhook.status, ok: setWebhook.ok };
+}
+
+async function ensureSettings(instanceName: string) {
+  const settings = await evo(`/settings/set/${instanceName}`, {
+    method: "POST",
+    body: JSON.stringify({
+      rejectCall: false,
+      msgCall: "",
+      groupsIgnore: false,
+      alwaysOnline: true,
+      readMessages: true,
+      readStatus: true,
+      syncFullHistory: false,
+    }),
+  });
+  return { status: settings.status, ok: settings.ok };
+}
+
 async function checkAndRevive(instanceName: string) {
   const state = await evo(`/instance/connectionState/${instanceName}`);
   const s = state.body?.instance?.state ?? state.body?.state ?? null;
 
   if (s === "open") {
+    const settings = await ensureSettings(instanceName);
+    const webhook = await ensureWebhook(instanceName);
     await admin.from("whatsapp_connections")
       .update({ status: "connected", updated_at: new Date().toISOString() })
       .eq("instance_name", instanceName);
-    return { instanceName, state: s, action: "none" };
+    return { instanceName, state: s, action: "ensure_settings_webhook", settings, webhook };
   }
 
   // Tenta restart + connect
@@ -54,6 +102,8 @@ async function checkAndRevive(instanceName: string) {
   const connect = await evo(`/instance/connect/${instanceName}`);
   const after = await evo(`/instance/connectionState/${instanceName}`);
   const sAfter = after.body?.instance?.state ?? after.body?.state ?? null;
+  const settings = sAfter === "open" ? await ensureSettings(instanceName) : null;
+  const webhook = sAfter === "open" ? await ensureWebhook(instanceName) : null;
 
   await admin.from("whatsapp_connections")
     .update({
@@ -69,6 +119,8 @@ async function checkAndRevive(instanceName: string) {
     action: "restart+connect",
     restartStatus: restart.status,
     connectStatus: connect.status,
+    settings,
+    webhook,
   };
 }
 

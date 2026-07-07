@@ -347,20 +347,33 @@ Deno.serve(async (req) => {
       const openInstance = await findOpenInstanceForPortfolio(portfolioId, existing?.instance_name);
       const instanceName = openInstance?.name ?? existing?.instance_name;
       if (!instanceName) return json({ ok: false, state: "disconnected" });
-      const restarted = await evo(`/instance/restart/${instanceName}`, { method: "POST" });
-      console.log("repair restart", JSON.stringify({ instanceName, status: restarted.status, body: restarted.body }).slice(0, 500));
-      await wait(2500);
+
+      // Primeiro regrava webhook/configurações sem reiniciar. Quando a instância
+      // está "open" mas não responde, na maioria dos casos o webhook foi perdido
+      // após recriar/deletar direto pela Evolution.
       await ensureSettings(instanceName);
       await ensureWebhook(instanceName);
       const s = await evo(`/instance/connectionState/${instanceName}`);
-      const state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
+
+      let state = s.body?.instance?.state ?? s.body?.state ?? openInstance?.state ?? "unknown";
+      let restarted: { status: number; ok: boolean } | null = null;
+      if (state !== "open") {
+        const restart = await evo(`/instance/restart/${instanceName}`, { method: "POST" });
+        restarted = { status: restart.status, ok: restart.ok };
+        console.log("repair restart", JSON.stringify({ instanceName, status: restart.status, body: restart.body }).slice(0, 500));
+        await wait(2500);
+        await ensureSettings(instanceName);
+        await ensureWebhook(instanceName);
+        const afterRestart = await evo(`/instance/connectionState/${instanceName}`);
+        state = afterRestart.body?.instance?.state ?? afterRestart.body?.state ?? state;
+      }
       await admin.from("whatsapp_connections")
         .update({ instance_name: instanceName, status: state === "open" ? "connected" : state === "close" ? "disconnected" : state })
         .eq("portfolio_id", portfolioId);
       await admin.from("whatsapp_agents")
         .update({ instancia_id: instanceName })
         .eq("portfolio_id", portfolioId);
-      return json({ ok: state === "open", state, instanceName, restarted: { status: restarted.status, ok: restarted.ok } });
+      return json({ ok: state === "open", state, instanceName, repaired: true, restarted });
     }
 
     if (action === "diagnose-delivery") {
