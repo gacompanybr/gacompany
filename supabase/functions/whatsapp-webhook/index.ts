@@ -824,6 +824,7 @@ async function processPayload(payload: any) {
         `[CONTEXTO DO LEAD — ISOLADO POR CONVERSA, NÃO MISTURAR COM OUTROS CONTATOS]`,
         `Nome: ${sdrLead.nome_resolvido ?? sdrLead.nome ?? "você"}`,
         `Nicho: ${sdrLead.nicho}`,
+        ...(sdrLead.cidade ? [`Cidade do estabelecimento: ${sdrLead.cidade} (use como referência local — cite bairros/mercado da região quando fizer sentido, mas NUNCA invente dados que não conhece).`] : []),
         `Motivo de contato (registro interno — NUNCA assumir que o lead já aceitou ou respondeu nada): ${sdrLead.motivo_contato}`,
         `Status atual do lead: ${sdrLead.status}.`,
         `Mensagens trocadas até agora: ${sdrLead.mensagens_trocadas ?? 0}.`,
@@ -1003,6 +1004,7 @@ async function processPayload(payload: any) {
           if (sdrLead) {
             linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
             linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
+            if (sdrLead.cidade) linhas.push(`📍 *Cidade:* ${sdrLead.cidade}`);
             linhas.push(`🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`);
             linhas.push(`💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`);
             if (sdrLead.instagram) linhas.push(`📷 *Instagram:* ${sdrLead.instagram}`);

@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 
 type Row = Record<string, any>;
-const EXPECTED = ["telefone", "nome", "nicho", "instagram", "motivo_contato", "enviado"] as const;
+const EXPECTED = ["telefone", "nome", "nicho", "cidade", "instagram", "motivo_contato", "enviado"] as const;
 type Field = (typeof EXPECTED)[number];
 
 function autoDetect(headers: string[]): Record<Field, string | null> {
@@ -20,11 +20,12 @@ function autoDetect(headers: string[]): Record<Field, string | null> {
     telefone: "telefone", celular: "telefone", whatsapp: "telefone", phone: "telefone", numero: "telefone",
     nome: "nome", name: "nome", responsavel: "nome", contato: "nome",
     nicho: "nicho", segmento: "nicho", categoria: "nicho",
+    cidade: "cidade", city: "cidade", municipio: "cidade", localizacao: "cidade", local: "cidade",
     instagram: "instagram", ig: "instagram", insta: "instagram",
     motivocontato: "motivo_contato", motivo: "motivo_contato", briefing: "motivo_contato", motivodecontato: "motivo_contato",
     enviado: "enviado", status: "enviado",
   };
-  const out: Record<Field, string | null> = { telefone: null, nome: null, nicho: null, instagram: null, motivo_contato: null, enviado: null };
+  const out: Record<Field, string | null> = { telefone: null, nome: null, nicho: null, cidade: null, instagram: null, motivo_contato: null, enviado: null };
   for (const h of headers) {
     const f = map[norm(h)];
     if (f && !out[f]) out[f] = h;
@@ -43,7 +44,7 @@ export function SdrUpload({
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [mapping, setMapping] = useState<Record<Field, string | null>>({
-    telefone: null, nome: null, nicho: null, instagram: null, motivo_contato: null, enviado: null,
+    telefone: null, nome: null, nicho: null, cidade: null, instagram: null, motivo_contato: null, enviado: null,
   });
   const [sheetUrl, setSheetUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -126,6 +127,7 @@ export function SdrUpload({
       telefone: String(r[mapping.telefone!] ?? ""),
       nome: mapping.nome ? String(r[mapping.nome!] ?? "") : "",
       nicho: String(r[mapping.nicho!] ?? ""),
+      cidade: mapping.cidade ? String(r[mapping.cidade!] ?? "") : "",
       instagram: mapping.instagram ? String(r[mapping.instagram!] ?? "") : "",
       motivo_contato: String(r[mapping.motivo_contato!] ?? ""),
     }));
