@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
         nome: r?.nome ? String(r.nome).trim() : null,
         nicho,
         instagram: r?.instagram ? String(r.instagram).trim() : null,
+        cidade: r?.cidade ? String(r.cidade).trim() : null,
         motivo_contato: motivo,
       });
     }

@@ -1392,6 +1392,7 @@ export type Database = {
       sdr_leads: {
         Row: {
           campaign_id: string
+          cidade: string | null
           cooldown_ate: string | null
           created_at: string
           enviado: boolean
@@ -1412,6 +1413,7 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          cidade?: string | null
           cooldown_ate?: string | null
           created_at?: string
           enviado?: boolean
@@ -1432,6 +1434,7 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          cidade?: string | null
           cooldown_ate?: string | null
           created_at?: string
           enviado?: boolean
