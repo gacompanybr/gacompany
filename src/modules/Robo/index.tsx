@@ -271,6 +271,31 @@ function RoboDialog({
   const [delayMin, setDelayMin] = useState<number>(editing?.intervalo_min_min ?? 1);
   const [delayMax, setDelayMax] = useState<number>(editing?.intervalo_max_min ?? 3);
   const [busy, setBusy] = useState(false);
+  const [validatingInstance, setValidatingInstance] = useState(false);
+  const [instanceCheck, setInstanceCheck] = useState<
+    { ok: boolean; state?: string; error?: string } | null
+  >(null);
+
+  async function validateInstance(name: string) {
+    const v = name.trim();
+    if (!v) {
+      setInstanceCheck({ ok: false, error: "Informe o nome da instância" });
+      return false;
+    }
+    setValidatingInstance(true);
+    const { data, error } = await supabase.functions.invoke("evolution-instance", {
+      body: { action: "validate_instance", instanceName: v },
+    });
+    setValidatingInstance(false);
+    if (error) {
+      setInstanceCheck({ ok: false, error: error.message });
+      return false;
+    }
+    const d = data as { ok: boolean; exists: boolean; state?: string; error?: string };
+    setInstanceCheck({ ok: !!d?.ok, state: d?.state, error: d?.error });
+    return !!d?.ok;
+  }
+
 
   useEffect(() => {
     if (!open) return;
@@ -350,6 +375,15 @@ function RoboDialog({
       if (!mensagensTxt.trim()) return toast.error("Escreva ao menos uma mensagem para disparar");
     }
 
+    if (instanciaId) {
+      const ok = await validateInstance(instanciaId);
+      if (!ok) {
+        return toast.error(
+          `Instância "${instanciaId}" não está pronta no Evolution. Confira o nome exato ou reconecte o QR.`
+        );
+      }
+    }
+
     const mensagensArr = mensagensTxt
       .split(/\n-{3,}\n/g)
       .map((s) => s.trim())
@@ -365,7 +399,7 @@ function RoboDialog({
       n8n_datatable_name: campaignType === "ecommerce" ? tableName : null,
       message_template: campaignType === "ecommerce" ? template : null,
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
-      instancia_id: instanciaId || null,
+      instancia_id: instanciaId.trim() || null,
       destinos: campaignType === "disparo" ? [] : destinos,
       mensagens: campaignType === "disparo" ? mensagensArr : [],
       horarios_por_dia: horarios,
@@ -510,7 +544,34 @@ function RoboDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+                <div className="mt-2 space-y-1">
+                  <Label className="text-xs">Nome da Instância</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={instanciaId}
+                      onChange={(e) => { setInstanciaId(e.target.value); setInstanceCheck(null); }}
+                      placeholder="port_778cc003_otkwp"
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => validateInstance(instanciaId)}
+                      disabled={validatingInstance || !instanciaId.trim()}
+                    >
+                      {validatingInstance ? <Loader2 className="animate-spin" size={12} /> : "Validar"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Copie o <code>instance_name</code> exato exibido após conectar o QR code no painel do Evolution.
+                  </p>
+                  {instanceCheck && (
+                    instanceCheck.ok
+                      ? <p className="text-[11px] text-green-500">✓ Instância <code>{instanciaId}</code> conectada ({instanceCheck.state}).</p>
+                      : <p className="text-[11px] text-amber-500">⚠ {instanceCheck.error ?? `Estado: ${instanceCheck.state ?? "desconhecido"}`}</p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -586,7 +647,34 @@ function RoboDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+                <div className="mt-2 space-y-1">
+                  <Label className="text-xs">Nome da Instância</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={instanciaId}
+                      onChange={(e) => { setInstanciaId(e.target.value); setInstanceCheck(null); }}
+                      placeholder="port_778cc003_otkwp"
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => validateInstance(instanciaId)}
+                      disabled={validatingInstance || !instanciaId.trim()}
+                    >
+                      {validatingInstance ? <Loader2 className="animate-spin" size={12} /> : "Validar"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Copie o <code>instance_name</code> exato exibido após conectar o QR code no painel do Evolution.
+                  </p>
+                  {instanceCheck && (
+                    instanceCheck.ok
+                      ? <p className="text-[11px] text-green-500">✓ Instância <code>{instanciaId}</code> conectada ({instanceCheck.state}).</p>
+                      : <p className="text-[11px] text-amber-500">⚠ {instanceCheck.error ?? `Estado: ${instanceCheck.state ?? "desconhecido"}`}</p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -651,7 +739,34 @@ function RoboDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {instanciaId && <p className="text-xs text-muted-foreground mt-1">Instância: <code>{instanciaId}</code></p>}
+                <div className="mt-2 space-y-1">
+                  <Label className="text-xs">Nome da Instância</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={instanciaId}
+                      onChange={(e) => { setInstanciaId(e.target.value); setInstanceCheck(null); }}
+                      placeholder="port_778cc003_otkwp"
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => validateInstance(instanciaId)}
+                      disabled={validatingInstance || !instanciaId.trim()}
+                    >
+                      {validatingInstance ? <Loader2 className="animate-spin" size={12} /> : "Validar"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Copie o <code>instance_name</code> exato exibido após conectar o QR code no painel do Evolution.
+                  </p>
+                  {instanceCheck && (
+                    instanceCheck.ok
+                      ? <p className="text-[11px] text-green-500">✓ Instância <code>{instanciaId}</code> conectada ({instanceCheck.state}).</p>
+                      : <p className="text-[11px] text-amber-500">⚠ {instanceCheck.error ?? `Estado: ${instanceCheck.state ?? "desconhecido"}`}</p>
+                  )}
+                </div>
               </div>
 
               <div>

@@ -62,8 +62,30 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supa.auth.getUser();
     if (!user) return json({ error: "Não autenticado" }, 401);
 
-    const { action, agentId, number, message } = await req.json();
-    if (!action || !agentId) return json({ error: "action e agentId obrigatórios" }, 400);
+    const body = await req.json();
+    const { action, agentId, number, message } = body;
+    if (!action) return json({ error: "action obrigatório" }, 400);
+
+    // Validação leve: só checa se uma instância existe / está open no Evolution.
+    // Usada pelo formulário do Robô ao digitar manualmente o instance_name.
+    if (action === "validate_instance") {
+      const instanceName = String(body.instanceName ?? "").trim();
+      if (!instanceName) return json({ error: "instanceName obrigatório" }, 400);
+      const list = await evo(`/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`);
+      const arr: any[] = Array.isArray(list.body) ? list.body : (list.body?.data ?? []);
+      const found = arr.find((it: any) => {
+        const n = it?.name ?? it?.instance?.instanceName ?? it?.instanceName ?? "";
+        return n === instanceName;
+      });
+      if (!found) return json({ ok: false, exists: false, error: "Instância não encontrada no Evolution" }, 200);
+      const state = String(
+        found?.connectionStatus ?? found?.instance?.state ?? found?.state ?? ""
+      ).toLowerCase();
+      const isOpen = state === "open" || state === "connected";
+      return json({ ok: isOpen, exists: true, state, instanceName });
+    }
+
+    if (!agentId) return json({ error: "agentId obrigatório" }, 400);
 
     // Buscar agente + checar acesso
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
