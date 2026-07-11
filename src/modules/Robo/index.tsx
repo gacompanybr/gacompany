@@ -375,6 +375,15 @@ function RoboDialog({
       if (!mensagensTxt.trim()) return toast.error("Escreva ao menos uma mensagem para disparar");
     }
 
+    if (instanciaId) {
+      const ok = await validateInstance(instanciaId);
+      if (!ok) {
+        return toast.error(
+          `Instância "${instanciaId}" não está pronta no Evolution. Confira o nome exato ou reconecte o QR.`
+        );
+      }
+    }
+
     const mensagensArr = mensagensTxt
       .split(/\n-{3,}\n/g)
       .map((s) => s.trim())
@@ -390,7 +399,7 @@ function RoboDialog({
       n8n_datatable_name: campaignType === "ecommerce" ? tableName : null,
       message_template: campaignType === "ecommerce" ? template : null,
       planilha_url: campaignType === "disparo" ? planilhaUrl.trim() : null,
-      instancia_id: instanciaId || null,
+      instancia_id: instanciaId.trim() || null,
       destinos: campaignType === "disparo" ? [] : destinos,
       mensagens: campaignType === "disparo" ? mensagensArr : [],
       horarios_por_dia: horarios,
