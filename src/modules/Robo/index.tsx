@@ -271,6 +271,31 @@ function RoboDialog({
   const [delayMin, setDelayMin] = useState<number>(editing?.intervalo_min_min ?? 1);
   const [delayMax, setDelayMax] = useState<number>(editing?.intervalo_max_min ?? 3);
   const [busy, setBusy] = useState(false);
+  const [validatingInstance, setValidatingInstance] = useState(false);
+  const [instanceCheck, setInstanceCheck] = useState<
+    { ok: boolean; state?: string; error?: string } | null
+  >(null);
+
+  async function validateInstance(name: string) {
+    const v = name.trim();
+    if (!v) {
+      setInstanceCheck({ ok: false, error: "Informe o nome da instância" });
+      return false;
+    }
+    setValidatingInstance(true);
+    const { data, error } = await supabase.functions.invoke("evolution-instance", {
+      body: { action: "validate_instance", instanceName: v },
+    });
+    setValidatingInstance(false);
+    if (error) {
+      setInstanceCheck({ ok: false, error: error.message });
+      return false;
+    }
+    const d = data as { ok: boolean; exists: boolean; state?: string; error?: string };
+    setInstanceCheck({ ok: !!d?.ok, state: d?.state, error: d?.error });
+    return !!d?.ok;
+  }
+
 
   useEffect(() => {
     if (!open) return;
