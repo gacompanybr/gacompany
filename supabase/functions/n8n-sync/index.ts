@@ -1742,6 +1742,20 @@ Deno.serve(async (req) => {
       let activationError: string | null = null;
 
       if (workflowId) {
+        // Reset staticData (zera DEDUPE_DESDE_MS e fails) toda vez que o robô é salvo,
+        // para o dedupe recomeçar do marco atual e não bloquear tudo que veio antes.
+        try {
+          await n8nFetch(`/workflows/${workflowId}/static-data`, {
+            method: "POST",
+            body: JSON.stringify({}),
+          });
+        } catch (_) { /* best-effort */ }
+        try {
+          await n8nFetch(`/workflows/${workflowId}/static-data`, {
+            method: "PUT",
+            body: JSON.stringify({}),
+          });
+        } catch (_) { /* best-effort */ }
         try {
           if (robo.status === "ativo") {
             // Depois de um PUT o n8n pode deixar o cron sem registro ativo.
