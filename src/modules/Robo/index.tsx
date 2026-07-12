@@ -63,6 +63,30 @@ type Agent = { id: string; nome: string; instancia_id: string | null; status: st
 type Grupo = { id: string; nome: string };
 type DataTable = { id: string; name: string };
 
+function InstanceStatusBadge({ instanceName }: { instanceName: string }) {
+  const [state, setState] = useState<{ ok: boolean; state: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const { data } = await supabase.functions.invoke("evolution-instance", {
+          body: { action: "connection_state", instanceName },
+        });
+        if (alive && data) setState({ ok: !!data.ok, state: String(data.state ?? "") });
+      } catch { /* silencio */ }
+    };
+    check();
+    const id = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [instanceName]);
+  if (!state) return <Badge variant="outline" className="text-[10px]">⏳ instância</Badge>;
+  return (
+    <Badge variant="outline" className="text-[10px]" title={`${instanceName} · ${state.state || "sem estado"}`}>
+      {state.ok ? "🟢 Conectado" : "🔴 Desconectado"}
+    </Badge>
+  );
+}
+
 const DIAS = [
   { v: "seg", l: "Seg" }, { v: "ter", l: "Ter" }, { v: "qua", l: "Qua" },
   { v: "qui", l: "Qui" }, { v: "sex", l: "Sex" }, { v: "sab", l: "Sáb" }, { v: "dom", l: "Dom" },
@@ -199,6 +223,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
                       {r.n8n_workflow_id && (
                         <Badge variant="outline" className="text-[10px]">n8n ✓</Badge>
                       )}
+                      {r.instancia_id && <InstanceStatusBadge instanceName={r.instancia_id} />}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {r.n8n_datatable_name ? `📊 ${r.n8n_datatable_name} · ` : ""}
@@ -378,8 +403,10 @@ function RoboDialog({
     if (instanciaId) {
       const ok = await validateInstance(instanciaId);
       if (!ok) {
-        return toast.error(
-          `Instância "${instanciaId}" não está pronta no Evolution. Confira o nome exato ou reconecte o QR.`
+        // Aviso apenas: a instância pode estar temporariamente reconectando.
+        // O save prossegue — o robô só falhará em runtime se o Evolution não achar a instância.
+        toast.warning(
+          `Instância "${instanciaId}" não está com estado "open" no Evolution. Salvando mesmo assim — reconecte o QR se os disparos falharem.`
         );
       }
     }

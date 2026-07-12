@@ -1742,20 +1742,14 @@ Deno.serve(async (req) => {
       let activationError: string | null = null;
 
       if (workflowId) {
-        // Reset staticData (zera DEDUPE_DESDE_MS e fails) toda vez que o robô é salvo,
+        // Reset staticData (zera dedupeDesdeMs, fails, lastSentMs) toda vez que o robô é salvo,
         // para o dedupe recomeçar do marco atual e não bloquear tudo que veio antes.
+        // DELETE é o único método suportado pela API do n8n para limpar static data.
         try {
-          await n8nFetch(`/workflows/${workflowId}/static-data`, {
-            method: "POST",
-            body: JSON.stringify({}),
-          });
-        } catch (_) { /* best-effort */ }
-        try {
-          await n8nFetch(`/workflows/${workflowId}/static-data`, {
-            method: "PUT",
-            body: JSON.stringify({}),
-          });
-        } catch (_) { /* best-effort */ }
+          await n8nFetch(`/workflows/${workflowId}/static-data`, { method: "DELETE" });
+        } catch (e) {
+          console.warn("static-data DELETE failed:", (e as Error).message);
+        }
         try {
           if (robo.status === "ativo") {
             // Depois de um PUT o n8n pode deixar o cron sem registro ativo.
