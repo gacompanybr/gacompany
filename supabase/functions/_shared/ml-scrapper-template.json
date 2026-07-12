@@ -583,7 +583,18 @@
           ]
         },
         "options": {
-          "timeout": 20000
+          "timeout": 12000,
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 800
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "84a804f5-ee75-49ff-b4ba-35171fa29fc4",
@@ -593,7 +604,11 @@
       "position": [
         26000,
         13040
-      ]
+      ],
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500
     },
     {
       "parameters": {
