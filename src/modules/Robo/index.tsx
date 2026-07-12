@@ -378,8 +378,10 @@ function RoboDialog({
     if (instanciaId) {
       const ok = await validateInstance(instanciaId);
       if (!ok) {
-        return toast.error(
-          `Instância "${instanciaId}" não está pronta no Evolution. Confira o nome exato ou reconecte o QR.`
+        // Aviso apenas: a instância pode estar temporariamente reconectando.
+        // O save prossegue — o robô só falhará em runtime se o Evolution não achar a instância.
+        toast.warning(
+          `Instância "${instanciaId}" não está com estado "open" no Evolution. Salvando mesmo assim — reconecte o QR se os disparos falharem.`
         );
       }
     }
