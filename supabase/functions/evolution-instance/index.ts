@@ -85,6 +85,21 @@ Deno.serve(async (req) => {
       return json({ ok: isOpen, exists: true, state, instanceName });
     }
 
+    // Consulta leve do estado da conexão. Usada pelo painel do Robô para mostrar 🟢/🔴.
+    if (action === "connection_state") {
+      const instanceName = String(body.instanceName ?? "").trim();
+      if (!instanceName) return json({ error: "instanceName obrigatório" }, 400);
+      try {
+        const s = await evo(`/instance/connectionState/${encodeURIComponent(instanceName)}`);
+        const state = String(
+          s.body?.instance?.state ?? s.body?.state ?? s.body?.connectionStatus ?? ""
+        ).toLowerCase();
+        return json({ ok: state === "open" || state === "connected", state, instanceName });
+      } catch (e) {
+        return json({ ok: false, state: "", error: (e as Error).message, instanceName }, 200);
+      }
+    }
+
     if (!agentId) return json({ error: "agentId obrigatório" }, 400);
 
     // Buscar agente + checar acesso
