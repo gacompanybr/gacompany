@@ -63,6 +63,30 @@ type Agent = { id: string; nome: string; instancia_id: string | null; status: st
 type Grupo = { id: string; nome: string };
 type DataTable = { id: string; name: string };
 
+function InstanceStatusBadge({ instanceName }: { instanceName: string }) {
+  const [state, setState] = useState<{ ok: boolean; state: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const { data } = await supabase.functions.invoke("evolution-instance", {
+          body: { action: "connection_state", instanceName },
+        });
+        if (alive && data) setState({ ok: !!data.ok, state: String(data.state ?? "") });
+      } catch { /* silencio */ }
+    };
+    check();
+    const id = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [instanceName]);
+  if (!state) return <Badge variant="outline" className="text-[10px]">⏳ instância</Badge>;
+  return (
+    <Badge variant="outline" className="text-[10px]" title={`${instanceName} · ${state.state || "sem estado"}`}>
+      {state.ok ? "🟢 Conectado" : "🔴 Desconectado"}
+    </Badge>
+  );
+}
+
 const DIAS = [
   { v: "seg", l: "Seg" }, { v: "ter", l: "Ter" }, { v: "qua", l: "Qua" },
   { v: "qui", l: "Qui" }, { v: "sex", l: "Sex" }, { v: "sab", l: "Sáb" }, { v: "dom", l: "Dom" },
