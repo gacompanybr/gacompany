@@ -199,6 +199,7 @@ export default function RoboModule({ portfolioId }: { portfolioId: string }) {
                       {r.n8n_workflow_id && (
                         <Badge variant="outline" className="text-[10px]">n8n ✓</Badge>
                       )}
+                      {r.instancia_id && <InstanceStatusBadge instanceName={r.instancia_id} />}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {r.n8n_datatable_name ? `📊 ${r.n8n_datatable_name} · ` : ""}
