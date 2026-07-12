@@ -460,6 +460,8 @@ function __dedupeKeys(j) {
 }
 
 if (out.length && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSecret)}) {
+  // BUGFIX: itens em 'out' vêm no formato {json: row}, então precisamos ler j.json
+  // (antes lia j.offerlink direto = undefined, keys=[], API deixava passar tudo).
   const claimResp = await this.helpers.httpRequest({
     method: 'POST',
     url: ${JSON.stringify(scrapperApi)},
@@ -468,14 +470,17 @@ if (out.length && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSec
       action: 'claim_scrapper_products',
       scrapper_job_id: ${JSON.stringify(jobId)},
       table_id: ${JSON.stringify(tableId)},
-      products: out.map((j, index) => ({
-        index,
-        keys: __dedupeKeys(j),
-        productname: j.productname || null,
-        offerlink: j.offerlink || null,
-        link_compra: j.link_compra || null,
-        price: j.price || null,
-      })),
+      products: out.map((item, index) => {
+        const j = (item && item.json) ? item.json : item;
+        return {
+          index,
+          keys: __dedupeKeys(j),
+          productname: j.productname || null,
+          offerlink: j.offerlink || null,
+          link_compra: j.link_compra || null,
+          price: j.price || null,
+        };
+      }),
     },
     json: true,
   });
