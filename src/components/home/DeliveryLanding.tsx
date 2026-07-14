@@ -27,7 +27,7 @@ import ClientesSection from "@/components/ClientesSection";
 const WHATSAPP = "5512988334006"; // usado em wa.me/{WHATSAPP}
 const WHATSAPP_LABEL = "(12) 98833-4006";
 const INSTAGRAM = "gacompanybr";
-const WA_MSG_BASE = "Olá! Quero aumentar o faturamento do meu delivery.";
+const WA_MSG_BASE = "Olá! Quero aumentar o faturamento do meu negócio.";
 
 const waLink = (msg = WA_MSG_BASE) =>
   `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
@@ -259,7 +259,7 @@ function Hero() {
             variants={fadeUp}
             className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary rounded-full px-4 py-1.5 mb-6 text-xs md:text-sm font-semibold"
           >
-            <Flame size={14} /> Marketing para delivery e restaurante
+            <Flame size={14} /> Marketing e crescimento para negócios locais
           </motion.div>
 
           <motion.h1
@@ -267,22 +267,22 @@ function Hero() {
             className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
           >
             <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
-              Seu delivery bombando de pedidos
+              Seu negócio bombando de clientes
             </span>
             <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
               <TypewriterWords
                 words={[
                   "TODOS OS DIAS",
-                  "NO ALMOÇO",
-                  "NA JANTA",
-                  "NO FIM DE SEMANA",
-                  "SEM IFOOD",
                   "COM PREVISIBILIDADE",
+                  "SEM DEPENDER DE SORTE",
+                  "COM MARCA FORTE",
+                  "FATURANDO MAIS",
+                  "NO AUTOMÁTICO",
                 ]}
               />
             </span>
             <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
-              Sem depender de sorte, sem depender do iFood.
+              Sem depender de sorte, sem depender de indicação.
             </span>
           </motion.h1>
 
@@ -313,8 +313,8 @@ function Hero() {
             variants={fadeUp}
             className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
           >
-            Método completo para hamburguerias, pizzarias e restaurantes venderem com
-            previsibilidade, escalarem faturamento e pararem de depender só do iFood.
+            Método completo para empresas, clínicas, comércios e deliveries venderem com
+            previsibilidade, escalarem faturamento e pararem de depender só do boca a boca.
           </motion.p>
 
         </motion.div>
@@ -327,7 +327,7 @@ function Hero() {
 function MetricsBar() {
   const metrics = [
     { value: 50, prefix: "R$ ", suffix: "M+", label: "em vendas geradas para clientes" },
-    { value: 200, prefix: "+", suffix: "", label: "deliveries e restaurantes atendidos" },
+    { value: 200, prefix: "+", suffix: "", label: "empresas e negócios atendidos" },
     { value: 12, prefix: "", suffix: "x", label: "ROI médio das campanhas" },
     { value: 98, prefix: "", suffix: "%", label: "de clientes satisfeitos" },
   ];
@@ -358,14 +358,14 @@ function MetricsBar() {
 // ==== DOR ====
 function DorSection() {
   const dores = [
-    "Fatura bem no fim de semana e some no meio da semana",
-    "Depende do iFood, paga taxa alta e não tem cliente próprio",
-    "Vive de promoção pra vender e o lucro nunca aparece",
-    "Não sabe de onde vem o próximo pedido — zero previsibilidade",
+    "Fatura bem num mês e some no seguinte",
+    "Depende de indicação e não tem previsibilidade de clientes novos",
+    "Vive de promoção e desconto e o lucro nunca aparece",
+    "Não sabe de onde vem o próximo cliente — zero previsibilidade",
   ];
   const desejo = [
     "Novos clientes chegando todos os dias, no automático",
-    "Recorrência: o mesmo cliente pedindo 3, 4 vezes no mês",
+    "Recorrência: o mesmo cliente comprando 3, 4 vezes no mês",
     "Crescimento previsível de faturamento, mês após mês",
   ];
   return (
@@ -373,11 +373,11 @@ function DorSection() {
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            Se você é dono de delivery, isso é pra você
+            Se você é dono de negócio, isso é pra você
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            O que está <span className="text-gradient-gold">travando os pedidos</span> do
-            seu delivery
+            O que está <span className="text-gradient-gold">travando o crescimento</span> da
+            sua empresa
           </h2>
         </motion.div>
 
@@ -433,22 +433,22 @@ function MecanismoSection() {
     {
       icon: Megaphone,
       title: "Novos clientes",
-      desc: "Tráfego pago no Google, Instagram e iFood Ads pra encher seu delivery de pedidos novos toda semana.",
+      desc: "Tráfego pago no Google e Instagram pra encher sua empresa de clientes novos toda semana.",
     },
     {
       icon: Repeat,
       title: "Recorrência",
-      desc: "CRM, cardápio digital e campanhas de fidelização pra fazer o mesmo cliente pedir de novo, e de novo.",
+      desc: "CRM, automação e campanhas de fidelização pra fazer o mesmo cliente voltar, e voltar de novo.",
     },
     {
       icon: Sparkles,
       title: "Marca e autoridade",
-      desc: "Conteúdo estratégico no Instagram e Google Meu Negócio pra ser o delivery lembrado na sua região.",
+      desc: "Conteúdo estratégico no Instagram e Google Meu Negócio pra ser a marca lembrada na sua região.",
     },
     {
       icon: TrendingUp,
       title: "Ticket médio",
-      desc: "Combos, upsell no cardápio e ofertas inteligentes pra cada pedido valer mais sem esforço extra.",
+      desc: "Upsell, ofertas inteligentes e combos pra cada venda valer mais sem esforço extra.",
     },
   ];
   return (
@@ -459,11 +459,11 @@ function MecanismoSection() {
             O método
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Como fazemos seu delivery{" "}
+            Como fazemos sua empresa{" "}
             <span className="text-gradient-gold">crescer de verdade</span>
           </h2>
           <p className="text-muted-foreground mt-4">
-            4 motores trabalhando juntos, criando uma máquina de pedidos previsível.
+            4 motores trabalhando juntos, criando uma máquina de clientes previsível.
           </p>
         </motion.div>
 
@@ -490,7 +490,7 @@ function MecanismoSection() {
         </div>
 
         <motion.div variants={fadeUp} className="mt-12 text-center">
-          <PrimaryCTA>Quero esse método no meu delivery</PrimaryCTA>
+          <PrimaryCTA>Quero esse método na minha empresa</PrimaryCTA>
         </motion.div>
       </div>
     </Section>
@@ -500,12 +500,12 @@ function MecanismoSection() {
 // ==== ENTREGAS ====
 function EntregasSection() {
   const items = [
-    { icon: Megaphone, title: "Tráfego Pago", desc: "Google Ads, Meta Ads e iFood Ads" },
-    { icon: ShoppingBag, title: "Gestão de iFood", desc: "Otimização de vitrine, ranking e promos" },
-    { icon: Utensils, title: "Cardápio Digital", desc: "Cardápio próprio com pagamento — fuja da taxa" },
+    { icon: Megaphone, title: "Tráfego Pago", desc: "Google Ads, Meta Ads e campanhas de conversão" },
+    { icon: ShoppingBag, title: "Gestão de canais de venda", desc: "iFood, marketplace, site próprio — otimizados" },
+    { icon: Utensils, title: "Site & Cardápio Digital", desc: "Sua loja/site próprio com pagamento — fuja da taxa" },
     { icon: MapPin, title: "Google Meu Negócio", desc: "Apareça no topo do Google Maps da sua região" },
-    { icon: Repeat, title: "CRM e fidelização", desc: "Campanhas pra fazer o cliente pedir de novo" },
-    { icon: Bot, title: "Automações & IA", desc: "Atendimento no WhatsApp e recuperação de pedido" },
+    { icon: Repeat, title: "CRM e fidelização", desc: "Campanhas pra fazer o cliente voltar a comprar" },
+    { icon: Bot, title: "Automações & IA", desc: "Atendimento no WhatsApp e recuperação de venda" },
   ];
   return (
     <Section id="entregas" className="py-20 md:py-28 bg-background">
@@ -515,7 +515,7 @@ function EntregasSection() {
             O que entregamos
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Tudo o que seu delivery precisa,{" "}
+            Tudo o que seu negócio precisa,{" "}
             <span className="text-gradient-gold">em um só time</span>
           </h2>
         </motion.div>
@@ -545,80 +545,114 @@ function EntregasSection() {
 
 // ==== PROVA ====
 function ProvaSection() {
+  const cases = [
+    {
+      nome: "Oddes Burger",
+      segmento: "Delivery / Hamburgueria",
+      antes: "R$ 45k",
+      depois: "R$ 120k",
+      crescimento: "+167%",
+      quote: "Estruturamos o cardápio, cortamos dependência do iFood e ligamos as campanhas certas. Virou outro negócio.",
+    },
+    {
+      nome: "Clínica Lopes",
+      segmento: "Odontologia",
+      antes: "R$ 50k",
+      depois: "R$ 90k",
+      crescimento: "+80%",
+      quote: "Agenda cheia, pacientes novos toda semana. Hoje temos previsibilidade real de faturamento.",
+    },
+    {
+      nome: "Burger Only Grill",
+      segmento: "Hamburgueria artesanal",
+      antes: "R$ 5k",
+      depois: "R$ 20k",
+      crescimento: "+300%",
+      quote: "Em poucos meses quadruplicamos o faturamento. A operação virou uma máquina de vender.",
+    },
+    {
+      nome: "Arco Gerenciamento",
+      segmento: "Gestão de Móveis",
+      antes: "R$ 213k",
+      depois: "R$ 458k",
+      crescimento: "+115%",
+      quote: "Escalamos de forma previsível. A GA entregou estrutura, tráfego e método pra crescer com solidez.",
+    },
+  ];
+
   return (
     <Section id="prova" className="py-20 md:py-28 bg-card">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            Caso real
+            Casos reais
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Resultado que <span className="text-gradient-gold">virou o jogo</span>
+            Resultados que <span className="text-gradient-gold">viraram o jogo</span>
           </h2>
+          <p className="text-muted-foreground mt-4">
+            Empresas de diferentes segmentos escalando faturamento com o método GA.
+          </p>
         </motion.div>
 
-        <motion.div
-          variants={fadeUp}
-          className="max-w-5xl mx-auto bg-background border border-border rounded-2xl p-6 md:p-10"
-        >
-          <div className="grid lg:grid-cols-2 gap-8 items-center">
-            <div>
-              <div className="flex gap-1 mb-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="text-primary fill-primary" size={18} />
-                ))}
-              </div>
-              <h3 className="font-heading text-2xl md:text-3xl font-bold mb-4">
-                "Nosso faturamento cresceu{" "}
-                <span className="text-primary">340%</span> em 6 meses."
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                {/* TODO: substituir por depoimento real de cliente do nicho delivery */}
-                Estruturamos o cardápio digital, tiramos a dependência do iFood e ligamos
-                as campanhas certas. A previsibilidade mudou tudo.
-              </p>
-              <div>
-                <p className="font-semibold text-foreground">
-                  {`{{PREENCHER: Nome do cliente}}`}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {`{{PREENCHER: Nome do delivery / cidade}}`}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "Antes", val: "R$ 45k", tag: "faturamento/mês" },
-                { label: "Depois", val: "R$ 198k", tag: "faturamento/mês", hi: true },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className={`rounded-xl p-6 text-center border ${
-                    s.hi
-                      ? "border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]"
-                      : "border-border bg-card/50"
-                  }`}
-                >
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                    {s.label}
+        <div className="grid sm:grid-cols-2 gap-5 md:gap-6 max-w-6xl mx-auto">
+          {cases.map((c) => (
+            <motion.div
+              key={c.nome}
+              variants={fadeUp}
+              whileHover={{ y: -4 }}
+              className="bg-background border border-border rounded-2xl p-6 md:p-8 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all flex flex-col"
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <p className="font-heading font-bold text-foreground text-lg leading-tight">
+                    {c.nome}
                   </p>
-                  <p
-                    className={`font-heading text-3xl md:text-4xl font-extrabold ${
-                      s.hi ? "text-primary" : "text-foreground"
-                    }`}
-                  >
-                    {s.val}
+                  <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                    {c.segmento}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">{s.tag}</p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="flex gap-1 shrink-0">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className="text-primary fill-primary" size={14} />
+                  ))}
+                </div>
+              </div>
 
-          <div className="mt-10 text-center">
-            <PrimaryCTA>Quero um resultado assim</PrimaryCTA>
-          </div>
+              <p className="text-sm text-muted-foreground italic leading-relaxed mb-6">
+                "{c.quote}"
+              </p>
+
+              <div className="mt-auto grid grid-cols-3 gap-2 items-stretch">
+                <div className="rounded-xl p-3 text-center border border-border bg-card/60">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    Antes
+                  </p>
+                  <p className="font-heading text-lg md:text-xl font-extrabold text-foreground">
+                    {c.antes}
+                  </p>
+                </div>
+                <div className="rounded-xl p-3 text-center border border-border bg-card/60 flex flex-col items-center justify-center">
+                  <ArrowRight className="text-primary" size={18} />
+                  <p className="font-heading text-sm font-bold text-primary mt-1">
+                    {c.crescimento}
+                  </p>
+                </div>
+                <div className="rounded-xl p-3 text-center border border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    Depois
+                  </p>
+                  <p className="font-heading text-lg md:text-xl font-extrabold text-primary">
+                    {c.depois}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.div variants={fadeUp} className="mt-12 text-center">
+          <PrimaryCTA>Quero um resultado assim</PrimaryCTA>
         </motion.div>
       </div>
     </Section>
@@ -646,7 +680,7 @@ function FormSection() {
     e.preventDefault();
     // TODO: conectar ao backend/Supabase/webhook (envio real do lead)
     const msg =
-      `Olá! Quero aumentar o faturamento do meu delivery.%0A%0A` +
+      `Olá! Quero aumentar o faturamento do meu negócio.%0A%0A` +
       `*Nome:* ${form.nome}%0A` +
       `*WhatsApp:* ${form.whatsapp}%0A` +
       `*Instagram:* @${form.instagram.replace(/^@/, "")}%0A` +
@@ -671,16 +705,16 @@ function FormSection() {
               Análise gratuita
             </span>
             <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3 mb-5 leading-tight">
-              Bora fazer seu delivery{" "}
+              Bora fazer seu negócio{" "}
               <span className="text-gradient-gold">bombar</span>?
             </h2>
             <p className="text-muted-foreground text-lg mb-8">
               Preencha os dados abaixo. Um especialista chama você no WhatsApp com uma
-              análise personalizada do seu delivery — sem compromisso.
+              análise personalizada da sua empresa — sem compromisso.
             </p>
             <ul className="space-y-3">
               {[
-                "Diagnóstico do seu iFood e cardápio",
+                "Diagnóstico dos seus canais de venda",
                 "Plano de crescimento para os próximos 90 dias",
                 "Resposta em minutos no WhatsApp",
               ].map((t) => (
@@ -744,7 +778,7 @@ function FormSection() {
                 </div>
 
                 <div>
-                  <label htmlFor="insta" className="sr-only">Instagram do delivery</label>
+                  <label htmlFor="insta" className="sr-only">Instagram do negócio</label>
                   <div className="flex items-center bg-background border border-border rounded-lg focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 transition-all">
                     <span className="pl-4 text-muted-foreground">
                       <Instagram size={18} />
@@ -753,7 +787,7 @@ function FormSection() {
                       id="insta"
                       type="text"
                       required
-                      placeholder="@ do seu delivery"
+                      placeholder="@ do seu negócio"
                       value={form.instagram}
                       onChange={(e) =>
                         setForm({ ...form, instagram: e.target.value.replace(/\s/g, "") })
@@ -772,7 +806,7 @@ function FormSection() {
                     onChange={(e) => setForm({ ...form, faturamento: e.target.value })}
                     className="w-full bg-background border border-border rounded-lg px-4 py-3.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                   >
-                    <option value="">Faturamento mensal do delivery</option>
+                    <option value="">Faturamento mensal da empresa</option>
                     <option value="0-50k">R$ 0 – 50 mil</option>
                     <option value="50-100k">R$ 50 – 100 mil</option>
                     <option value="100-200k">R$ 100 – 200 mil</option>
@@ -816,7 +850,7 @@ function CtaFinal() {
             Todo dia sem estratégia é dia de pedido perdido.
           </h2>
           <p className="mt-4 text-lg md:text-xl opacity-90">
-            Comece agora, sem compromisso. Análise gratuita do seu delivery em minutos.
+            Comece agora, sem compromisso. Análise gratuita do seu negócio em minutos.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
