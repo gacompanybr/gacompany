@@ -206,13 +206,22 @@ function Hero() {
             className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
           >
             <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
-              Seu delivery lotado de pedidos
+              Seu delivery bombando de pedidos
             </span>
-            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-gradient-gold leading-[0.95] uppercase">
-              TODOS OS DIAS.
+            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
+              <TypewriterWords
+                words={[
+                  "TODOS OS DIAS",
+                  "NO ALMOÇO",
+                  "NA JANTA",
+                  "NO FIM DE SEMANA",
+                  "SEM IFOOD",
+                  "COM PREVISIBILIDADE",
+                ]}
+              />
             </span>
             <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
-              Não só quando o iFood quiser.
+              Sem depender de sorte, sem depender do iFood.
             </span>
           </motion.h1>
 
