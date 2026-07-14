@@ -20,6 +20,8 @@ import {
   Clock,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import EcossistemaSection from "@/components/EcossistemaSection";
+import ClientesSection from "@/components/ClientesSection";
 
 // ==== CONFIG ====
 const WHATSAPP = "5512988334006"; // usado em wa.me/{WHATSAPP}
