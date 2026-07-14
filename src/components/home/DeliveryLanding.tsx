@@ -294,14 +294,6 @@ function Hero() {
             <WhatsCTA />
           </motion.div>
 
-          <motion.p
-            variants={fadeUp}
-            className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
-          >
-            Método completo para hamburguerias, pizzarias e restaurantes venderem com
-            previsibilidade, escalarem faturamento e pararem de depender só do iFood.
-          </motion.p>
-
           <motion.div
             variants={fadeUp}
             className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground"
@@ -316,6 +308,14 @@ function Hero() {
               <Star size={16} className="text-primary fill-primary" /> +200 negócios atendidos
             </span>
           </motion.div>
+
+          <motion.p
+            variants={fadeUp}
+            className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
+          >
+            Método completo para hamburguerias, pizzarias e restaurantes venderem com
+            previsibilidade, escalarem faturamento e pararem de depender só do iFood.
+          </motion.p>
 
         </motion.div>
       </div>
