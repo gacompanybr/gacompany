@@ -500,12 +500,12 @@ function MecanismoSection() {
 // ==== ENTREGAS ====
 function EntregasSection() {
   const items = [
-    { icon: Megaphone, title: "Tráfego Pago", desc: "Google Ads, Meta Ads e iFood Ads" },
-    { icon: ShoppingBag, title: "Gestão de iFood", desc: "Otimização de vitrine, ranking e promos" },
-    { icon: Utensils, title: "Cardápio Digital", desc: "Cardápio próprio com pagamento — fuja da taxa" },
+    { icon: Megaphone, title: "Tráfego Pago", desc: "Google Ads, Meta Ads e campanhas de conversão" },
+    { icon: ShoppingBag, title: "Gestão de canais de venda", desc: "iFood, marketplace, site próprio — otimizados" },
+    { icon: Utensils, title: "Site & Cardápio Digital", desc: "Sua loja/site próprio com pagamento — fuja da taxa" },
     { icon: MapPin, title: "Google Meu Negócio", desc: "Apareça no topo do Google Maps da sua região" },
-    { icon: Repeat, title: "CRM e fidelização", desc: "Campanhas pra fazer o cliente pedir de novo" },
-    { icon: Bot, title: "Automações & IA", desc: "Atendimento no WhatsApp e recuperação de pedido" },
+    { icon: Repeat, title: "CRM e fidelização", desc: "Campanhas pra fazer o cliente voltar a comprar" },
+    { icon: Bot, title: "Automações & IA", desc: "Atendimento no WhatsApp e recuperação de venda" },
   ];
   return (
     <Section id="entregas" className="py-20 md:py-28 bg-background">
