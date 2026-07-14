@@ -806,7 +806,7 @@ function FormSection() {
                     onChange={(e) => setForm({ ...form, faturamento: e.target.value })}
                     className="w-full bg-background border border-border rounded-lg px-4 py-3.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                   >
-                    <option value="">Faturamento mensal do delivery</option>
+                    <option value="">Faturamento mensal da empresa</option>
                     <option value="0-50k">R$ 0 – 50 mil</option>
                     <option value="50-100k">R$ 50 – 100 mil</option>
                     <option value="100-200k">R$ 100 – 200 mil</option>
