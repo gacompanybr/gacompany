@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useMotionValue, useTransform, animate, useReducedMotion, type Variants } from "framer-motion";
+import { motion, AnimatePresence, useInView, useMotionValue, useTransform, animate, useReducedMotion, type Variants } from "framer-motion";
 import {
   ArrowRight,
   MessageCircle,
