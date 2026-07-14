@@ -259,7 +259,7 @@ function Hero() {
             variants={fadeUp}
             className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary rounded-full px-4 py-1.5 mb-6 text-xs md:text-sm font-semibold"
           >
-            <Flame size={14} /> Marketing para delivery e restaurante
+            <Flame size={14} /> Marketing e crescimento para negócios locais
           </motion.div>
 
           <motion.h1
@@ -267,22 +267,22 @@ function Hero() {
             className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
           >
             <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
-              Seu delivery bombando de pedidos
+              Seu negócio bombando de clientes
             </span>
             <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
               <TypewriterWords
                 words={[
                   "TODOS OS DIAS",
-                  "NO ALMOÇO",
-                  "NA JANTA",
-                  "NO FIM DE SEMANA",
-                  "SEM IFOOD",
                   "COM PREVISIBILIDADE",
+                  "SEM DEPENDER DE SORTE",
+                  "COM MARCA FORTE",
+                  "FATURANDO MAIS",
+                  "NO AUTOMÁTICO",
                 ]}
               />
             </span>
             <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
-              Sem depender de sorte, sem depender do iFood.
+              Sem depender de sorte, sem depender de indicação.
             </span>
           </motion.h1>
 
