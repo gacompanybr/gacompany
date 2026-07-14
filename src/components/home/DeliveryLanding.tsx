@@ -448,7 +448,7 @@ function MecanismoSection() {
     {
       icon: TrendingUp,
       title: "Ticket médio",
-      desc: "Combos, upsell no cardápio e ofertas inteligentes pra cada pedido valer mais sem esforço extra.",
+      desc: "Upsell, ofertas inteligentes e combos pra cada venda valer mais sem esforço extra.",
     },
   ];
   return (
