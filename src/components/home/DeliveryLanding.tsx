@@ -27,7 +27,7 @@ import ClientesSection from "@/components/ClientesSection";
 const WHATSAPP = "5512988334006"; // usado em wa.me/{WHATSAPP}
 const WHATSAPP_LABEL = "(12) 98833-4006";
 const INSTAGRAM = "gacompanybr";
-const WA_MSG_BASE = "Olá! Quero aumentar o faturamento do meu delivery.";
+const WA_MSG_BASE = "Olá! Quero aumentar o faturamento do meu negócio.";
 
 const waLink = (msg = WA_MSG_BASE) =>
   `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
