@@ -165,6 +165,67 @@ function FloatingWhats() {
   );
 }
 
+// ==== TYPEWRITER ====
+function TypewriterWords({
+  words,
+  typingSpeed = 75,
+  deletingSpeed = 40,
+  pauseAfterType = 1400,
+  pauseAfterDelete = 250,
+}: {
+  words: string[];
+  typingSpeed?: number;
+  deletingSpeed?: number;
+  pauseAfterType?: number;
+  pauseAfterDelete?: number;
+}) {
+  const [index, setIndex] = useState(0);
+  const [text, setText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const reduce = useReducedMotion();
+
+  useEffect(() => {
+    if (reduce) {
+      setText(words[0]);
+      return;
+    }
+    const current = words[index % words.length];
+    let timeout: ReturnType<typeof setTimeout>;
+
+    if (!deleting && text === current) {
+      timeout = setTimeout(() => setDeleting(true), pauseAfterType);
+    } else if (deleting && text === "") {
+      timeout = setTimeout(() => {
+        setDeleting(false);
+        setIndex((i) => (i + 1) % words.length);
+      }, pauseAfterDelete);
+    } else {
+      timeout = setTimeout(
+        () => {
+          setText((prev) =>
+            deleting
+              ? current.substring(0, prev.length - 1)
+              : current.substring(0, prev.length + 1)
+          );
+        },
+        deleting ? deletingSpeed : typingSpeed
+      );
+    }
+
+    return () => clearTimeout(timeout);
+  }, [text, deleting, index, words, typingSpeed, deletingSpeed, pauseAfterType, pauseAfterDelete, reduce]);
+
+  return (
+    <span className="inline-flex items-baseline">
+      <span className="text-gradient-gold">{text}</span>
+      <span
+        aria-hidden
+        className="inline-block w-[0.08em] h-[0.85em] ml-2 bg-primary translate-y-[0.05em] animate-pulse"
+      />
+    </span>
+  );
+}
+
 // ==== HERO ====
 function Hero() {
   return (
@@ -206,13 +267,22 @@ function Hero() {
             className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
           >
             <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
-              Seu delivery lotado de pedidos
+              Seu delivery bombando de pedidos
             </span>
-            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-gradient-gold leading-[0.95] uppercase">
-              TODOS OS DIAS.
+            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
+              <TypewriterWords
+                words={[
+                  "TODOS OS DIAS",
+                  "NO ALMOÇO",
+                  "NA JANTA",
+                  "NO FIM DE SEMANA",
+                  "SEM IFOOD",
+                  "COM PREVISIBILIDADE",
+                ]}
+              />
             </span>
             <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
-              Não só quando o iFood quiser.
+              Sem depender de sorte, sem depender do iFood.
             </span>
           </motion.h1>
 
