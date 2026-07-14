@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useMotionValue, useTransform, animate, useReducedMotion } from "framer-motion";
+import { motion, useInView, useMotionValue, useTransform, animate, useReducedMotion, type Variants } from "framer-motion";
 import {
   ArrowRight,
   MessageCircle,
@@ -31,8 +31,6 @@ const waLink = (msg = WA_MSG_BASE) =>
   `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
 
 // ==== HELPERS ====
-import type { Variants } from "framer-motion";
-
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
   show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
