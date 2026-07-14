@@ -515,7 +515,7 @@ function EntregasSection() {
             O que entregamos
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Tudo o que seu delivery precisa,{" "}
+            Tudo o que seu negócio precisa,{" "}
             <span className="text-gradient-gold">em um só time</span>
           </h2>
         </motion.div>
