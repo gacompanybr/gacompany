@@ -165,6 +165,67 @@ function FloatingWhats() {
   );
 }
 
+// ==== TYPEWRITER ====
+function TypewriterWords({
+  words,
+  typingSpeed = 75,
+  deletingSpeed = 40,
+  pauseAfterType = 1400,
+  pauseAfterDelete = 250,
+}: {
+  words: string[];
+  typingSpeed?: number;
+  deletingSpeed?: number;
+  pauseAfterType?: number;
+  pauseAfterDelete?: number;
+}) {
+  const [index, setIndex] = useState(0);
+  const [text, setText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const reduce = useReducedMotion();
+
+  useEffect(() => {
+    if (reduce) {
+      setText(words[0]);
+      return;
+    }
+    const current = words[index % words.length];
+    let timeout: ReturnType<typeof setTimeout>;
+
+    if (!deleting && text === current) {
+      timeout = setTimeout(() => setDeleting(true), pauseAfterType);
+    } else if (deleting && text === "") {
+      timeout = setTimeout(() => {
+        setDeleting(false);
+        setIndex((i) => (i + 1) % words.length);
+      }, pauseAfterDelete);
+    } else {
+      timeout = setTimeout(
+        () => {
+          setText((prev) =>
+            deleting
+              ? current.substring(0, prev.length - 1)
+              : current.substring(0, prev.length + 1)
+          );
+        },
+        deleting ? deletingSpeed : typingSpeed
+      );
+    }
+
+    return () => clearTimeout(timeout);
+  }, [text, deleting, index, words, typingSpeed, deletingSpeed, pauseAfterType, pauseAfterDelete, reduce]);
+
+  return (
+    <span className="inline-flex items-baseline">
+      <span className="text-gradient-gold">{text}</span>
+      <span
+        aria-hidden
+        className="inline-block w-[0.08em] h-[0.85em] ml-2 bg-primary translate-y-[0.05em] animate-pulse"
+      />
+    </span>
+  );
+}
+
 // ==== HERO ====
 function Hero() {
   return (
