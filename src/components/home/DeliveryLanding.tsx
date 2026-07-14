@@ -203,11 +203,17 @@ function Hero() {
 
           <motion.h1
             variants={fadeUp}
-            className="font-heading text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight"
+            className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
           >
-            Mais pedidos no seu delivery{" "}
-            <span className="text-gradient-gold">todos os dias</span> —
-            não só no fim de semana.
+            <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
+              Mais pedidos no seu delivery
+            </span>
+            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-gradient-gold leading-[0.95]">
+              todos os dias.
+            </span>
+            <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
+              Não só no fim de semana.
+            </span>
           </motion.h1>
 
           <motion.p
