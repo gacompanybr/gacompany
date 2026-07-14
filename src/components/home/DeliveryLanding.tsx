@@ -850,7 +850,7 @@ function CtaFinal() {
             Todo dia sem estratégia é dia de pedido perdido.
           </h2>
           <p className="mt-4 text-lg md:text-xl opacity-90">
-            Comece agora, sem compromisso. Análise gratuita do seu delivery em minutos.
+            Comece agora, sem compromisso. Análise gratuita do seu negócio em minutos.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
