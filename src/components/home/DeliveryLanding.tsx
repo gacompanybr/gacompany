@@ -545,80 +545,114 @@ function EntregasSection() {
 
 // ==== PROVA ====
 function ProvaSection() {
+  const cases = [
+    {
+      nome: "Oddes Burger",
+      segmento: "Delivery / Hamburgueria",
+      antes: "R$ 45k",
+      depois: "R$ 120k",
+      crescimento: "+167%",
+      quote: "Estruturamos o cardápio, cortamos dependência do iFood e ligamos as campanhas certas. Virou outro negócio.",
+    },
+    {
+      nome: "Clínica Lopes",
+      segmento: "Odontologia",
+      antes: "R$ 50k",
+      depois: "R$ 90k",
+      crescimento: "+80%",
+      quote: "Agenda cheia, pacientes novos toda semana. Hoje temos previsibilidade real de faturamento.",
+    },
+    {
+      nome: "Burger Only Grill",
+      segmento: "Hamburgueria artesanal",
+      antes: "R$ 5k",
+      depois: "R$ 20k",
+      crescimento: "+300%",
+      quote: "Em poucos meses quadruplicamos o faturamento. A operação virou uma máquina de vender.",
+    },
+    {
+      nome: "Arco Gerenciamento",
+      segmento: "Gestão de Móveis",
+      antes: "R$ 213k",
+      depois: "R$ 458k",
+      crescimento: "+115%",
+      quote: "Escalamos de forma previsível. A GA entregou estrutura, tráfego e método pra crescer com solidez.",
+    },
+  ];
+
   return (
     <Section id="prova" className="py-20 md:py-28 bg-card">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            Caso real
+            Casos reais
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Resultado que <span className="text-gradient-gold">virou o jogo</span>
+            Resultados que <span className="text-gradient-gold">viraram o jogo</span>
           </h2>
+          <p className="text-muted-foreground mt-4">
+            Empresas de diferentes segmentos escalando faturamento com o método GA.
+          </p>
         </motion.div>
 
-        <motion.div
-          variants={fadeUp}
-          className="max-w-5xl mx-auto bg-background border border-border rounded-2xl p-6 md:p-10"
-        >
-          <div className="grid lg:grid-cols-2 gap-8 items-center">
-            <div>
-              <div className="flex gap-1 mb-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="text-primary fill-primary" size={18} />
-                ))}
-              </div>
-              <h3 className="font-heading text-2xl md:text-3xl font-bold mb-4">
-                "Nosso faturamento cresceu{" "}
-                <span className="text-primary">340%</span> em 6 meses."
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                {/* TODO: substituir por depoimento real de cliente do nicho delivery */}
-                Estruturamos o cardápio digital, tiramos a dependência do iFood e ligamos
-                as campanhas certas. A previsibilidade mudou tudo.
-              </p>
-              <div>
-                <p className="font-semibold text-foreground">
-                  {`{{PREENCHER: Nome do cliente}}`}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {`{{PREENCHER: Nome do delivery / cidade}}`}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "Antes", val: "R$ 45k", tag: "faturamento/mês" },
-                { label: "Depois", val: "R$ 198k", tag: "faturamento/mês", hi: true },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className={`rounded-xl p-6 text-center border ${
-                    s.hi
-                      ? "border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]"
-                      : "border-border bg-card/50"
-                  }`}
-                >
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                    {s.label}
+        <div className="grid sm:grid-cols-2 gap-5 md:gap-6 max-w-6xl mx-auto">
+          {cases.map((c) => (
+            <motion.div
+              key={c.nome}
+              variants={fadeUp}
+              whileHover={{ y: -4 }}
+              className="bg-background border border-border rounded-2xl p-6 md:p-8 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all flex flex-col"
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <p className="font-heading font-bold text-foreground text-lg leading-tight">
+                    {c.nome}
                   </p>
-                  <p
-                    className={`font-heading text-3xl md:text-4xl font-extrabold ${
-                      s.hi ? "text-primary" : "text-foreground"
-                    }`}
-                  >
-                    {s.val}
+                  <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                    {c.segmento}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">{s.tag}</p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="flex gap-1 shrink-0">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className="text-primary fill-primary" size={14} />
+                  ))}
+                </div>
+              </div>
 
-          <div className="mt-10 text-center">
-            <PrimaryCTA>Quero um resultado assim</PrimaryCTA>
-          </div>
+              <p className="text-sm text-muted-foreground italic leading-relaxed mb-6">
+                "{c.quote}"
+              </p>
+
+              <div className="mt-auto grid grid-cols-3 gap-2 items-stretch">
+                <div className="rounded-xl p-3 text-center border border-border bg-card/60">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    Antes
+                  </p>
+                  <p className="font-heading text-lg md:text-xl font-extrabold text-foreground">
+                    {c.antes}
+                  </p>
+                </div>
+                <div className="rounded-xl p-3 text-center border border-border bg-card/60 flex flex-col items-center justify-center">
+                  <ArrowRight className="text-primary" size={18} />
+                  <p className="font-heading text-sm font-bold text-primary mt-1">
+                    {c.crescimento}
+                  </p>
+                </div>
+                <div className="rounded-xl p-3 text-center border border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    Depois
+                  </p>
+                  <p className="font-heading text-lg md:text-xl font-extrabold text-primary">
+                    {c.depois}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.div variants={fadeUp} className="mt-12 text-center">
+          <PrimaryCTA>Quero um resultado assim</PrimaryCTA>
         </motion.div>
       </div>
     </Section>
