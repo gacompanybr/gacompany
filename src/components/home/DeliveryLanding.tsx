@@ -490,7 +490,7 @@ function MecanismoSection() {
         </div>
 
         <motion.div variants={fadeUp} className="mt-12 text-center">
-          <PrimaryCTA>Quero esse método no meu delivery</PrimaryCTA>
+          <PrimaryCTA>Quero esse método na minha empresa</PrimaryCTA>
         </motion.div>
       </div>
     </Section>
