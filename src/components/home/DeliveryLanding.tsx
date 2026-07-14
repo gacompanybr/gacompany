@@ -459,11 +459,11 @@ function MecanismoSection() {
             O método
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Como fazemos seu delivery{" "}
+            Como fazemos sua empresa{" "}
             <span className="text-gradient-gold">crescer de verdade</span>
           </h2>
           <p className="text-muted-foreground mt-4">
-            4 motores trabalhando juntos, criando uma máquina de pedidos previsível.
+            4 motores trabalhando juntos, criando uma máquina de clientes previsível.
           </p>
         </motion.div>
 
