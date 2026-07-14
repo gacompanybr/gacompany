@@ -778,7 +778,7 @@ function FormSection() {
                 </div>
 
                 <div>
-                  <label htmlFor="insta" className="sr-only">Instagram do delivery</label>
+                  <label htmlFor="insta" className="sr-only">Instagram do negócio</label>
                   <div className="flex items-center bg-background border border-border rounded-lg focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30 transition-all">
                     <span className="pl-4 text-muted-foreground">
                       <Instagram size={18} />
@@ -787,7 +787,7 @@ function FormSection() {
                       id="insta"
                       type="text"
                       required
-                      placeholder="@ do seu delivery"
+                      placeholder="@ do seu negócio"
                       value={form.instagram}
                       onChange={(e) =>
                         setForm({ ...form, instagram: e.target.value.replace(/\s/g, "") })
