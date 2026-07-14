@@ -327,7 +327,7 @@ function Hero() {
 function MetricsBar() {
   const metrics = [
     { value: 50, prefix: "R$ ", suffix: "M+", label: "em vendas geradas para clientes" },
-    { value: 200, prefix: "+", suffix: "", label: "deliveries e restaurantes atendidos" },
+    { value: 200, prefix: "+", suffix: "", label: "empresas e negócios atendidos" },
     { value: 12, prefix: "", suffix: "x", label: "ROI médio das campanhas" },
     { value: 98, prefix: "", suffix: "%", label: "de clientes satisfeitos" },
   ];
