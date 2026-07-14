@@ -206,13 +206,13 @@ function Hero() {
             className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
           >
             <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
-              Mais pedidos no seu delivery
+              Seu delivery lotado de pedidos
             </span>
-            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-gradient-gold leading-[0.95]">
-              todos os dias.
+            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-gradient-gold leading-[0.95] uppercase">
+              TODOS OS DIAS.
             </span>
             <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
-              Não só no fim de semana.
+              Não só quando o iFood quiser.
             </span>
           </motion.h1>
 
