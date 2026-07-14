@@ -680,7 +680,7 @@ function FormSection() {
     e.preventDefault();
     // TODO: conectar ao backend/Supabase/webhook (envio real do lead)
     const msg =
-      `Olá! Quero aumentar o faturamento do meu delivery.%0A%0A` +
+      `Olá! Quero aumentar o faturamento do meu negócio.%0A%0A` +
       `*Nome:* ${form.nome}%0A` +
       `*WhatsApp:* ${form.whatsapp}%0A` +
       `*Instagram:* @${form.instagram.replace(/^@/, "")}%0A` +
