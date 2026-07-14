@@ -544,49 +544,117 @@ function EntregasSection() {
 }
 
 // ==== PROVA ====
+const cases = [
+  {
+    nome: "Rod's Burger",
+    segmento: "Delivery / Hamburgueria",
+    antes: "R$ 45k",
+    depois: "R$ 120k",
+    crescimento: "+167%",
+    quote: "Estruturamos o cardápio, cortamos dependência do iFood e ligamos as campanhas certas. Virou outro negócio.",
+  },
+  {
+    nome: "Clínica Lopes Saúde",
+    segmento: "Odontologia",
+    antes: "R$ 50k",
+    depois: "R$ 90k",
+    crescimento: "+80%",
+    quote: "Agenda cheia, pacientes novos toda semana. Hoje temos previsibilidade real de faturamento.",
+  },
+  {
+    nome: "Burger On The Grill",
+    segmento: "Hamburgueria artesanal",
+    antes: "R$ 5k",
+    depois: "R$ 20k",
+    crescimento: "+300%",
+    quote: "Em poucos meses quadruplicamos o faturamento. A operação virou uma máquina de vender.",
+  },
+  {
+    nome: "OArco",
+    segmento: "GERENCIONAMENTO DE IMÓVEIS",
+    antes: "R$ 213k",
+    depois: "R$ 458k",
+    crescimento: "+115%",
+    quote: "Escalamos de forma previsível. A GA entregou estrutura, tráfego e método pra crescer com solidez.",
+  },
+];
+
+function CaseCard({ c }: { c: (typeof cases)[number] }) {
+  return (
+    <div className="bg-background border border-border rounded-2xl p-6 md:p-8 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all flex flex-col h-full">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <p className="font-heading font-bold text-foreground text-lg leading-tight">
+            {c.nome}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+            {c.segmento}
+          </p>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className="text-primary fill-primary" size={14} />
+          ))}
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground italic leading-relaxed mb-6">
+        "{c.quote}"
+      </p>
+
+      <div className="mt-auto grid grid-cols-3 gap-2 items-stretch">
+        <div className="rounded-xl p-3 text-center border border-border bg-card/60">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Antes</p>
+          <p className="font-heading text-lg md:text-xl font-extrabold text-foreground">{c.antes}</p>
+        </div>
+        <div className="rounded-xl p-3 text-center border border-border bg-card/60 flex flex-col items-center justify-center">
+          <ArrowRight className="text-primary" size={18} />
+          <p className="font-heading text-sm font-bold text-primary mt-1">{c.crescimento}</p>
+        </div>
+        <div className="rounded-xl p-3 text-center border border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Depois</p>
+          <p className="font-heading text-lg md:text-xl font-extrabold text-primary">{c.depois}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProvaSection() {
-  const cases = [
-    {
-      nome: "Rod's Burger",
-      segmento: "Delivery / Hamburgueria",
-      antes: "R$ 45k",
-      depois: "R$ 120k",
-      crescimento: "+167%",
-      quote: "Estruturamos o cardápio, cortamos dependência do iFood e ligamos as campanhas certas. Virou outro negócio.",
-    },
-    {
-      nome: "Clínica Lopes Saúde",
-      segmento: "Odontologia",
-      antes: "R$ 50k",
-      depois: "R$ 90k",
-      crescimento: "+80%",
-      quote: "Agenda cheia, pacientes novos toda semana. Hoje temos previsibilidade real de faturamento.",
-    },
-    {
-      nome: "Burger On The Grill",
-      segmento: "Hamburgueria artesanal",
-      antes: "R$ 5k",
-      depois: "R$ 20k",
-      crescimento: "+300%",
-      quote: "Em poucos meses quadruplicamos o faturamento. A operação virou uma máquina de vender.",
-    },
-    {
-      nome: "OArco",
-      segmento: "GERENCIONAMENTO DE IMÓVEIS",
-      antes: "R$ 213k",
-      depois: "R$ 458k",
-      crescimento: "+115%",
-      quote: "Escalamos de forma previsível. A GA entregou estrutura, tráfego e método pra crescer com solidez.",
-    },
-  ];
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(sectionRef, { once: false, amount: 0.3 });
+
+  const next = () => {
+    setDirection(1);
+    setIndex((prev) => (prev + 1) % cases.length);
+  };
+
+  const prev = () => {
+    setDirection(-1);
+    setIndex((prev) => (prev - 1 + cases.length) % cases.length);
+  };
+
+  const goTo = (i: number) => {
+    setDirection(i > index ? 1 : -1);
+    setIndex(i);
+  };
+
+  useEffect(() => {
+    if (!inView) return;
+    autoRef.current = setInterval(next, 4500);
+    return () => {
+      if (autoRef.current) clearInterval(autoRef.current);
+    };
+  }, [inView]);
 
   return (
     <Section id="prova" className="py-20 md:py-28 bg-card">
-      <div className="container mx-auto px-4 lg:px-8">
+      <div ref={sectionRef} className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
-          <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            Casos reais
-          </span>
+          <span className="text-primary font-semibold text-sm uppercase tracking-wider">Casos reais</span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
             Resultados que <span className="text-gradient-gold">viraram o jogo</span>
           </h2>
@@ -595,59 +663,48 @@ function ProvaSection() {
           </p>
         </motion.div>
 
-        <div className="grid sm:grid-cols-2 gap-5 md:gap-6 max-w-6xl mx-auto">
-          {cases.map((c) => (
-            <motion.div
-              key={c.nome}
-              variants={fadeUp}
-              whileHover={{ y: -4 }}
-              className="bg-background border border-border rounded-2xl p-6 md:p-8 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all flex flex-col"
-            >
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <p className="font-heading font-bold text-foreground text-lg leading-tight">
-                    {c.nome}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
-                    {c.segmento}
-                  </p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="text-primary fill-primary" size={14} />
-                  ))}
-                </div>
-              </div>
+        <div className="relative max-w-xl mx-auto">
+          <div className="overflow-hidden">
+            <AnimatePresence mode="wait" initial={false} custom={direction}>
+              <motion.div
+                key={index}
+                custom={direction}
+                initial={{ x: direction > 0 ? 60 : -60, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: direction > 0 ? -60 : 60, opacity: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              >
+                <CaseCard c={cases[index]} />
+              </motion.div>
+            </AnimatePresence>
+          </div>
 
-              <p className="text-sm text-muted-foreground italic leading-relaxed mb-6">
-                "{c.quote}"
-              </p>
+          <button
+            onClick={prev}
+            aria-label="Case anterior"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 md:-translate-x-12 p-2 rounded-full bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+          >
+            <ArrowRight className="rotate-180" size={20} />
+          </button>
+          <button
+            onClick={next}
+            aria-label="Próximo case"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 md:translate-x-12 p-2 rounded-full bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+          >
+            <ArrowRight size={20} />
+          </button>
+        </div>
 
-              <div className="mt-auto grid grid-cols-3 gap-2 items-stretch">
-                <div className="rounded-xl p-3 text-center border border-border bg-card/60">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                    Antes
-                  </p>
-                  <p className="font-heading text-lg md:text-xl font-extrabold text-foreground">
-                    {c.antes}
-                  </p>
-                </div>
-                <div className="rounded-xl p-3 text-center border border-border bg-card/60 flex flex-col items-center justify-center">
-                  <ArrowRight className="text-primary" size={18} />
-                  <p className="font-heading text-sm font-bold text-primary mt-1">
-                    {c.crescimento}
-                  </p>
-                </div>
-                <div className="rounded-xl p-3 text-center border border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                    Depois
-                  </p>
-                  <p className="font-heading text-lg md:text-xl font-extrabold text-primary">
-                    {c.depois}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
+        <div className="flex justify-center gap-2 mt-8">
+          {cases.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              aria-label={`Ver case ${i + 1}`}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                i === index ? "w-6 bg-primary" : "w-2 bg-border hover:bg-primary/50"
+              }`}
+            />
           ))}
         </div>
 
