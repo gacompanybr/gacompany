@@ -809,9 +809,11 @@ export default function DeliveryLanding() {
     <>
       <Hero />
       <MetricsBar />
+      <ClientesSection />
       <DorSection />
       <MecanismoSection />
       <EntregasSection />
+      <EcossistemaSection />
       <ProvaSection />
       <FormSection />
       <CtaFinal />
