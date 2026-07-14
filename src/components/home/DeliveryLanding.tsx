@@ -547,7 +547,7 @@ function EntregasSection() {
 function ProvaSection() {
   const cases = [
     {
-      nome: "Oddes Burger",
+      nome: "Rod's Burger",
       segmento: "Delivery / Hamburgueria",
       antes: "R$ 45k",
       depois: "R$ 120k",
@@ -555,7 +555,7 @@ function ProvaSection() {
       quote: "Estruturamos o cardápio, cortamos dependência do iFood e ligamos as campanhas certas. Virou outro negócio.",
     },
     {
-      nome: "Clínica Lopes",
+      nome: "Clínica Lopes Saúde",
       segmento: "Odontologia",
       antes: "R$ 50k",
       depois: "R$ 90k",
@@ -563,7 +563,7 @@ function ProvaSection() {
       quote: "Agenda cheia, pacientes novos toda semana. Hoje temos previsibilidade real de faturamento.",
     },
     {
-      nome: "Burger Only Grill",
+      nome: "Burger On The Grill",
       segmento: "Hamburgueria artesanal",
       antes: "R$ 5k",
       depois: "R$ 20k",
@@ -571,8 +571,8 @@ function ProvaSection() {
       quote: "Em poucos meses quadruplicamos o faturamento. A operação virou uma máquina de vender.",
     },
     {
-      nome: "Arco Gerenciamento",
-      segmento: "Gestão de Móveis",
+      nome: "OArco",
+      segmento: "GERENCIONAMENTO DE IMÓVEIS",
       antes: "R$ 213k",
       depois: "R$ 458k",
       crescimento: "+115%",
