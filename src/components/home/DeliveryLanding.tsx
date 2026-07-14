@@ -358,14 +358,14 @@ function MetricsBar() {
 // ==== DOR ====
 function DorSection() {
   const dores = [
-    "Fatura bem no fim de semana e some no meio da semana",
-    "Depende do iFood, paga taxa alta e não tem cliente próprio",
-    "Vive de promoção pra vender e o lucro nunca aparece",
-    "Não sabe de onde vem o próximo pedido — zero previsibilidade",
+    "Fatura bem num mês e some no seguinte",
+    "Depende de indicação e não tem previsibilidade de clientes novos",
+    "Vive de promoção e desconto e o lucro nunca aparece",
+    "Não sabe de onde vem o próximo cliente — zero previsibilidade",
   ];
   const desejo = [
     "Novos clientes chegando todos os dias, no automático",
-    "Recorrência: o mesmo cliente pedindo 3, 4 vezes no mês",
+    "Recorrência: o mesmo cliente comprando 3, 4 vezes no mês",
     "Crescimento previsível de faturamento, mês após mês",
   ];
   return (
@@ -373,11 +373,11 @@ function DorSection() {
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            Se você é dono de delivery, isso é pra você
+            Se você é dono de negócio, isso é pra você
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            O que está <span className="text-gradient-gold">travando os pedidos</span> do
-            seu delivery
+            O que está <span className="text-gradient-gold">travando o crescimento</span> da
+            sua empresa
           </h2>
         </motion.div>
 
