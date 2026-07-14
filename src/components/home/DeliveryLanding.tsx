@@ -313,8 +313,8 @@ function Hero() {
             variants={fadeUp}
             className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
           >
-            Método completo para hamburguerias, pizzarias e restaurantes venderem com
-            previsibilidade, escalarem faturamento e pararem de depender só do iFood.
+            Método completo para empresas, clínicas, comércios e deliveries venderem com
+            previsibilidade, escalarem faturamento e pararem de depender só do boca a boca.
           </motion.p>
 
         </motion.div>
