@@ -433,17 +433,17 @@ function MecanismoSection() {
     {
       icon: Megaphone,
       title: "Novos clientes",
-      desc: "Tráfego pago no Google, Instagram e iFood Ads pra encher seu delivery de pedidos novos toda semana.",
+      desc: "Tráfego pago no Google e Instagram pra encher sua empresa de clientes novos toda semana.",
     },
     {
       icon: Repeat,
       title: "Recorrência",
-      desc: "CRM, cardápio digital e campanhas de fidelização pra fazer o mesmo cliente pedir de novo, e de novo.",
+      desc: "CRM, automação e campanhas de fidelização pra fazer o mesmo cliente voltar, e voltar de novo.",
     },
     {
       icon: Sparkles,
       title: "Marca e autoridade",
-      desc: "Conteúdo estratégico no Instagram e Google Meu Negócio pra ser o delivery lembrado na sua região.",
+      desc: "Conteúdo estratégico no Instagram e Google Meu Negócio pra ser a marca lembrada na sua região.",
     },
     {
       icon: TrendingUp,
