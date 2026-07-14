@@ -705,16 +705,16 @@ function FormSection() {
               Análise gratuita
             </span>
             <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3 mb-5 leading-tight">
-              Bora fazer seu delivery{" "}
+              Bora fazer seu negócio{" "}
               <span className="text-gradient-gold">bombar</span>?
             </h2>
             <p className="text-muted-foreground text-lg mb-8">
               Preencha os dados abaixo. Um especialista chama você no WhatsApp com uma
-              análise personalizada do seu delivery — sem compromisso.
+              análise personalizada da sua empresa — sem compromisso.
             </p>
             <ul className="space-y-3">
               {[
-                "Diagnóstico do seu iFood e cardápio",
+                "Diagnóstico dos seus canais de venda",
                 "Plano de crescimento para os próximos 90 dias",
                 "Resposta em minutos no WhatsApp",
               ].map((t) => (
