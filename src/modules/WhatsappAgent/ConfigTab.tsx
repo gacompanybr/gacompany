@@ -126,6 +126,23 @@ export function ConfigTab({
             Mais baixo = respostas mais previsíveis. Mais alto = mais criativas.
           </p>
         </div>
+        <div>
+          <div className="flex items-center justify-between">
+            <Label>Tamanho máximo da resposta</Label>
+            <span className="text-xs text-muted-foreground">{agent.max_tokens ?? 1200} tokens</span>
+          </div>
+          <Slider
+            value={[agent.max_tokens ?? 1200]}
+            min={500} max={3000} step={100}
+            onValueChange={([v]) => onChange({ max_tokens: v })}
+            className="mt-2"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Modelos de raciocínio (Gemini Pro) consomem parte deste orçamento "pensando" antes de escrever.
+            Valores baixos podem cortar a resposta no meio. Recomendado: 1200-2000.
+          </p>
+        </div>
+
       </Card>
 
       <ReportGroupCard agent={agent} onChange={onChange} />

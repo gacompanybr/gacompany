@@ -422,20 +422,21 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
   for (const [index, target] of targets.entries()) {
     const body = { number: target, text };
-    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-    const responseText = await r.text();
-    let responseJson: any = null;
-    try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
-    const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
-    console.log("sendText", JSON.stringify({ instance, target, attempt: index + 1, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-    // Se a Evolution aceitou (r.ok), a mensagem entrou na fila — para aqui.
-    // Tentar outro alvo (JID alternativo) causava mensagem duplicada quando
-    // a sessão realmente entregava. PENDING é normal enquanto a socket
-    // aguarda confirmação de entrega — não é falha.
-    if (r.ok) return true;
+    // 1 retry automático com pequeno atraso se a Evolution rejeitar o envio.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+      const responseText = await r.text();
+      let responseJson: any = null;
+      try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
+      const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
+      console.log("sendText", JSON.stringify({ instance, target, targetIdx: index + 1, attempt, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
+      if (r.ok) return true;
+      if (attempt < 2) await new Promise((res) => setTimeout(res, 1200));
+    }
   }
   return false;
 }
+
 
 // Delay aleatório entre 2.5 e 4.5 segundos para parecer humano sem demorar demais
 function randomSplitDelayMs(): number {
@@ -823,29 +824,62 @@ async function processPayload(payload: any) {
     }
 
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
-          ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
-        ],
-        temperature: agent.temperatura ?? 0.7,
-        max_tokens: Math.min(Math.max(Number(agent.max_tokens ?? 500), 200), 2000),
-      }),
-    });
+    // max_tokens: mínimo 500, padrão 1200, teto 3000.
+    // Modelos de raciocínio (Gemini 2.5 Pro etc.) consomem parte do orçamento
+    // "pensando" internamente antes de escrever — valores baixos cortam a
+    // resposta visível no meio da frase.
+    const maxTokens = Math.min(Math.max(Number(agent.max_tokens ?? 1200), 500), 3000);
 
+    async function callAi(mt: number) {
+      return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
+            ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
+          ],
+          temperature: agent.temperatura ?? 0.7,
+          max_tokens: mt,
+        }),
+      });
+    }
+
+    let aiResp = await callAi(maxTokens);
     if (!aiResp.ok) {
       console.error("AI gateway error", aiResp.status, await aiResp.text());
       continue;
     }
 
-    const aiJson = await aiResp.json();
+    let aiJson = await aiResp.json();
     let reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
+
+    // Detecta resposta cortada: finish_reason=length ou texto sem pontuação final.
+    const finishReason = String(aiJson.choices?.[0]?.finish_reason ?? "").toLowerCase();
+    const endsProperly = (t: string) => /[.!?…\)\]\"'”’)]\s*$/.test(t) || /[:;]\s*$/.test(t);
+    const looksTruncated = reply.length > 0 && (finishReason === "length" || !endsProperly(reply));
+    if (looksTruncated && maxTokens < 3000) {
+      const retryTokens = Math.min(3000, Math.max(maxTokens * 2, 2000));
+      console.warn("[TRUNCATED] resposta parece cortada — refazendo com max_tokens maior", { finishReason, was: maxTokens, retry: retryTokens, preview: reply.slice(-80) });
+      const retry = await callAi(retryTokens);
+      if (retry.ok) {
+        const retryJson = await retry.json();
+        const retryReply: string = retryJson.choices?.[0]?.message?.content?.trim() ?? "";
+        const retryFinish = String(retryJson.choices?.[0]?.finish_reason ?? "").toLowerCase();
+        if (retryReply && (retryFinish !== "length" && endsProperly(retryReply))) {
+          reply = retryReply;
+          aiJson = retryJson;
+        } else if (retryReply.length > reply.length) {
+          reply = retryReply;
+          aiJson = retryJson;
+        }
+      }
+    }
+
     if (!reply) continue;
+
 
     // === SANITIZAÇÃO: bloqueia mensagem-relatório vazando pro contato ===
     // A IA às vezes tentava enviar o card "Nome: X | Empresa: Y | Segmento: Z"
