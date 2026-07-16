@@ -393,7 +393,7 @@ function splitMessage(text: string): string[] {
     .trim();
   // Separador explícito do modelo
   if (raw.includes("|||")) {
-    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 4);
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 2);
   }
   // Quebra por parágrafo duplo
   const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
