@@ -808,7 +808,7 @@ async function processPayload(payload: any) {
         `Motivo de contato (registro interno — NUNCA assumir que o lead já aceitou ou respondeu nada): ${sdrLead.motivo_contato}`,
         `Status atual do lead: ${sdrLead.status}.`,
         `Mensagens trocadas até agora: ${sdrLead.mensagens_trocadas ?? 0}.`,
-        `Seu objetivo nesta conversa é vender o serviço da GA Company e conduzir até o agendamento de uma call de 15 minutos.`,
+        `Seu objetivo nesta conversa é seguir fielmente as INSTRUÇÕES OBRIGATÓRIAS do negócio (acima) e conduzir o lead ao próximo passo definido nelas (agendamento, avaliação, call — o que as instruções disserem).`,
         `VOCÊ iniciou o contato (prospecção ativa). As mensagens "assistant" no histórico foram enviadas por VOCÊ mesmo — leia tudo, lembre exatamente o que você já disse e CONTINUE de onde parou.`,
         `NUNCA escreva frases como "que bom que você topou", "obrigado pelo aceite", "confirmando seu interesse" ou qualquer outra que assuma uma resposta que o lead AINDA não deu — a menos que o histórico acima mostre explicitamente essa resposta dele.`,
         `Se o lead responder com objeção, desinteresse ou dúvida, trate a objeção usando o contexto anterior e tente manter a oportunidade viva com uma pergunta curta ou CTA para call.`,
