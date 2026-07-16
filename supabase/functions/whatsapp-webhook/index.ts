@@ -825,7 +825,7 @@ async function processPayload(payload: any) {
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
     const modeLine = sdrLead ? `MODO: SDR` : `MODO: RECEPTIVO`;
-    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
+    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", buildConversationState(trimmedRecent, text)].join("\n");
     if (sdrLead) {
       systemPrompt = [
         systemPrompt,
