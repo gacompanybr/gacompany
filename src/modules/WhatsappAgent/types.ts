@@ -73,7 +73,7 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     faqs: [],
     modelo_ia: "gemini",
     temperatura: 0.7,
-    max_tokens: 500,
+    max_tokens: 1200,
     report_group_id: null,
     report_group_name: null,
   };
