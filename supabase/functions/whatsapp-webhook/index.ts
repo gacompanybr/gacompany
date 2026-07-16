@@ -383,6 +383,34 @@ function dentroDoHorario(agent: any): boolean {
   }
 }
 
+function buildTimeContext(agent: any): string {
+  try {
+    const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+    const nomeDia = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mo = String(now.getMonth() + 1).padStart(2, "0");
+    const dias: string[] = Array.isArray(agent?.dias_semana) ? agent.dias_semana : [];
+    const diasLabel = dias.length ? dias.join(", ") : "não configurado";
+    const horaLabel = agent?.horario_inicio && agent?.horario_fim ? `${agent.horario_inicio} às ${agent.horario_fim}` : "não configurado";
+    const dentro = dentroDoHorario(agent);
+    const diaHoje = map[now.getDay()];
+    const linhas = [
+      `[CONTEXTO TEMPORAL — fuso America/Sao_Paulo]`,
+      `- Agora: ${nomeDia[now.getDay()]} (${diaHoje}), ${dd}/${mo}, ${hh}:${mm}.`,
+      `- Horário comercial do estabelecimento: ${horaLabel}. Dias: ${diasLabel}.`,
+      dentro
+        ? `- ESTAMOS DENTRO do horário comercial agora. Você pode oferecer atendimento/agendamento para HOJE.`
+        : `- ESTAMOS FORA do horário comercial agora. NUNCA diga "atendemos ainda hoje", "conseguimos te atender agora" ou prometa horário para hoje. Ofereça o próximo dia útil dentro do horário comercial acima e deixe claro que a equipe confirma no próximo expediente.`,
+    ];
+    return linhas.join("\n");
+  } catch {
+    return "";
+  }
+}
+
 function splitMessage(text: string): string[] {
   let raw = (text ?? "").trim();
   if (!raw) return [];
@@ -393,7 +421,7 @@ function splitMessage(text: string): string[] {
     .trim();
   // Separador explícito do modelo
   if (raw.includes("|||")) {
-    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 4);
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 2);
   }
   // Quebra por parágrafo duplo
   const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
@@ -414,7 +442,7 @@ function splitMessage(text: string): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-  return chunks.filter(Boolean).slice(0, 4);
+  return chunks.filter(Boolean).slice(0, 2);
 }
 
 async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
@@ -797,7 +825,7 @@ async function processPayload(payload: any) {
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
     const modeLine = sdrLead ? `MODO: SDR` : `MODO: RECEPTIVO`;
-    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildConversationState(trimmedRecent, text)].join("\n");
+    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", buildConversationState(trimmedRecent, text)].join("\n");
     if (sdrLead) {
       systemPrompt = [
         systemPrompt,
