@@ -414,7 +414,7 @@ function splitMessage(text: string): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-  return chunks.filter(Boolean).slice(0, 4);
+  return chunks.filter(Boolean).slice(0, 2);
 }
 
 async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
