@@ -132,7 +132,7 @@ async function ensureSettings(instanceName: string) {
       msgCall: "",
       groupsIgnore: false,
       alwaysOnline: true,
-      readMessages: true,
+      readMessages: false,
       readStatus: true,
       syncFullHistory: false,
     }),

@@ -653,6 +653,27 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // Agente ativo: marca a mensagem recebida como lida no WhatsApp.
+    // Quando inativo (bloco acima), NÃO marca — deixa a equipe humana ver que chegou algo novo.
+    try {
+      const msgId = asText(msg.key?.id) || asText(msg.id);
+      const readJid = asText(msg.key?.remoteJid) || remoteJid;
+      if (msgId && readJid) {
+        const readRes = await fetch(`${EVO_URL}/chat/markMessageAsRead/${instance}`, {
+          method: "POST",
+          headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            readMessages: [{ remoteJid: readJid, fromMe: false, id: msgId }],
+          }),
+        });
+        if (!readRes.ok) {
+          console.log("[READ] falhou", { status: readRes.status, msgId });
+        }
+      }
+    } catch (e) {
+      console.log("[READ] erro", (e as Error).message);
+    }
+
     // === DEDUPE DE ENTREGA (Evolution reenvia webhook às vezes) ===
     // Se o mesmo texto do mesmo telefone chegou nos últimos 15s, ignora esta entrega
     // — evita a IA responder 2x a mesma mensagem.
