@@ -376,8 +376,13 @@ function dentroDoHorario(agent: any): boolean {
     if (!agent.horario_inicio || !agent.horario_fim) return true;
     const [hi, mi] = agent.horario_inicio.split(":").map(Number);
     const [hf, mf] = agent.horario_fim.split(":").map(Number);
+    const startMin = hi * 60 + mi;
+    const endMin = hf * 60 + mf;
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    return nowMin >= hi * 60 + mi && nowMin <= hf * 60 + mf;
+    if (startMin > endMin) {
+      return nowMin >= startMin || nowMin <= endMin;
+    }
+    return nowMin >= startMin && nowMin <= endMin;
   } catch {
     return true;
   }
