@@ -106,7 +106,7 @@ export function ConfigTab({
           <Select value={agent.modelo_ia} onValueChange={(v) => onChange({ modelo_ia: v as any })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="gemini">Google Gemini (gratuito - recomendado)</SelectItem>
+              <SelectItem value="gemini">Google Gemini Flash (rápido e econômico - recomendado)</SelectItem>
               <SelectItem value="openai">OpenAI GPT-5 Mini (pago)</SelectItem>
             </SelectContent>
           </Select>
