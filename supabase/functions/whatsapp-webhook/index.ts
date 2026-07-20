@@ -840,7 +840,7 @@ async function processPayload(payload: any) {
     const recent = (history ?? []).reverse();
 
     const modelMap: Record<string, string> = {
-      gemini: "google/gemini-2.5-pro",
+      gemini: "google/gemini-2.5-flash",
       openai: "openai/gpt-5-mini",
     };
     const model = modelMap[agent.modelo_ia] ?? "openai/gpt-5-mini";
