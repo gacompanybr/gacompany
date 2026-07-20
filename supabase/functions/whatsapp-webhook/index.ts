@@ -471,9 +471,9 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
 }
 
 
-// Delay aleatório entre 2.5 e 4.5 segundos para parecer humano sem demorar demais
+// Delay aleatório entre 0.8 e 1.5 segundos para parecer humano sem travar
 function randomSplitDelayMs(): number {
-  return 2500 + Math.floor(Math.random() * 2001);
+  return 800 + Math.floor(Math.random() * 700);
 }
 
 async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
@@ -715,7 +715,7 @@ async function processPayload(payload: any) {
     // cada webhook chamava a IA e respondia 3x cada = enxurrada de bolhas.
     // Aqui esperamos 7s: se chegou outra mensagem do mesmo contato nesse
     // intervalo, ESTA execução para e deixa a próxima responder por todas.
-    const DEBOUNCE_MS = 3000;
+    const DEBOUNCE_MS = 1500;
     await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
     {
       const phonesForCheck = Array.from(new Set([
