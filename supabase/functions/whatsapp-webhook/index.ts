@@ -759,28 +759,6 @@ async function processPayload(payload: any) {
     }
 
 
-    // Fora do horário → mensagem padrão (se houver)
-    if (!dentroDoHorario(agent)) {
-      if (agent.fora_horario_msg) {
-        const { sent, failed } = await sendText(instance, sendTargets, agent.fora_horario_msg);
-        const rows = [
-          ...sent.map((m) => ({ role: "assistant" as const, mensagem: m })),
-          ...failed.map((m) => ({ role: "assistant" as const, mensagem: `[FALHA AO ENVIAR] ${m}` })),
-        ];
-        if (rows.length) {
-          await admin.from("whatsapp_conversas").insert(rows.map((r) => ({
-            portfolio_id: portfolioId,
-            instance_name: instance,
-            contato_telefone: storagePhone,
-            contato_nome: pushName,
-            role: r.role,
-            mensagem: r.mensagem,
-            sdr_lead_id: sdrLead?.id ?? null,
-          })));
-        }
-      }
-      continue;
-    }
 
     // Memória: últimas 36h da MESMA conversa (por lead SDR ou por telefone equivalente).
     const MEMORY_WINDOW_HOURS = 36;
