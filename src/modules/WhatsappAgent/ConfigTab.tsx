@@ -83,14 +83,9 @@ export function ConfigTab({
             ))}
           </div>
         </div>
-        <div>
-          <Label>Mensagem fora do horário</Label>
-          <Textarea
-            rows={2}
-            value={agent.fora_horario_msg ?? ""}
-            onChange={(e) => onChange({ fora_horario_msg: e.target.value })}
-          />
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Fora do horário configurado o robô fica invisível e não envia mensagens automáticas.
+        </p>
       </Card>
 
       <Card className="p-5 space-y-4">
