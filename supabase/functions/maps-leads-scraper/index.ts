@@ -48,16 +48,23 @@ Deno.serve(async (req) => {
       };
       if (pageToken) body.pageToken = pageToken;
 
-      const res = await fetch(`${GATEWAY_URL}/places/v1/places:searchText`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": GMAPS_KEY,
-          "Content-Type": "application/json",
-          "X-Goog-FieldMask": FIELD_MASK,
-        },
-        body: JSON.stringify(body),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${GATEWAY_URL}/places/v1/places:searchText`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "X-Connection-Api-Key": GMAPS_KEY,
+            "Content-Type": "application/json",
+            "X-Goog-FieldMask": FIELD_MASK,
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (err) {
+        if (leads.length > 0) break;
+        return json({ error: `gateway fetch falhou: ${(err as Error).message}` }, 500);
+      }
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         // Se já coletamos algo, devolve o que tem em vez de estourar 500
