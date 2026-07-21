@@ -58,8 +58,10 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Se já coletamos algo, devolve o que tem em vez de estourar 500
+        if (leads.length > 0) break;
         return json({ error: data?.error?.message || `gateway ${res.status}`, raw: data }, 500);
       }
       for (const p of data.places ?? []) {
