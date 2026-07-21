@@ -658,6 +658,12 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // Fora do expediente: o robô fica invisível — sem leitura, sem resposta, sem banco.
+    if (!dentroDoHorario(agent)) {
+      console.log("[HORARIO] fora do expediente, ignorando mensagem", { portfolioId, remoteJid, inicio: agent.horario_inicio, fim: agent.horario_fim });
+      continue;
+    }
+
     // Agente ativo: marca a mensagem recebida como lida no WhatsApp.
     // Quando inativo (bloco acima), NÃO marca — deixa a equipe humana ver que chegou algo novo.
     try {
