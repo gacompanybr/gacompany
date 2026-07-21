@@ -166,6 +166,7 @@ export function GoogleMapsTab() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Telefone</TableHead>
+                  <TableHead>WhatsApp</TableHead>
                   <TableHead>Endereço</TableHead>
                   <TableHead>Avaliação</TableHead>
                   <TableHead>Website</TableHead>
@@ -173,32 +174,47 @@ export function GoogleMapsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leads.map((l) => (
-                  <TableRow key={l.place_id}>
-                    <TableCell className="font-medium">{l.nome}</TableCell>
-                    <TableCell className="whitespace-nowrap">{l.telefone || "—"}</TableCell>
-                    <TableCell className="max-w-[280px] truncate" title={l.endereco}>
-                      {l.endereco}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {l.avaliacao ? `${l.avaliacao} (${l.total_avaliacoes ?? 0})` : "—"}
-                    </TableCell>
-                    <TableCell className="max-w-[180px] truncate">
-                      {l.website ? (
-                        <a href={l.website} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                          {l.website.replace(/^https?:\/\//, "")}
-                        </a>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {l.maps_url ? (
-                        <a href={l.maps_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                          abrir
-                        </a>
-                      ) : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {leads.map((l) => {
+                  const cel = extrairCelularBR(l.telefone);
+                  return (
+                    <TableRow key={l.place_id}>
+                      <TableCell className="font-medium">{l.nome}</TableCell>
+                      <TableCell className="whitespace-nowrap">{l.telefone || "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {cel ? (
+                          <a
+                            href={`https://wa.me/${cel}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            wa.me/{cel}
+                          </a>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate" title={l.endereco}>
+                        {l.endereco}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {l.avaliacao ? `${l.avaliacao} (${l.total_avaliacoes ?? 0})` : "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[180px] truncate">
+                        {l.website ? (
+                          <a href={l.website} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                            {l.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {l.maps_url ? (
+                          <a href={l.maps_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                            abrir
+                          </a>
+                        ) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
