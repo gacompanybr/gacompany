@@ -24,6 +24,16 @@ type Lead = {
   place_id: string;
 };
 
+// Filtra só celulares BR (DDD + 9XXXXXXXX). Retorna E.164 sem "+" (ex: 5514991234567) ou "" se for fixo.
+function extrairCelularBR(tel: string): string {
+  if (!tel) return "";
+  let d = tel.replace(/\D/g, "");
+  if (d.startsWith("55")) d = d.slice(2);
+  if (d.length !== 11) return ""; // celular BR = DDD (2) + 9 + 8 dígitos
+  if (d[2] !== "9") return "";    // celular sempre começa com 9 após o DDD
+  return "55" + d;
+}
+
 export function GoogleMapsTab() {
   const [nicho, setNicho] = useState("Restaurante");
   const [cidade, setCidade] = useState("Bauru");
@@ -41,9 +51,10 @@ export function GoogleMapsTab() {
     setLoading(false);
     if (error) return toast.error(error.message);
     if ((data as any)?.error) return toast.error((data as any).error);
-    const found = ((data as any)?.leads ?? []) as Lead[];
+    const raw = ((data as any)?.leads ?? []) as Lead[];
+    const found = raw.filter((l) => extrairCelularBR(l.telefone));
     setLeads(found);
-    toast.success(`${found.length} leads encontrados`);
+    toast.success(`${found.length} leads com celular encontrados`);
   }
 
   function exportar() {
