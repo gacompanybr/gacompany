@@ -60,20 +60,24 @@ export function GoogleMapsTab() {
   function exportar() {
     if (!leads.length) return;
     const ws = XLSX.utils.json_to_sheet(
-      leads.map((l) => ({
-        Nome: l.nome,
-        Categoria: l.categoria,
-        Telefone: l.telefone,
-        Endereço: l.endereco,
-        Website: l.website,
-        Avaliação: l.avaliacao ?? "",
-        "Total avaliações": l.total_avaliacoes ?? "",
-        Status: l.status,
-        "Google Maps": l.maps_url,
-      })),
+      leads.map((l) => {
+        const cel = extrairCelularBR(l.telefone);
+        return {
+          Nome: l.nome,
+          Categoria: l.categoria,
+          Telefone: l.telefone,
+          WhatsApp: cel ? `https://wa.me/${cel}` : "",
+          Endereço: l.endereco,
+          Website: l.website,
+          Avaliação: l.avaliacao ?? "",
+          "Total avaliações": l.total_avaliacoes ?? "",
+          Status: l.status,
+          "Google Maps": l.maps_url,
+        };
+      }),
     );
     ws["!cols"] = [
-      { wch: 32 }, { wch: 22 }, { wch: 18 }, { wch: 50 },
+      { wch: 32 }, { wch: 22 }, { wch: 18 }, { wch: 32 }, { wch: 50 },
       { wch: 32 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 50 },
     ];
     const wb = XLSX.utils.book_new();
