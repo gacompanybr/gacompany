@@ -24,6 +24,16 @@ type Lead = {
   place_id: string;
 };
 
+// Filtra só celulares BR (DDD + 9XXXXXXXX). Retorna E.164 sem "+" (ex: 5514991234567) ou "" se for fixo.
+function extrairCelularBR(tel: string): string {
+  if (!tel) return "";
+  let d = tel.replace(/\D/g, "");
+  if (d.startsWith("55")) d = d.slice(2);
+  if (d.length !== 11) return ""; // celular BR = DDD (2) + 9 + 8 dígitos
+  if (d[2] !== "9") return "";    // celular sempre começa com 9 após o DDD
+  return "55" + d;
+}
+
 export function GoogleMapsTab() {
   const [nicho, setNicho] = useState("Restaurante");
   const [cidade, setCidade] = useState("Bauru");
@@ -41,28 +51,33 @@ export function GoogleMapsTab() {
     setLoading(false);
     if (error) return toast.error(error.message);
     if ((data as any)?.error) return toast.error((data as any).error);
-    const found = ((data as any)?.leads ?? []) as Lead[];
+    const raw = ((data as any)?.leads ?? []) as Lead[];
+    const found = raw.filter((l) => extrairCelularBR(l.telefone));
     setLeads(found);
-    toast.success(`${found.length} leads encontrados`);
+    toast.success(`${found.length} leads com celular encontrados`);
   }
 
   function exportar() {
     if (!leads.length) return;
     const ws = XLSX.utils.json_to_sheet(
-      leads.map((l) => ({
-        Nome: l.nome,
-        Categoria: l.categoria,
-        Telefone: l.telefone,
-        Endereço: l.endereco,
-        Website: l.website,
-        Avaliação: l.avaliacao ?? "",
-        "Total avaliações": l.total_avaliacoes ?? "",
-        Status: l.status,
-        "Google Maps": l.maps_url,
-      })),
+      leads.map((l) => {
+        const cel = extrairCelularBR(l.telefone);
+        return {
+          Nome: l.nome,
+          Categoria: l.categoria,
+          Telefone: l.telefone,
+          WhatsApp: cel ? `https://wa.me/${cel}` : "",
+          Endereço: l.endereco,
+          Website: l.website,
+          Avaliação: l.avaliacao ?? "",
+          "Total avaliações": l.total_avaliacoes ?? "",
+          Status: l.status,
+          "Google Maps": l.maps_url,
+        };
+      }),
     );
     ws["!cols"] = [
-      { wch: 32 }, { wch: 22 }, { wch: 18 }, { wch: 50 },
+      { wch: 32 }, { wch: 22 }, { wch: 18 }, { wch: 32 }, { wch: 50 },
       { wch: 32 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 50 },
     ];
     const wb = XLSX.utils.book_new();
@@ -151,6 +166,7 @@ export function GoogleMapsTab() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Telefone</TableHead>
+                  <TableHead>WhatsApp</TableHead>
                   <TableHead>Endereço</TableHead>
                   <TableHead>Avaliação</TableHead>
                   <TableHead>Website</TableHead>
@@ -158,32 +174,47 @@ export function GoogleMapsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leads.map((l) => (
-                  <TableRow key={l.place_id}>
-                    <TableCell className="font-medium">{l.nome}</TableCell>
-                    <TableCell className="whitespace-nowrap">{l.telefone || "—"}</TableCell>
-                    <TableCell className="max-w-[280px] truncate" title={l.endereco}>
-                      {l.endereco}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {l.avaliacao ? `${l.avaliacao} (${l.total_avaliacoes ?? 0})` : "—"}
-                    </TableCell>
-                    <TableCell className="max-w-[180px] truncate">
-                      {l.website ? (
-                        <a href={l.website} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                          {l.website.replace(/^https?:\/\//, "")}
-                        </a>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {l.maps_url ? (
-                        <a href={l.maps_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                          abrir
-                        </a>
-                      ) : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {leads.map((l) => {
+                  const cel = extrairCelularBR(l.telefone);
+                  return (
+                    <TableRow key={l.place_id}>
+                      <TableCell className="font-medium">{l.nome}</TableCell>
+                      <TableCell className="whitespace-nowrap">{l.telefone || "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {cel ? (
+                          <a
+                            href={`https://wa.me/${cel}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            wa.me/{cel}
+                          </a>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[280px] truncate" title={l.endereco}>
+                        {l.endereco}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {l.avaliacao ? `${l.avaliacao} (${l.total_avaliacoes ?? 0})` : "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[180px] truncate">
+                        {l.website ? (
+                          <a href={l.website} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                            {l.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {l.maps_url ? (
+                          <a href={l.maps_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                            abrir
+                          </a>
+                        ) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
