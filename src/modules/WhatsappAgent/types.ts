@@ -19,6 +19,7 @@ export type WhatsappAgent = {
   max_tokens: number;
   report_group_id: string | null;
   report_group_name: string | null;
+  report_number: string | null;
 };
 
 export type Faq = { pergunta: string; resposta: string };
