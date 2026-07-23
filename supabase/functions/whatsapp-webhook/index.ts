@@ -1063,63 +1063,79 @@ async function processPayload(payload: any) {
         if (destinations.length === 0) {
           console.log("gatilho detectado mas nenhum destino de relatório configurado", { portfolioId, trigger });
         } else {
-          // Dedupe: mesma conversa + mesmo trigger em janela de 10min
-          const dedupeKey = `report:${portfolioId}:${storagePhone}:${trigger}`;
-          const now = Date.now();
-          const g = globalThis as any;
-          g.__reportDedupe ??= new Map<string, number>();
-          const last = g.__reportDedupe.get(dedupeKey) as number | undefined;
-          if (last && now - last < 10 * 60 * 1000) {
-            console.log("relatório suprimido por dedupe", { dedupeKey, ageMs: now - last });
+          // CORREÇÃO 2: só dispara "promessa de repassar" se conversa tiver >=3 msgs do cliente
+          const userMsgsCount =
+            trimmedRecent.filter((m) => m.role === "user").length + 1; // +1 = msg atual
+          if (promiseTriggered && userMsgsCount < 3) {
+            console.log("relatório suprimido — conversa curta demais", { userMsgsCount, trigger });
           } else {
-            g.__reportDedupe.set(dedupeKey, now);
+          // CORREÇÃO 3: dedupe persistente no banco, 60min por telefone+trigger
+          const DEDUPE_WINDOW_MIN = 60;
+          const { data: lastReport } = await admin
+            .from("whatsapp_report_dedupe")
+            .select("last_sent_at")
+            .eq("portfolio_id", portfolioId)
+            .eq("phone", storagePhone)
+            .eq("trigger_type", trigger)
+            .maybeSingle();
+          const lastMs = lastReport?.last_sent_at ? new Date(lastReport.last_sent_at).getTime() : 0;
+          const nowMs = Date.now();
+          if (lastMs && nowMs - lastMs < DEDUPE_WINDOW_MIN * 60 * 1000) {
+            console.log("relatório suprimido por dedupe DB", {
+              portfolioId, storagePhone, trigger, ageMin: Math.round((nowMs - lastMs) / 60000),
+            });
+          } else {
+            await admin.from("whatsapp_report_dedupe").upsert({
+              portfolio_id: portfolioId,
+              phone: storagePhone,
+              trigger_type: trigger,
+              last_sent_at: new Date(nowMs).toISOString(),
+            }, { onConflict: "portfolio_id,phone,trigger_type" });
 
             const leadFone = sdrLead?.telefone ?? storagePhone;
 
-            // === Extrai nome real dito pelo próprio usuário na conversa ===
-            const userTurns = [
-              ...trimmedRecent.filter((m) => m.role === "user").map((m) => String(m.mensagem ?? "")),
-              text,
-            ];
-            const namePatterns: RegExp[] = [
-              /\bmeu nome (?:e|é|eh)\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
-              /\bme chamo\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
-              /\bpode me chamar de\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
-              /\bsou (?:o|a)\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
-              /\baqui (?:e|é|eh|quem fala é|quem fala e)\s+(?:o|a\s+)?([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
-            ];
-            const stopWords = new Set(["muito","tudo","bem","bom","obrigado","obrigada","cliente","aqui","ola","oi","boa","noite","dia","tarde"]);
-            const cleanName = (raw: string): string | null => {
-              const first = raw.trim().split(/[\s,.\!\?\-\n]/)[0];
-              if (!first) return null;
-              const norm = first.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-              if (norm.length < 2 || norm.length > 30 || stopWords.has(norm) || !/^[a-zà-ÿ]+$/i.test(first)) return null;
-              return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
-            };
+            // === CORREÇÃO 1: Extrai nome via IA (flash-lite) sobre histórico completo ===
             let nomeInformado: string | null = null;
-            for (const turn of userTurns) {
-              for (const rx of namePatterns) {
-                const m = turn.match(rx);
-                const candidate = m?.[1] && cleanName(m[1]);
-                if (candidate) { nomeInformado = candidate; break; }
+            try {
+              const histParaNome = [...trimmedRecent, { role: "user" as const, mensagem: text }]
+                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+                .join("\n");
+              const nomeResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash-lite",
+                  messages: [
+                    { role: "user", content: `Analise o histórico desta conversa e extraia o nome do cliente, se ele tiver informado em algum momento.\nO nome pode aparecer como resposta a "qual seu nome?", ou o cliente pode ter se apresentado espontaneamente.\nRetorne APENAS o nome encontrado, sem explicações. Se não encontrar nenhum nome, retorne exatamente: Não informado\n\nHistórico:\n${histParaNome}` },
+                  ],
+                  temperature: 0.1,
+                  max_tokens: 30,
+                }),
+              });
+              if (nomeResp.ok) {
+                const nj = await nomeResp.json();
+                const raw = String(nj.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`.:!?]+$/g, "").trim();
+                if (raw && !/^n[aã]o informado$/i.test(raw) && raw.length <= 60) {
+                  nomeInformado = raw
+                    .split(/\s+/)
+                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                    .join(" ");
+                }
               }
-              if (nomeInformado) break;
+            } catch (e) {
+              console.error("nome-extract fail", e);
             }
 
-            // Sanitiza pushName (rejeita ".", "-", "..", vazio, 1 char)
+            // Fallback pushName: só se IA não achou nome, e for >2 chars e não só pontuação
             const pushNameSan = (() => {
               const p = (pushName ?? "").trim();
               if (!p) return null;
-              if (p.length < 2) return null;
-              if (/^[.\-_·•\s]+$/.test(p)) return null;
+              if (p.length <= 2) return null;
+              if (/^[.\-_·•\s\d]+$/.test(p)) return null;
               return p;
             })();
 
-            const leadNome = nomeInformado
-              ?? sdrLead?.nome_resolvido
-              ?? sdrLead?.nome
-              ?? pushNameSan
-              ?? "Não informado";
+            const leadNome = nomeInformado ?? pushNameSan ?? "Não informado";
 
             // === Motivo real via IA leve (fallback silencioso) ===
             let motivoReal = "Motivo não identificado";
@@ -1198,6 +1214,7 @@ async function processPayload(payload: any) {
                 .then((r) => console.log("send-report", { dest, status: r.status, ok: r.ok, trigger }))
                 .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
             }
+          }
           }
         }
       }
