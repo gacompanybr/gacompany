@@ -1769,6 +1769,7 @@ export type Database = {
           portfolio_id: string
           report_group_id: string | null
           report_group_name: string | null
+          report_number: string | null
           sdr_followup_enabled: boolean
           status: string
           telefone: string | null
@@ -1796,6 +1797,7 @@ export type Database = {
           portfolio_id: string
           report_group_id?: string | null
           report_group_name?: string | null
+          report_number?: string | null
           sdr_followup_enabled?: boolean
           status?: string
           telefone?: string | null
@@ -1823,6 +1825,7 @@ export type Database = {
           portfolio_id?: string
           report_group_id?: string | null
           report_group_name?: string | null
+          report_number?: string | null
           sdr_followup_enabled?: boolean
           status?: string
           telefone?: string | null
