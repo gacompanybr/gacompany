@@ -1924,6 +1924,33 @@ export type Database = {
           },
         ]
       }
+      whatsapp_report_dedupe: {
+        Row: {
+          created_at: string
+          id: string
+          last_sent_at: string
+          phone: string
+          portfolio_id: string
+          trigger_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sent_at?: string
+          phone: string
+          portfolio_id: string
+          trigger_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sent_at?: string
+          phone?: string
+          portfolio_id?: string
+          trigger_type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       meta_integracoes_public: {
