@@ -1215,6 +1215,7 @@ async function processPayload(payload: any) {
                 .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
             }
           }
+          }
         }
       }
 
