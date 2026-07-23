@@ -1035,46 +1035,102 @@ async function processPayload(payload: any) {
         await admin.from("sdr_leads").update({ status: newStatus }).eq("id", sdrLead.id);
       }
 
-      // Dispara o relatório no grupo — SDR ou RECEPTIVO
+      // Detecta "promessa de repasse" (fora de horário / registro para retorno)
+      const replyNorm = reply
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      const promiseRegex = /(vou passar|vou deixar marcado|vou registrar|equipe vai entrar em contato|alguem vai te retornar|vou repassar|deixar anotado|no horario comercial|quando a clinica abrir|nossa equipe vai)/i;
+      let promiseTriggered = false;
+      if (!trigger && promiseRegex.test(replyNorm)) {
+        promiseTriggered = true;
+        trigger = "human_requested";
+        if (!newStatus) newStatus = "aguardando_humano";
+      }
+
+      // Dispara o relatório — SDR ou RECEPTIVO
       if (trigger) {
         const { data: agentRow } = await admin
           .from("whatsapp_agents")
-          .select("report_group_id, report_group_name")
+          .select("report_group_id, report_group_name, report_number")
           .eq("portfolio_id", portfolioId)
           .maybeSingle();
-        if (agentRow?.report_group_id) {
-          const triggerLabel = trigger === "meeting_confirmed" ? "✅ Reunião confirmada" : "🙋 Solicitou falar com humano";
-          const leadNome = sdrLead?.nome_resolvido ?? sdrLead?.nome ?? pushName ?? "—";
-          const leadFone = sdrLead?.telefone ?? storagePhone;
-          const linhas = [
-            `📋 *NOVO LEAD — GA COMPANY*`,
-            `_${triggerLabel}_`,
-            ``,
-            `👤 *Lead:* ${leadNome}`,
-            `📱 *WhatsApp:* +${leadFone}`,
-          ];
-          if (sdrLead) {
-            linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
-            linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
-            if (sdrLead.cidade) linhas.push(`📍 *Cidade:* ${sdrLead.cidade}`);
-            linhas.push(`🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`);
-            linhas.push(`💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`);
-            if (sdrLead.instagram) linhas.push(`📷 *Instagram:* ${sdrLead.instagram}`);
-          } else {
-            linhas.push(`📨 *Origem:* conversa receptiva (cliente iniciou o contato)`);
-            const ultimaFala = text.length > 240 ? text.slice(0, 240) + "…" : text;
-            linhas.push(`💬 *Última mensagem do cliente:* "${ultimaFala}"`);
-          }
-          const reportText = linhas.filter(Boolean).join("\n");
-          fetch(`${EVO_URL}/message/sendText/${instance}`, {
-            method: "POST",
-            headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({ number: agentRow.report_group_id, text: reportText }),
-          }).catch((e) => console.error("send-report fail", e));
+
+        const destinations: string[] = [];
+        if (agentRow?.report_group_id) destinations.push(agentRow.report_group_id);
+        if (agentRow?.report_number) destinations.push(String(agentRow.report_number).replace(/\D/g, ""));
+
+        if (destinations.length === 0) {
+          console.log("gatilho detectado mas nenhum destino de relatório configurado", { portfolioId, trigger });
         } else {
-          console.log("gatilho detectado mas nenhum report_group_id configurado", { portfolioId, trigger });
+          // Dedupe: mesma conversa + mesmo trigger em janela de 10min
+          const dedupeKey = `report:${portfolioId}:${storagePhone}:${trigger}`;
+          const now = Date.now();
+          const g = globalThis as any;
+          g.__reportDedupe ??= new Map<string, number>();
+          const last = g.__reportDedupe.get(dedupeKey) as number | undefined;
+          if (last && now - last < 10 * 60 * 1000) {
+            console.log("relatório suprimido por dedupe", { dedupeKey, ageMs: now - last });
+          } else {
+            g.__reportDedupe.set(dedupeKey, now);
+
+            const leadNome = sdrLead?.nome_resolvido ?? sdrLead?.nome ?? pushName ?? "Não informado";
+            const leadFone = sdrLead?.telefone ?? storagePhone;
+
+            let reportText: string;
+            if (promiseTriggered) {
+              const nowSP = new Date().toLocaleString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                day: "2-digit", month: "2-digit", year: "numeric",
+                hour: "2-digit", minute: "2-digit",
+              }).replace(",", " às");
+              reportText = [
+                `🔔 *Novo contato fora do horário*`,
+                ``,
+                `👤 Nome: ${leadNome}`,
+                `📱 Número: +${leadFone}`,
+                `🔗 WhatsApp: https://wa.me/${leadFone}`,
+                `📋 Motivo: Contato fora do horário — robô prometeu repassar para equipe`,
+                `🕐 Data/hora: ${nowSP}`,
+              ].join("\n");
+            } else {
+              const triggerLabel = trigger === "meeting_confirmed" ? "✅ Reunião confirmada" : "🙋 Solicitou falar com humano";
+              const linhas = [
+                `📋 *NOVO LEAD — GA COMPANY*`,
+                `_${triggerLabel}_`,
+                ``,
+                `👤 *Lead:* ${leadNome}`,
+                `📱 *WhatsApp:* +${leadFone}`,
+              ];
+              if (sdrLead) {
+                linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
+                linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
+                if (sdrLead.cidade) linhas.push(`📍 *Cidade:* ${sdrLead.cidade}`);
+                linhas.push(`🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`);
+                linhas.push(`💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`);
+                if (sdrLead.instagram) linhas.push(`📷 *Instagram:* ${sdrLead.instagram}`);
+              } else {
+                linhas.push(`📨 *Origem:* conversa receptiva (cliente iniciou o contato)`);
+                const ultimaFala = text.length > 240 ? text.slice(0, 240) + "…" : text;
+                linhas.push(`💬 *Última mensagem do cliente:* "${ultimaFala}"`);
+              }
+              reportText = linhas.filter(Boolean).join("\n");
+            }
+
+            // Envio não-bloqueante para cada destino
+            for (const dest of destinations) {
+              fetch(`${EVO_URL}/message/sendText/${instance}`, {
+                method: "POST",
+                headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify({ number: dest, text: reportText }),
+              })
+                .then((r) => console.log("send-report", { dest, status: r.status, ok: r.ok, trigger }))
+                .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
+            }
+          }
         }
       }
+
     }
 
   }
