@@ -77,5 +77,6 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     max_tokens: 1200,
     report_group_id: null,
     report_group_name: null,
+    report_number: null,
   };
 }
