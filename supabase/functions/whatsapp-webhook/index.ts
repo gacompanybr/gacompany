@@ -1074,46 +1074,117 @@ async function processPayload(payload: any) {
           } else {
             g.__reportDedupe.set(dedupeKey, now);
 
-            const leadNome = sdrLead?.nome_resolvido ?? sdrLead?.nome ?? pushName ?? "Não informado";
             const leadFone = sdrLead?.telefone ?? storagePhone;
+
+            // === Extrai nome real dito pelo próprio usuário na conversa ===
+            const userTurns = [
+              ...trimmedRecent.filter((m) => m.role === "user").map((m) => String(m.mensagem ?? "")),
+              text,
+            ];
+            const namePatterns: RegExp[] = [
+              /\bmeu nome (?:e|é|eh)\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
+              /\bme chamo\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
+              /\bpode me chamar de\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
+              /\bsou (?:o|a)\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
+              /\baqui (?:e|é|eh|quem fala é|quem fala e)\s+(?:o|a\s+)?([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ'\-\s]{1,40})/i,
+            ];
+            const stopWords = new Set(["muito","tudo","bem","bom","obrigado","obrigada","cliente","aqui","ola","oi","boa","noite","dia","tarde"]);
+            const cleanName = (raw: string): string | null => {
+              const first = raw.trim().split(/[\s,.\!\?\-\n]/)[0];
+              if (!first) return null;
+              const norm = first.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+              if (norm.length < 2 || norm.length > 30 || stopWords.has(norm) || !/^[a-zà-ÿ]+$/i.test(first)) return null;
+              return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+            };
+            let nomeInformado: string | null = null;
+            for (const turn of userTurns) {
+              for (const rx of namePatterns) {
+                const m = turn.match(rx);
+                const candidate = m?.[1] && cleanName(m[1]);
+                if (candidate) { nomeInformado = candidate; break; }
+              }
+              if (nomeInformado) break;
+            }
+
+            // Sanitiza pushName (rejeita ".", "-", "..", vazio, 1 char)
+            const pushNameSan = (() => {
+              const p = (pushName ?? "").trim();
+              if (!p) return null;
+              if (p.length < 2) return null;
+              if (/^[.\-_·•\s]+$/.test(p)) return null;
+              return p;
+            })();
+
+            const leadNome = nomeInformado
+              ?? sdrLead?.nome_resolvido
+              ?? sdrLead?.nome
+              ?? pushNameSan
+              ?? "Não informado";
+
+            // === Motivo real via IA leve (fallback silencioso) ===
+            let motivoReal = "Motivo não identificado";
+            try {
+              const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
+                .slice(-12)
+                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+                .join("\n");
+              const motResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash-lite",
+                  messages: [
+                    { role: "system", content: "Você é um analista que resume o motivo real de contato em conversas de WhatsApp de forma objetiva e específica." },
+                    { role: "user", content: `Com base no histórico desta conversa, resuma em uma frase curta (máximo 10 palavras) qual é o motivo real pelo qual esta pessoa entrou em contato. Seja objetivo e específico. Exemplos: "Quer extrair um dente", "Interesse em implante", "Dúvida sobre valor de prótese", "Veio pelo anúncio — quer agendar consulta". Responda APENAS a frase, sem explicações.\n\nHistórico:\n${histParaMotivo}` },
+                  ],
+                  temperature: 0.2,
+                  max_tokens: 50,
+                }),
+              });
+              if (motResp.ok) {
+                const motJson = await motResp.json();
+                const raw = String(motJson.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`]+$/g, "");
+                if (raw) motivoReal = raw.length > 140 ? raw.slice(0, 140) + "…" : raw;
+              }
+            } catch (e) {
+              console.error("motivo-extract fail", e);
+            }
+
+            const nowSP = new Date().toLocaleString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              day: "2-digit", month: "2-digit", year: "numeric",
+              hour: "2-digit", minute: "2-digit",
+            }).replace(",", " às");
 
             let reportText: string;
             if (promiseTriggered) {
-              const nowSP = new Date().toLocaleString("pt-BR", {
-                timeZone: "America/Sao_Paulo",
-                day: "2-digit", month: "2-digit", year: "numeric",
-                hour: "2-digit", minute: "2-digit",
-              }).replace(",", " às");
               reportText = [
                 `🔔 *Novo contato fora do horário*`,
                 ``,
                 `👤 Nome: ${leadNome}`,
                 `📱 Número: +${leadFone}`,
                 `🔗 WhatsApp: https://wa.me/${leadFone}`,
-                `📋 Motivo: Contato fora do horário — robô prometeu repassar para equipe`,
+                `📋 Motivo: ${motivoReal}`,
                 `🕐 Data/hora: ${nowSP}`,
               ].join("\n");
             } else {
               const triggerLabel = trigger === "meeting_confirmed" ? "✅ Reunião confirmada" : "🙋 Solicitou falar com humano";
               const linhas = [
-                `📋 *NOVO LEAD — GA COMPANY*`,
+                `📋 *NOVO LEAD*`,
                 `_${triggerLabel}_`,
                 ``,
-                `👤 *Lead:* ${leadNome}`,
-                `📱 *WhatsApp:* +${leadFone}`,
+                `👤 *Nome:* ${leadNome}`,
+                `📱 *WhatsApp:* +${leadFone} — https://wa.me/${leadFone}`,
+                `📋 *Motivo:* ${motivoReal}`,
               ];
               if (sdrLead) {
                 linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
                 linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
                 if (sdrLead.cidade) linhas.push(`📍 *Cidade:* ${sdrLead.cidade}`);
-                linhas.push(`🎯 *Motivo de contato:* ${sdrLead.motivo_contato}`);
                 linhas.push(`💬 *Mensagens trocadas:* ${(sdrLead.mensagens_trocadas ?? 0) + sent.length}`);
                 if (sdrLead.instagram) linhas.push(`📷 *Instagram:* ${sdrLead.instagram}`);
-              } else {
-                linhas.push(`📨 *Origem:* conversa receptiva (cliente iniciou o contato)`);
-                const ultimaFala = text.length > 240 ? text.slice(0, 240) + "…" : text;
-                linhas.push(`💬 *Última mensagem do cliente:* "${ultimaFala}"`);
               }
+              linhas.push(`🕐 *Data/hora:* ${nowSP}`);
               reportText = linhas.filter(Boolean).join("\n");
             }
 
