@@ -19,6 +19,7 @@ export type WhatsappAgent = {
   max_tokens: number;
   report_group_id: string | null;
   report_group_name: string | null;
+  report_number: string | null;
 };
 
 export type Faq = { pergunta: string; resposta: string };
@@ -76,5 +77,6 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     max_tokens: 1200,
     report_group_id: null,
     report_group_name: null,
+    report_number: null,
   };
 }

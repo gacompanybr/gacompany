@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_agents ADD COLUMN IF NOT EXISTS report_number TEXT;
