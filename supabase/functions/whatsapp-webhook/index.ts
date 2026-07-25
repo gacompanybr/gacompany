@@ -416,6 +416,130 @@ function buildTimeContext(agent: any): string {
   }
 }
 
+// ============================================================
+// IDENTIFICAÇÃO DE NOME DO CONTATO (hierarquia + filtro de qualidade)
+// ============================================================
+
+// Palavras/padrões que denunciam nome de EMPRESA no pushName do WhatsApp
+const BUSINESS_NAME_PATTERNS = [
+  /\bltda\b/i, /\bme\b/i, /\beireli\b/i, /\bs\/?a\b/i, /&\s*cia/i,
+  /\bcl[íi]nica\b/i, /\bstudio\b/i, /\bsal[ãa]o\b/i, /\bloja\b/i,
+  /\bfarm[áa]cia\b/i, /\bacademia\b/i, /\bconsult[óo]rio\b/i,
+  /\badvocacia\b/i, /\bcontabilidade\b/i, /\bim[óo]veis\b/i,
+  /\bservi[çc]os\b/i, /\bsolu[çc][õo]es\b/i, /\bcomercial\b/i,
+  /\bbar\b/i, /\brestaurante\b/i, /\bpet\s*shop\b/i, /\bautopec/i,
+];
+
+function isValidPersonName(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const s = String(raw).trim();
+  if (s.length < 2) return false;
+  const letters = s.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  if (letters.length < 2) return false;
+  // só pontuação/símbolos/números
+  if (/^[.\-_·•!?@#$%*+=/\\|\s\d]+$/.test(s)) return false;
+  // parece empresa?
+  if (BUSINESS_NAME_PATTERNS.some((re) => re.test(s))) return false;
+  // sequência de 5+ maiúsculas seguidas (típico de nome fantasia)
+  if (/[A-ZÀ-Ý]{5,}/.test(s)) return false;
+  // muitos caracteres não-alfabéticos
+  const nonAlpha = s.replace(/\s/g, "").length - letters.length;
+  if (nonAlpha > Math.max(2, letters.length * 0.4)) return false;
+  return true;
+}
+
+function normalizeName(raw: string): string {
+  return raw
+    .trim()
+    .split(/\s+/)
+    .slice(0, 4)
+    .map((w) => (w.length <= 2 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
+    .join(" ");
+}
+
+// Detecta nome auto-declarado nas mensagens do CLIENTE.
+// Retorna nome normalizado ou null.
+function extractSelfDeclaredName(userTexts: string[]): string | null {
+  const patterns: RegExp[] = [
+    /\b(?:me\s*chamo|meu\s*nome\s*[éeh]|sou\s*[oa]|aqui\s*[éeh]\s*[oa]|pode\s*me\s*chamar\s*de|meu\s*nome\s*ser[íi]a)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}(?:\s+[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}){0,2})/i,
+    /^\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}(?:\s+[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}){0,2})\s*[.!,]?\s*$/, // resposta curta contendo só o nome
+  ];
+  // percorre do mais recente pro mais antigo
+  for (let i = userTexts.length - 1; i >= 0; i--) {
+    const raw = (userTexts[i] ?? "").trim();
+    if (!raw || raw.length > 80) continue;
+    for (const re of patterns) {
+      const m = raw.match(re);
+      if (m && m[1]) {
+        const candidate = normalizeName(m[1]);
+        if (isValidPersonName(candidate)) return candidate;
+      }
+    }
+  }
+  return null;
+}
+
+type ResolvedName = { name: string | null; source: "informado_pelo_cliente" | "perfil_whatsapp" | null };
+
+async function resolveContactName(
+  portfolioId: string,
+  storagePhone: string,
+  pushName: string | null,
+  userTexts: string[],
+): Promise<ResolvedName> {
+  // Etapa 1: nome informado na conversa atual (prioridade máxima — sempre grava/atualiza)
+  const declared = extractSelfDeclaredName(userTexts);
+  if (declared) {
+    try {
+      await admin.from("whatsapp_contact_names").upsert({
+        portfolio_id: portfolioId,
+        phone: storagePhone,
+        name: declared,
+        source: "informado_pelo_cliente",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "portfolio_id,phone" });
+    } catch (e) {
+      console.error("[NAME] upsert declared fail", e);
+    }
+    return { name: declared, source: "informado_pelo_cliente" };
+  }
+
+  // Etapa 2: nome já salvo no banco para esse número
+  try {
+    const { data: saved } = await admin
+      .from("whatsapp_contact_names")
+      .select("name, source")
+      .eq("portfolio_id", portfolioId)
+      .eq("phone", storagePhone)
+      .maybeSingle();
+    if (saved?.name && isValidPersonName(saved.name)) {
+      return { name: saved.name, source: (saved.source as ResolvedName["source"]) ?? "perfil_whatsapp" };
+    }
+  } catch (e) {
+    console.error("[NAME] lookup fail", e);
+  }
+
+  // Etapa 3: pushName com filtro de qualidade
+  if (pushName && isValidPersonName(pushName)) {
+    const normalized = normalizeName(pushName);
+    try {
+      await admin.from("whatsapp_contact_names").upsert({
+        portfolio_id: portfolioId,
+        phone: storagePhone,
+        name: normalized,
+        source: "perfil_whatsapp",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "portfolio_id,phone", ignoreDuplicates: false });
+    } catch (e) {
+      console.error("[NAME] upsert pushName fail", e);
+    }
+    return { name: normalized, source: "perfil_whatsapp" };
+  }
+
+  // Etapa 4: nada confiável — a IA deve perguntar
+  return { name: null, source: null };
+}
+
 function splitMessage(text: string): string[] {
   let raw = (text ?? "").trim();
   if (!raw) return [];
@@ -828,14 +952,33 @@ async function processPayload(payload: any) {
       openai: "openai/gpt-5-mini",
     };
     const model = modelMap[agent.modelo_ia] ?? "openai/gpt-5-mini";
-
     // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
     const trimmedRecent = recent.slice(-60);
+
+    // === RESOLUÇÃO DE NOME DO CONTATO (hierarquia com filtro de qualidade) ===
+    const userTextsForName = [
+      ...trimmedRecent.filter((m) => m.role !== "assistant").map((m) => m.mensagem),
+      text,
+    ];
+    const resolvedName = await resolveContactName(portfolioId, storagePhone, pushName, userTextsForName);
+    console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source });
 
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
     const modeLine = sdrLead ? `MODO: SDR` : `MODO: RECEPTIVO`;
-    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", buildConversationState(trimmedRecent, text)].join("\n");
+    const nameBlock = resolvedName.name
+      ? [
+          `[NOME DO CONTATO]`,
+          `O contato se chama: ${resolvedName.name} (fonte: ${resolvedName.source}).`,
+          `Use esse nome com naturalidade quando fizer sentido. NÃO pergunte o nome de novo.`,
+        ].join("\n")
+      : [
+          `[NOME DO CONTATO]`,
+          `Você ainda NÃO sabe o nome do contato com certeza. NÃO invente e NÃO use nome do perfil.`,
+          `Assim que fizer sentido no fluxo (no início da conversa, ou logo antes de agendar/passar contato), pergunte o nome de forma natural — ex.: "Com quem eu tô falando? 😊" ou "Pode me passar seu nome?". Não pergunte de forma brusca no meio de outro assunto.`,
+        ].join("\n");
+    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", nameBlock, "", buildConversationState(trimmedRecent, text)].join("\n");
+
     if (sdrLead) {
       systemPrompt = [
         systemPrompt,
@@ -1094,48 +1237,10 @@ async function processPayload(payload: any) {
 
             const leadFone = sdrLead?.telefone ?? storagePhone;
 
-            // === CORREÇÃO 1: Extrai nome via IA (flash-lite) sobre histórico completo ===
-            let nomeInformado: string | null = null;
-            try {
-              const histParaNome = [...trimmedRecent, { role: "user" as const, mensagem: text }]
-                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
-                .join("\n");
-              const nomeResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                method: "POST",
-                headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  model: "google/gemini-2.5-flash-lite",
-                  messages: [
-                    { role: "user", content: `Analise o histórico desta conversa e extraia o nome do cliente, se ele tiver informado em algum momento.\nO nome pode aparecer como resposta a "qual seu nome?", ou o cliente pode ter se apresentado espontaneamente.\nRetorne APENAS o nome encontrado, sem explicações. Se não encontrar nenhum nome, retorne exatamente: Não informado\n\nHistórico:\n${histParaNome}` },
-                  ],
-                  temperature: 0.1,
-                  max_tokens: 30,
-                }),
-              });
-              if (nomeResp.ok) {
-                const nj = await nomeResp.json();
-                const raw = String(nj.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`.:!?]+$/g, "").trim();
-                if (raw && !/^n[aã]o informado$/i.test(raw) && raw.length <= 60) {
-                  nomeInformado = raw
-                    .split(/\s+/)
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                    .join(" ");
-                }
-              }
-            } catch (e) {
-              console.error("nome-extract fail", e);
-            }
+            // Nome do lead: usa a hierarquia já resolvida no início do turno
+            // (Etapa 1: informado pelo cliente → Etapa 2: salvo no banco → Etapa 3: pushName filtrado).
+            const leadNome = resolvedName.name ?? "Não informado";
 
-            // Fallback pushName: só se IA não achou nome, e for >2 chars e não só pontuação
-            const pushNameSan = (() => {
-              const p = (pushName ?? "").trim();
-              if (!p) return null;
-              if (p.length <= 2) return null;
-              if (/^[.\-_·•\s\d]+$/.test(p)) return null;
-              return p;
-            })();
-
-            const leadNome = nomeInformado ?? pushNameSan ?? "Não informado";
 
             // === Motivo real via IA leve (fallback silencioso) ===
             let motivoReal = "Motivo não identificado";
