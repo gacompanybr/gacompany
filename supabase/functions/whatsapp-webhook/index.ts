@@ -1237,48 +1237,10 @@ async function processPayload(payload: any) {
 
             const leadFone = sdrLead?.telefone ?? storagePhone;
 
-            // === CORREÇÃO 1: Extrai nome via IA (flash-lite) sobre histórico completo ===
-            let nomeInformado: string | null = null;
-            try {
-              const histParaNome = [...trimmedRecent, { role: "user" as const, mensagem: text }]
-                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
-                .join("\n");
-              const nomeResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                method: "POST",
-                headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  model: "google/gemini-2.5-flash-lite",
-                  messages: [
-                    { role: "user", content: `Analise o histórico desta conversa e extraia o nome do cliente, se ele tiver informado em algum momento.\nO nome pode aparecer como resposta a "qual seu nome?", ou o cliente pode ter se apresentado espontaneamente.\nRetorne APENAS o nome encontrado, sem explicações. Se não encontrar nenhum nome, retorne exatamente: Não informado\n\nHistórico:\n${histParaNome}` },
-                  ],
-                  temperature: 0.1,
-                  max_tokens: 30,
-                }),
-              });
-              if (nomeResp.ok) {
-                const nj = await nomeResp.json();
-                const raw = String(nj.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`.:!?]+$/g, "").trim();
-                if (raw && !/^n[aã]o informado$/i.test(raw) && raw.length <= 60) {
-                  nomeInformado = raw
-                    .split(/\s+/)
-                    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                    .join(" ");
-                }
-              }
-            } catch (e) {
-              console.error("nome-extract fail", e);
-            }
+            // Nome do lead: usa a hierarquia já resolvida no início do turno
+            // (Etapa 1: informado pelo cliente → Etapa 2: salvo no banco → Etapa 3: pushName filtrado).
+            const leadNome = resolvedName.name ?? "Não informado";
 
-            // Fallback pushName: só se IA não achou nome, e for >2 chars e não só pontuação
-            const pushNameSan = (() => {
-              const p = (pushName ?? "").trim();
-              if (!p) return null;
-              if (p.length <= 2) return null;
-              if (/^[.\-_·•\s\d]+$/.test(p)) return null;
-              return p;
-            })();
-
-            const leadNome = nomeInformado ?? pushNameSan ?? "Não informado";
 
             // === Motivo real via IA leve (fallback silencioso) ===
             let motivoReal = "Motivo não identificado";
