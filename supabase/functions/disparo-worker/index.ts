@@ -30,10 +30,18 @@ function pickRandom<T>(arr: T[]): T {
 }
 
 function renderMessage(template: string, ctx: { nome?: string; telefone: string; variaveis?: Record<string, any> }) {
-  return template.replace(/\{(\w+)\}/g, (_, key) => {
-    if (key === "nome") return ctx.nome || "tudo bem";
+  // Aceita {nome}, { nome }, {NOME}, {Nome} etc. — tolera espaços e maiúsculas
+  return template.replace(/\{\s*([\wÀ-ÿ]+)\s*\}/g, (_, rawKey) => {
+    const key = String(rawKey).toLowerCase();
+    if (key === "nome") {
+      const n = (ctx.nome ?? "").trim();
+      return n || "tudo bem";
+    }
     if (key === "telefone") return ctx.telefone;
-    const v = ctx.variaveis?.[key];
+    const vars = ctx.variaveis ?? {};
+    // procura variável case-insensitive
+    const found = Object.keys(vars).find((k) => k.toLowerCase() === key);
+    const v = found ? vars[found] : undefined;
     return v != null ? String(v) : "";
   });
 }
