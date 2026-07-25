@@ -952,6 +952,9 @@ async function processPayload(payload: any) {
       openai: "openai/gpt-5-mini",
     };
     const model = modelMap[agent.modelo_ia] ?? "openai/gpt-5-mini";
+    // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
+    const trimmedRecent = recent.slice(-60);
+
     // === RESOLUÇÃO DE NOME DO CONTATO (hierarquia com filtro de qualidade) ===
     const userTextsForName = [
       ...trimmedRecent.filter((m) => m.role !== "assistant").map((m) => m.mensagem),
