@@ -1873,6 +1873,36 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_contact_names: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          phone: string
+          portfolio_id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          phone: string
+          portfolio_id: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string
+          portfolio_id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversas: {
         Row: {
           contato_nome: string | null
