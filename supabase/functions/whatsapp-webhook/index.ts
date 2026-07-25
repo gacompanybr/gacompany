@@ -952,14 +952,30 @@ async function processPayload(payload: any) {
       openai: "openai/gpt-5-mini",
     };
     const model = modelMap[agent.modelo_ia] ?? "openai/gpt-5-mini";
-
-    // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
-    const trimmedRecent = recent.slice(-60);
+    // === RESOLUÇÃO DE NOME DO CONTATO (hierarquia com filtro de qualidade) ===
+    const userTextsForName = [
+      ...trimmedRecent.filter((m) => m.role !== "assistant").map((m) => m.mensagem),
+      text,
+    ];
+    const resolvedName = await resolveContactName(portfolioId, storagePhone, pushName, userTextsForName);
+    console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source });
 
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
     const modeLine = sdrLead ? `MODO: SDR` : `MODO: RECEPTIVO`;
-    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", buildConversationState(trimmedRecent, text)].join("\n");
+    const nameBlock = resolvedName.name
+      ? [
+          `[NOME DO CONTATO]`,
+          `O contato se chama: ${resolvedName.name} (fonte: ${resolvedName.source}).`,
+          `Use esse nome com naturalidade quando fizer sentido. NÃO pergunte o nome de novo.`,
+        ].join("\n")
+      : [
+          `[NOME DO CONTATO]`,
+          `Você ainda NÃO sabe o nome do contato com certeza. NÃO invente e NÃO use nome do perfil.`,
+          `Assim que fizer sentido no fluxo (no início da conversa, ou logo antes de agendar/passar contato), pergunte o nome de forma natural — ex.: "Com quem eu tô falando? 😊" ou "Pode me passar seu nome?". Não pergunte de forma brusca no meio de outro assunto.`,
+        ].join("\n");
+    systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", nameBlock, "", buildConversationState(trimmedRecent, text)].join("\n");
+
     if (sdrLead) {
       systemPrompt = [
         systemPrompt,
