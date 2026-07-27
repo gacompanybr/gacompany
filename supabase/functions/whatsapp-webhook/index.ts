@@ -941,12 +941,9 @@ async function processPayload(payload: any) {
     // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
     const trimmedRecent = recent.slice(-60);
 
-    // === RESOLUÇÃO DE NOME DO CONTATO (hierarquia com filtro de qualidade) ===
-    const userTextsForName = [
-      ...trimmedRecent.filter((m) => m.role !== "assistant").map((m) => m.mensagem),
-      text,
-    ];
-    const resolvedName = await resolveContactName(portfolioId, storagePhone, pushName, userTextsForName);
+    // === RESOLUÇÃO DE NOME DO CONTATO (só pergunta direta) ===
+    const lastAssistantText = [...trimmedRecent].reverse().find((m) => m.role === "assistant")?.mensagem ?? null;
+    const resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
     console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source });
 
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
@@ -955,14 +952,17 @@ async function processPayload(payload: any) {
     const nameBlock = resolvedName.name
       ? [
           `[NOME DO CONTATO]`,
-          `O contato se chama: ${resolvedName.name} (fonte: ${resolvedName.source}).`,
-          `Use esse nome com naturalidade quando fizer sentido. NÃO pergunte o nome de novo.`,
+          `O contato se chama: ${resolvedName.name}.`,
+          `Use esse nome com naturalidade quando fizer sentido. NUNCA pergunte o nome de novo.`,
         ].join("\n")
       : [
           `[NOME DO CONTATO]`,
-          `Você ainda NÃO sabe o nome do contato com certeza. NÃO invente e NÃO use nome do perfil.`,
-          `Assim que fizer sentido no fluxo (no início da conversa, ou logo antes de agendar/passar contato), pergunte o nome de forma natural — ex.: "Com quem eu tô falando? 😊" ou "Pode me passar seu nome?". Não pergunte de forma brusca no meio de outro assunto.`,
+          `Você NÃO sabe o nome do contato. NUNCA invente, NUNCA deduza a partir do que a pessoa escreveu e NUNCA use nome de perfil do WhatsApp.`,
+          `OBRIGATÓRIO: nesta resposta, além de responder/saudar normalmente, inclua uma pergunta curta e natural pedindo o nome — ex.: "Bom dia! Qual é o seu nome, por favor?" ou "Oi! Antes de mais nada, qual é o seu nome? 😊".`,
+          `Se você já perguntou e a pessoa não respondeu o nome, não insista na mesma mensagem; pergunte de novo mais adiante, de forma natural.`,
+          `Enquanto não souber o nome, trate a pessoa sem nome (ex.: "você"), nunca com um nome inventado.`,
         ].join("\n");
+
     systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", nameBlock, "", buildConversationState(trimmedRecent, text)].join("\n");
 
     if (sdrLead) {
