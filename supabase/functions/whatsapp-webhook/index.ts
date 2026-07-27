@@ -1224,7 +1224,7 @@ async function processPayload(payload: any) {
       reply = "Perfeito! Já anotei aqui suas informações. Vou passar pro nosso especialista e ele te chama em instantes pra alinhar os próximos passos. Enquanto isso, tem algum horário que funciona melhor pra você hoje ou amanhã?";
     }
 
-    const { sent, failed } = await sendText(instance, sendTargets, reply);
+    const { sent, failed } = await sendText(instance, sendTargets, reply, { portfolioId, phone: storagePhone });
     // Só persistimos no histórico o que foi REALMENTE entregue. Mensagens
     // falhadas poluíam o contexto da próxima resposta (a IA "lia" como se
     // já tivesse falado aquilo). Falhas viram só log.
