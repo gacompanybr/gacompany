@@ -1954,6 +1954,36 @@ export type Database = {
           },
         ]
       }
+      whatsapp_paused_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          paused_until: string
+          phone: string
+          portfolio_id: string
+          reason: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paused_until: string
+          phone: string
+          portfolio_id: string
+          reason?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paused_until?: string
+          phone?: string
+          portfolio_id?: string
+          reason?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_report_dedupe: {
         Row: {
           created_at: string
@@ -1978,6 +2008,33 @@ export type Database = {
           phone?: string
           portfolio_id?: string
           trigger_type?: string
+        }
+        Relationships: []
+      }
+      whatsapp_sent_messages_log: {
+        Row: {
+          created_at: string
+          id: string
+          instance_name: string
+          message_id: string
+          phone: string
+          portfolio_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_name: string
+          message_id: string
+          phone: string
+          portfolio_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_name?: string
+          message_id?: string
+          phone?: string
+          portfolio_id?: string
         }
         Relationships: []
       }

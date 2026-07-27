@@ -606,7 +606,38 @@ function splitMessage(text: string): string[] {
   return chunks.filter(Boolean).slice(0, 2);
 }
 
-async function sendOnce(instance: string, targets: string[], text: string): Promise<boolean> {
+type SendCtx = { portfolioId?: string | null; phone?: string | null };
+
+// Registra o key.id de toda mensagem enviada PELO SISTEMA, para depois
+// diferenciar de mensagens digitadas manualmente pela equipe no aparelho.
+async function logSystemSentMessage(ids: string[], instance: string, ctx?: SendCtx) {
+  if (!ctx?.portfolioId || !ids.length) return;
+  try {
+    await admin.from("whatsapp_sent_messages_log").upsert(
+      ids.map((id) => ({
+        portfolio_id: ctx.portfolioId,
+        instance_name: instance,
+        phone: ctx.phone ?? "",
+        message_id: id,
+      })),
+      { onConflict: "message_id", ignoreDuplicates: true },
+    );
+  } catch (e) {
+    console.error("[SENT-LOG] falha ao registrar id", (e as Error).message);
+  }
+}
+
+function extractSentMessageIds(responseJson: any): string[] {
+  const out: string[] = [];
+  const push = (v: unknown) => { const s = asText(v); if (s) out.push(s); };
+  push(responseJson?.key?.id);
+  push(responseJson?.message?.key?.id);
+  push(responseJson?.data?.key?.id);
+  push(responseJson?.id);
+  return Array.from(new Set(out));
+}
+
+async function sendOnce(instance: string, targets: string[], text: string, ctx?: SendCtx): Promise<boolean> {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
   for (const [index, target] of targets.entries()) {
@@ -619,7 +650,10 @@ async function sendOnce(instance: string, targets: string[], text: string): Prom
       try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
       const deliveryStatus = String(responseJson?.status ?? responseJson?.message?.status ?? "").toUpperCase();
       console.log("sendText", JSON.stringify({ instance, target, targetIdx: index + 1, attempt, status: r.status, ok: r.ok, deliveryStatus, response: responseText.slice(0, 500) }));
-      if (r.ok) return true;
+      if (r.ok) {
+        await logSystemSentMessage(extractSentMessageIds(responseJson), instance, { ...ctx, phone: ctx?.phone ?? target });
+        return true;
+      }
       if (attempt < 2) await new Promise((res) => setTimeout(res, 1200));
     }
   }
@@ -632,12 +666,12 @@ function randomSplitDelayMs(): number {
   return 800 + Math.floor(Math.random() * 700);
 }
 
-async function sendText(instance: string, targets: string[], text: string): Promise<{ sent: string[]; failed: string[] }> {
+async function sendText(instance: string, targets: string[], text: string, ctx?: SendCtx): Promise<{ sent: string[]; failed: string[] }> {
   const parts = splitMessage(text);
   const sent: string[] = [];
   const failed: string[] = [];
   for (let i = 0; i < parts.length; i++) {
-    const ok = await sendOnce(instance, targets, parts[i]);
+    const ok = await sendOnce(instance, targets, parts[i], ctx);
     if (ok) sent.push(parts[i]); else failed.push(parts[i]);
     if (i < parts.length - 1) {
       await new Promise((resolve) => setTimeout(resolve, randomSplitDelayMs()));
@@ -645,6 +679,71 @@ async function sendText(instance: string, targets: string[], text: string): Prom
   }
   return { sent, failed };
 }
+
+const HUMAN_PAUSE_HOURS = 3;
+
+async function resolvePortfolioByInstance(instance: string): Promise<string | null> {
+  const { data: conn } = await admin
+    .from("whatsapp_connections")
+    .select("portfolio_id")
+    .eq("instance_name", instance)
+    .maybeSingle();
+  if (conn?.portfolio_id) return conn.portfolio_id;
+  const { data: ag } = await admin
+    .from("whatsapp_agents")
+    .select("portfolio_id")
+    .eq("instancia_id", instance)
+    .maybeSingle();
+  return ag?.portfolio_id ?? null;
+}
+
+// Mensagem com fromMe=true: se o key.id NÃO estiver no log de envios do sistema,
+// foi um humano da equipe digitando no aparelho → pausa a IA 3h para esse contato.
+async function handleOutgoingMessage(payload: any, msg: any) {
+  try {
+    const remoteJid = getRemoteJid(msg);
+    if (!remoteJid || remoteJid.endsWith("@g.us") || remoteJid.includes("@broadcast")) return;
+    const msgId = asText(msg.key?.id) || asText(msg.id);
+    if (!msgId) return;
+
+    const instance = normalizeInstance(payload, msg);
+    const { data: known } = await admin
+      .from("whatsapp_sent_messages_log")
+      .select("id")
+      .eq("message_id", msgId)
+      .maybeSingle();
+    if (known) return; // foi o próprio sistema
+
+    const portfolioId = await resolvePortfolioByInstance(instance);
+    if (!portfolioId) return;
+
+    const phone = normalizePhoneDigits(remoteJid.split("@")[0]) || remoteJid.split("@")[0];
+    const pausedUntil = new Date(Date.now() + HUMAN_PAUSE_HOURS * 60 * 60 * 1000).toISOString();
+    await admin.from("whatsapp_paused_contacts").upsert({
+      portfolio_id: portfolioId,
+      phone,
+      paused_until: pausedUntil,
+      reason: "manual_human_message",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "portfolio_id,phone" });
+    console.log("[HUMAN-TAKEOVER] IA pausada", { portfolioId, phone, pausedUntil });
+  } catch (e) {
+    console.error("[HUMAN-TAKEOVER] erro", (e as Error).message);
+  }
+}
+
+async function isContactPaused(portfolioId: string, suffixes: string[]): Promise<string | null> {
+  if (!suffixes.length) return null;
+  const { data: rows } = await admin
+    .from("whatsapp_paused_contacts")
+    .select("phone, paused_until")
+    .eq("portfolio_id", portfolioId)
+    .gt("paused_until", new Date().toISOString())
+    .limit(200);
+  const hit = (rows ?? []).find((r: any) => matchesPhone(r.phone, suffixes));
+  return hit ? hit.paused_until : null;
+}
+
 
 
 
@@ -662,7 +761,14 @@ async function processPayload(payload: any) {
   const messages = Array.isArray(data.messages) ? data.messages : [data];
 
   for (const msg of messages) {
-    if (!msg || msg.key?.fromMe || msg.fromMe || msg.messageStubType) continue;
+    if (!msg || msg.messageStubType) continue;
+    if (msg.key?.fromMe || msg.fromMe) {
+      // Enviada pela própria instância: pode ter sido o sistema (ok) ou um
+      // humano da equipe digitando no aparelho (→ pausa a IA 3h nesse chat).
+      await handleOutgoingMessage(payload, msg);
+      continue;
+    }
+
 
     const instance = normalizeInstance(payload, msg);
     const remoteJid = getRemoteJid(msg);
@@ -819,6 +925,19 @@ async function processPayload(payload: any) {
       console.log("[HORARIO] fora do expediente, ignorando mensagem", { portfolioId, remoteJid, inicio: agent.horario_inicio, fim: agent.horario_fim });
       continue;
     }
+
+    // Atendimento humano em andamento: alguém da equipe respondeu manualmente
+    // nesse chat. A IA fica 100% silenciosa (sem leitura, sem resposta, sem
+    // relatório) até o paused_until passar. Não afeta outros contatos.
+    {
+      const pausedUntil = await isContactPaused(portfolioId, phoneSuffixList);
+      if (pausedUntil) {
+        console.log("[HUMAN-TAKEOVER] contato pausado, ignorando", { portfolioId, storagePhone, pausedUntil });
+        continue;
+      }
+    }
+
+
 
     // Agente ativo: marca a mensagem recebida como lida no WhatsApp.
     // Quando inativo (bloco acima), NÃO marca — deixa a equipe humana ver que chegou algo novo.
@@ -1105,7 +1224,7 @@ async function processPayload(payload: any) {
       reply = "Perfeito! Já anotei aqui suas informações. Vou passar pro nosso especialista e ele te chama em instantes pra alinhar os próximos passos. Enquanto isso, tem algum horário que funciona melhor pra você hoje ou amanhã?";
     }
 
-    const { sent, failed } = await sendText(instance, sendTargets, reply);
+    const { sent, failed } = await sendText(instance, sendTargets, reply, { portfolioId, phone: storagePhone });
     // Só persistimos no histórico o que foi REALMENTE entregue. Mensagens
     // falhadas poluíam o contexto da próxima resposta (a IA "lia" como se
     // já tivesse falado aquilo). Falhas viram só log.
@@ -1273,6 +1392,19 @@ async function processPayload(payload: any) {
             // (Etapa 1: informado pelo cliente → Etapa 2: salvo no banco → Etapa 3: pushName filtrado).
             const leadNome = resolvedName.name ?? "Não informado";
 
+            // === Unidade (Bauru / Duartina) — extraída da conversa, sem travar o relatório ===
+            const unidade = (() => {
+              const falasCliente = [...trimmedRecent.filter((m) => m.role === "user").map((m) => m.mensagem), text];
+              for (let i = falasCliente.length - 1; i >= 0; i--) {
+                const f = String(falasCliente[i] ?? "");
+                if (/duartina/i.test(f)) return "Duartina";
+                if (/bauru/i.test(f)) return "Bauru";
+              }
+              return "Não informado";
+            })();
+
+
+
 
             // === Motivo real via IA leve (fallback silencioso) ===
             let motivoReal = "Motivo não identificado";
@@ -1315,6 +1447,7 @@ async function processPayload(payload: any) {
                 `🔔 *Novo contato fora do horário*`,
                 ``,
                 `👤 Nome: ${leadNome}`,
+                `📍 Unidade: ${unidade}`,
                 `📱 Número: +${leadFone}`,
                 `🔗 WhatsApp: https://wa.me/${leadFone}`,
                 `📋 Motivo: ${motivoReal}`,
@@ -1327,9 +1460,11 @@ async function processPayload(payload: any) {
                 `_${triggerLabel}_`,
                 ``,
                 `👤 *Nome:* ${leadNome}`,
+                `📍 *Unidade:* ${unidade}`,
                 `📱 *WhatsApp:* +${leadFone} — https://wa.me/${leadFone}`,
                 `📋 *Motivo:* ${motivoReal}`,
               ];
+
               if (sdrLead) {
                 linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
                 linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
@@ -1348,7 +1483,14 @@ async function processPayload(payload: any) {
                 headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
                 body: JSON.stringify({ number: dest, text: reportText }),
               })
-                .then((r) => console.log("send-report", { dest, status: r.status, ok: r.ok, trigger }))
+                .then(async (r) => {
+                  console.log("send-report", { dest, status: r.status, ok: r.ok, trigger });
+                  if (r.ok) {
+                    const body = await r.json().catch(() => null);
+                    await logSystemSentMessage(extractSentMessageIds(body), instance, { portfolioId, phone: dest });
+                  }
+                  return r;
+                })
                 .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
             }
           }
