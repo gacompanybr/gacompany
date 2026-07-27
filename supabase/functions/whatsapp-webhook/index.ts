@@ -926,6 +926,19 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // Atendimento humano em andamento: alguém da equipe respondeu manualmente
+    // nesse chat. A IA fica 100% silenciosa (sem leitura, sem resposta, sem
+    // relatório) até o paused_until passar. Não afeta outros contatos.
+    {
+      const pausedUntil = await isContactPaused(portfolioId, phoneSuffixList);
+      if (pausedUntil) {
+        console.log("[HUMAN-TAKEOVER] contato pausado, ignorando", { portfolioId, storagePhone, pausedUntil });
+        continue;
+      }
+    }
+
+
+
     // Agente ativo: marca a mensagem recebida como lida no WhatsApp.
     // Quando inativo (bloco acima), NÃO marca — deixa a equipe humana ver que chegou algo novo.
     try {
