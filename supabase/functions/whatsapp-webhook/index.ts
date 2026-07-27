@@ -1392,6 +1392,19 @@ async function processPayload(payload: any) {
             // (Etapa 1: informado pelo cliente → Etapa 2: salvo no banco → Etapa 3: pushName filtrado).
             const leadNome = resolvedName.name ?? "Não informado";
 
+            // === Unidade (Bauru / Duartina) — extraída da conversa, sem travar o relatório ===
+            const unidade = (() => {
+              const falasCliente = [...trimmedRecent.filter((m) => m.role === "user").map((m) => m.mensagem), text];
+              for (let i = falasCliente.length - 1; i >= 0; i--) {
+                const f = String(falasCliente[i] ?? "");
+                if (/duartina/i.test(f)) return "Duartina";
+                if (/bauru/i.test(f)) return "Bauru";
+              }
+              return "Não informado";
+            })();
+
+
+
 
             // === Motivo real via IA leve (fallback silencioso) ===
             let motivoReal = "Motivo não identificado";
