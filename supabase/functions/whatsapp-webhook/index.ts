@@ -483,13 +483,50 @@ function parseNameAnswer(raw: string | null | undefined): string | null {
 
 type ResolvedName = { name: string | null; source: "informado_pelo_cliente" | null };
 
+// Correção EXPLÍCITA de nome: só isso pode sobrescrever um nome já salvo.
+// Ex.: "não, meu nome não é X, é Wanderley", "na verdade me chamo Wanderley"
+const NAME_CORRECTION_PATTERNS = [
+  /(?:n[ãa]o[,\s]+)?meu\s+nome\s+n[ãa]o\s+[éeh][^,.;]*[,.;]?\s*(?:[éeh]|e sim)\s+(.+)$/i,
+  /n[ãa]o\s+(?:me\s+chamo|sou)\s+[^,.;]+[,.;]?\s*(?:me\s+chamo|sou|[éeh])\s+(.+)$/i,
+  /(?:na\s+verdade|corrigindo|corrige)[,\s]+(?:meu\s+nome\s+[éeh]|me\s+chamo|sou\s+[oa]?)\s+(.+)$/i,
+  /(?:n[ãa]o|nao)[,\s]+(?:pode\s+me\s+chamar\s+de|me\s+chame\s+de)\s+(.+)$/i,
+];
+
+function parseNameCorrection(raw: string | null | undefined): string | null {
+  const s = (raw ?? "").toString().trim();
+  if (!s) return null;
+  for (const re of NAME_CORRECTION_PATTERNS) {
+    const m = s.match(re);
+    if (m && m[1]) {
+      const parsed = parseNameAnswer(m[1]);
+      if (parsed) return parsed;
+    }
+  }
+  return null;
+}
+
+async function saveContactName(portfolioId: string, storagePhone: string, name: string) {
+  try {
+    await admin.from("whatsapp_contact_names").upsert({
+      portfolio_id: portfolioId,
+      phone: storagePhone,
+      name,
+      source: "informado_pelo_cliente",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "portfolio_id,phone" });
+  } catch (e) {
+    console.error("[NAME] upsert fail", e);
+  }
+}
+
 async function resolveContactName(
   portfolioId: string,
   storagePhone: string,
   lastAssistantText: string | null,
   currentText: string,
 ): Promise<ResolvedName> {
-  // 1) Nome já salvo para esse contato → usa direto, nunca pergunta de novo
+  // 1) Nome já salvo para esse contato → TRAVADO. Nunca re-extrai, nunca roda IA.
+  //    Única exceção: correção explícita feita pelo próprio cliente.
   try {
     const { data: saved } = await admin
       .from("whatsapp_contact_names")
@@ -497,10 +534,19 @@ async function resolveContactName(
       .eq("portfolio_id", portfolioId)
       .eq("phone", storagePhone)
       .maybeSingle();
-    if (saved?.name) return { name: saved.name, source: "informado_pelo_cliente" };
+    if (saved?.name) {
+      const corrected = parseNameCorrection(currentText);
+      if (corrected && corrected.toLowerCase() !== String(saved.name).toLowerCase()) {
+        console.log("[NAME] correção explícita", { de: saved.name, para: corrected });
+        await saveContactName(portfolioId, storagePhone, corrected);
+        return { name: corrected, source: "informado_pelo_cliente" };
+      }
+      return { name: saved.name, source: "informado_pelo_cliente" };
+    }
   } catch (e) {
     console.error("[NAME] lookup fail", e);
   }
+
 
   // 2) A mensagem atual é resposta direta à pergunta do nome?
   if (isNameQuestion(lastAssistantText)) {
