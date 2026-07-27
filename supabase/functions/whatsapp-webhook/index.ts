@@ -761,7 +761,14 @@ async function processPayload(payload: any) {
   const messages = Array.isArray(data.messages) ? data.messages : [data];
 
   for (const msg of messages) {
-    if (!msg || msg.key?.fromMe || msg.fromMe || msg.messageStubType) continue;
+    if (!msg || msg.messageStubType) continue;
+    if (msg.key?.fromMe || msg.fromMe) {
+      // Enviada pela própria instância: pode ter sido o sistema (ok) ou um
+      // humano da equipe digitando no aparelho (→ pausa a IA 3h nesse chat).
+      await handleOutgoingMessage(payload, msg);
+      continue;
+    }
+
 
     const instance = normalizeInstance(payload, msg);
     const remoteJid = getRemoteJid(msg);
