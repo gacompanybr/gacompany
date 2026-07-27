@@ -56,7 +56,7 @@ function normalizePhone(raw: string): string {
   return p;
 }
 
-async function evoSendOnce(instance: string, phone: string, text: string) {
+async function evoSendOnce(instance: string, phone: string, text: string, portfolioId?: string | null) {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const r = await fetch(url, {
     method: "POST",
@@ -64,13 +64,27 @@ async function evoSendOnce(instance: string, phone: string, text: string) {
     body: JSON.stringify({ number: phone, text, delay: 1200, linkPreview: false }),
   });
   const t = await r.text();
+  if (r.ok && portfolioId) {
+    // Registra o id da mensagem enviada pelo SISTEMA — o webhook usa esse log
+    // para não confundir com mensagem manual da equipe (que pausa a IA 3h).
+    try {
+      const body = JSON.parse(t);
+      const msgId = body?.key?.id ?? body?.message?.key?.id ?? body?.data?.key?.id ?? null;
+      if (msgId) {
+        await admin.from("whatsapp_sent_messages_log").upsert(
+          { portfolio_id: portfolioId, instance_name: instance, phone, message_id: String(msgId) },
+          { onConflict: "message_id", ignoreDuplicates: true },
+        );
+      }
+    } catch { /* best-effort */ }
+  }
   return { ok: r.ok, status: r.status, body: t.slice(0, 300) };
 }
 
-async function evoSend(instance: string, rawPhone: string, text: string) {
+async function evoSend(instance: string, rawPhone: string, text: string, portfolioId?: string | null) {
   const phone = normalizePhone(rawPhone);
   if (!phone) return { ok: false, status: 400, body: "telefone inválido" };
-  return await evoSendOnce(instance, phone, text);
+  return await evoSendOnce(instance, phone, text, portfolioId);
 }
 
 async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
@@ -174,7 +188,7 @@ async function processCampanha(campanha: any, totalSleptMs: { v: number }) {
       variaveis: contato.variaveis ?? {},
     });
 
-    const result = await evoSend(campanha.instancia_id, contato.telefone, text);
+    const result = await evoSend(campanha.instancia_id, contato.telefone, text, campanha.portfolio_id);
 
     if (result.ok) {
       await admin.from("disparo_contatos").update({
