@@ -1447,6 +1447,7 @@ async function processPayload(payload: any) {
                 `🔔 *Novo contato fora do horário*`,
                 ``,
                 `👤 Nome: ${leadNome}`,
+                `📍 Unidade: ${unidade}`,
                 `📱 Número: +${leadFone}`,
                 `🔗 WhatsApp: https://wa.me/${leadFone}`,
                 `📋 Motivo: ${motivoReal}`,
@@ -1459,9 +1460,11 @@ async function processPayload(payload: any) {
                 `_${triggerLabel}_`,
                 ``,
                 `👤 *Nome:* ${leadNome}`,
+                `📍 *Unidade:* ${unidade}`,
                 `📱 *WhatsApp:* +${leadFone} — https://wa.me/${leadFone}`,
                 `📋 *Motivo:* ${motivoReal}`,
               ];
+
               if (sdrLead) {
                 linhas.push(`🏢 *Empresa:* ${sdrLead.nome ?? "—"}`);
                 linhas.push(`📂 *Segmento:* ${sdrLead.nicho}`);
