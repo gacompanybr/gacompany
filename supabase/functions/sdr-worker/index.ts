@@ -62,14 +62,28 @@ const SPLIT_DELAY_MS = 8000;
 
 type SendResult = { ok: boolean; invalidNumber: boolean };
 
-async function evoSend(instance: string, number: string, text: string): Promise<SendResult> {
+async function evoSend(instance: string, number: string, text: string, portfolioId?: string | null): Promise<SendResult> {
   try {
     const r = await fetch(`${EVO_URL}/message/sendText/${instance}`, {
       method: "POST",
       headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ number, text }),
     });
-    if (r.ok) return { ok: true, invalidNumber: false };
+    if (r.ok) {
+      // Registra o id da mensagem enviada pelo SISTEMA para que o webhook não
+      // confunda com uma mensagem digitada manualmente pela equipe (pausa 3h).
+      try {
+        const body = await r.clone().json().catch(() => null);
+        const msgId = body?.key?.id ?? body?.message?.key?.id ?? body?.data?.key?.id ?? null;
+        if (msgId && portfolioId) {
+          await admin.from("whatsapp_sent_messages_log").upsert(
+            { portfolio_id: portfolioId, instance_name: instance, phone: number, message_id: String(msgId) },
+            { onConflict: "message_id", ignoreDuplicates: true },
+          );
+        }
+      } catch { /* log best-effort */ }
+      return { ok: true, invalidNumber: false };
+    }
     const t = await r.text();
     console.error("evoSend fail", instance, number, r.status, t.slice(0, 300));
     // Evolution retorna 400 com "exists":false quando o número não tem WhatsApp
@@ -81,13 +95,13 @@ async function evoSend(instance: string, number: string, text: string): Promise<
   }
 }
 
-async function sendInBubbles(instance: string, number: string, text: string): Promise<{ sent: string[]; failed: string[]; invalidNumber: boolean }> {
+async function sendInBubbles(instance: string, number: string, text: string, portfolioId?: string | null): Promise<{ sent: string[]; failed: string[]; invalidNumber: boolean }> {
   const parts = splitMessage(text);
   const sent: string[] = [];
   const failed: string[] = [];
   let invalidNumber = false;
   for (let i = 0; i < parts.length; i++) {
-    const res = await evoSend(instance, number, parts[i]);
+    const res = await evoSend(instance, number, parts[i], portfolioId);
     if (res.ok) {
       sent.push(parts[i]);
     } else {
@@ -256,7 +270,7 @@ async function processCampaign(campaign: any) {
     for (const lead of fu1 ?? []) {
       if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
       const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
-      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
       await logAssistant(lead, instance, sent, failed);
       if (sent.length) {
         await admin.from("sdr_leads").update({
@@ -282,7 +296,7 @@ async function processCampaign(campaign: any) {
     for (const lead of fu2 ?? []) {
       if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
       const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
-      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
       await logAssistant(lead, instance, sent, failed);
       if (sent.length) {
         await admin.from("sdr_leads").update({
@@ -309,7 +323,7 @@ async function processCampaign(campaign: any) {
     for (const lead of fu3 ?? []) {
       if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
       const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true, nomeAtendente);
-      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
       await logAssistant(lead, instance, sent, failed);
       await admin.from("sdr_leads").update({
         follow_up_count: 3,
@@ -409,7 +423,7 @@ async function processCampaign(campaign: any) {
       const nameResolved = await resolveName(instance, lead);
       const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
       await sleep(rand(8000, 16000));
-      const { sent, failed, invalidNumber } = await sendInBubbles(instance, lead.telefone, text);
+      const { sent, failed, invalidNumber } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
       await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, sent, failed);
       if (sent.length) {
         await admin.from("sdr_leads").update({
