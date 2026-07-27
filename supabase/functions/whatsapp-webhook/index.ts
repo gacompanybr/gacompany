@@ -417,128 +417,114 @@ function buildTimeContext(agent: any): string {
 }
 
 // ============================================================
-// IDENTIFICAÇÃO DE NOME DO CONTATO (hierarquia + filtro de qualidade)
+// IDENTIFICAÇÃO DE NOME DO CONTATO
+// Regra: só existe nome se o cliente responder DIRETAMENTE à pergunta do nome.
+// Nunca extrair de conteúdo livre, nunca usar pushName do WhatsApp.
 // ============================================================
 
-// Palavras/padrões que denunciam nome de EMPRESA no pushName do WhatsApp
-const BUSINESS_NAME_PATTERNS = [
-  /\bltda\b/i, /\bme\b/i, /\beireli\b/i, /\bs\/?a\b/i, /&\s*cia/i,
-  /\bcl[íi]nica\b/i, /\bstudio\b/i, /\bsal[ãa]o\b/i, /\bloja\b/i,
-  /\bfarm[áa]cia\b/i, /\bacademia\b/i, /\bconsult[óo]rio\b/i,
-  /\badvocacia\b/i, /\bcontabilidade\b/i, /\bim[óo]veis\b/i,
-  /\bservi[çc]os\b/i, /\bsolu[çc][õo]es\b/i, /\bcomercial\b/i,
-  /\bbar\b/i, /\brestaurante\b/i, /\bpet\s*shop\b/i, /\bautopec/i,
+// Detecta se a mensagem do robô foi uma pergunta de nome
+const NAME_QUESTION_PATTERNS = [
+  /qual\s+(?:é\s+)?o?\s*seu\s+nome/i,
+  /como\s+(?:você|vc|voce)\s+se\s+chama/i,
+  /com\s+quem\s+(?:eu\s+)?(?:tô|to|estou|falo)\s+falando/i,
+  /pode\s+me\s+(?:passar|dizer|informar)\s+(?:o\s+)?seu\s+nome/i,
+  /me\s+diz\s+seu\s+nome/i,
+  /seu\s+nome,?\s+por\s+favor/i,
 ];
 
-function isValidPersonName(raw: string | null | undefined): boolean {
-  if (!raw) return false;
-  const s = String(raw).trim();
-  if (s.length < 2) return false;
-  const letters = s.replace(/[^A-Za-zÀ-ÿ]/g, "");
-  if (letters.length < 2) return false;
-  // só pontuação/símbolos/números
-  if (/^[.\-_·•!?@#$%*+=/\\|\s\d]+$/.test(s)) return false;
-  // parece empresa?
-  if (BUSINESS_NAME_PATTERNS.some((re) => re.test(s))) return false;
-  // sequência de 5+ maiúsculas seguidas (típico de nome fantasia)
-  if (/[A-ZÀ-Ý]{5,}/.test(s)) return false;
-  // muitos caracteres não-alfabéticos
-  const nonAlpha = s.replace(/\s/g, "").length - letters.length;
-  if (nonAlpha > Math.max(2, letters.length * 0.4)) return false;
-  return true;
+function isNameQuestion(text: string | null | undefined): boolean {
+  const s = (text ?? "").toString();
+  if (!s) return false;
+  return NAME_QUESTION_PATTERNS.some((re) => re.test(s));
 }
+
+// Respostas que claramente NÃO são nome
+const NOT_A_NAME = new Set([
+  "nao", "não", "n", "nunca", "pra que", "para que", "por que", "porque", "por quê",
+  "sim", "ok", "oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "obrigado",
+  "obrigada", "quem", "eu", "vc", "voce", "você", "?", "kkk", "kk", "hahaha",
+]);
 
 function normalizeName(raw: string): string {
   return raw
     .trim()
     .split(/\s+/)
-    .slice(0, 4)
+    .slice(0, 3)
     .map((w) => (w.length <= 2 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
     .join(" ");
 }
 
-// Detecta nome auto-declarado nas mensagens do CLIENTE.
-// Retorna nome normalizado ou null.
-function extractSelfDeclaredName(userTexts: string[]): string | null {
-  const patterns: RegExp[] = [
-    /\b(?:me\s*chamo|meu\s*nome\s*[éeh]|sou\s*[oa]|aqui\s*[éeh]\s*[oa]|pode\s*me\s*chamar\s*de|meu\s*nome\s*ser[íi]a)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}(?:\s+[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}){0,2})/i,
-    /^\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}(?:\s+[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\-]{1,20}){0,2})\s*[.!,]?\s*$/, // resposta curta contendo só o nome
-  ];
-  // percorre do mais recente pro mais antigo
-  for (let i = userTexts.length - 1; i >= 0; i--) {
-    const raw = (userTexts[i] ?? "").trim();
-    if (!raw || raw.length > 80) continue;
-    for (const re of patterns) {
-      const m = raw.match(re);
-      if (m && m[1]) {
-        const candidate = normalizeName(m[1]);
-        if (isValidPersonName(candidate)) return candidate;
-      }
-    }
-  }
-  return null;
+// Extrai o nome de uma RESPOSTA à pergunta do nome. Retorna null se inválida.
+function parseNameAnswer(raw: string | null | undefined): string | null {
+  let s = (raw ?? "").toString().trim();
+  if (!s) return null;
+  // remove emojis e pontuação de borda
+  s = s.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").trim();
+  s = s.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "").trim();
+  if (!s) return null;
+  if (s.length > 40) return null;
+
+  // prefixos comuns: "meu nome é X", "sou o X", "me chamo X"
+  const m = s.match(
+    /(?:me\s*chamo|meu\s*nome\s*[éeh]|sou\s*[oa]?|aqui\s*[éeh]\s*[oa]?|pode\s*me\s*chamar\s*de)\s+(.+)$/i,
+  );
+  if (m && m[1]) s = m[1].trim();
+
+  const lower = s.toLowerCase();
+  if (NOT_A_NAME.has(lower)) return null;
+
+  // só letras, espaços, apóstrofo e hífen
+  if (!/^[\p{L}][\p{L}'\-]*(?:\s+[\p{L}][\p{L}'\-]*){0,2}$/u.test(s)) return null;
+  const letters = s.replace(/[^\p{L}]/gu, "");
+  if (letters.length < 2) return null;
+
+  return normalizeName(s);
 }
 
-type ResolvedName = { name: string | null; source: "informado_pelo_cliente" | "perfil_whatsapp" | null };
+type ResolvedName = { name: string | null; source: "informado_pelo_cliente" | null };
 
 async function resolveContactName(
   portfolioId: string,
   storagePhone: string,
-  pushName: string | null,
-  userTexts: string[],
+  lastAssistantText: string | null,
+  currentText: string,
 ): Promise<ResolvedName> {
-  // Etapa 1: nome informado na conversa atual (prioridade máxima — sempre grava/atualiza)
-  const declared = extractSelfDeclaredName(userTexts);
-  if (declared) {
-    try {
-      await admin.from("whatsapp_contact_names").upsert({
-        portfolio_id: portfolioId,
-        phone: storagePhone,
-        name: declared,
-        source: "informado_pelo_cliente",
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "portfolio_id,phone" });
-    } catch (e) {
-      console.error("[NAME] upsert declared fail", e);
-    }
-    return { name: declared, source: "informado_pelo_cliente" };
-  }
-
-  // Etapa 2: nome já salvo no banco para esse número
+  // 1) Nome já salvo para esse contato → usa direto, nunca pergunta de novo
   try {
     const { data: saved } = await admin
       .from("whatsapp_contact_names")
-      .select("name, source")
+      .select("name")
       .eq("portfolio_id", portfolioId)
       .eq("phone", storagePhone)
       .maybeSingle();
-    if (saved?.name && isValidPersonName(saved.name)) {
-      return { name: saved.name, source: (saved.source as ResolvedName["source"]) ?? "perfil_whatsapp" };
-    }
+    if (saved?.name) return { name: saved.name, source: "informado_pelo_cliente" };
   } catch (e) {
     console.error("[NAME] lookup fail", e);
   }
 
-  // Etapa 3: pushName com filtro de qualidade
-  if (pushName && isValidPersonName(pushName)) {
-    const normalized = normalizeName(pushName);
-    try {
-      await admin.from("whatsapp_contact_names").upsert({
-        portfolio_id: portfolioId,
-        phone: storagePhone,
-        name: normalized,
-        source: "perfil_whatsapp",
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "portfolio_id,phone", ignoreDuplicates: false });
-    } catch (e) {
-      console.error("[NAME] upsert pushName fail", e);
+  // 2) A mensagem atual é resposta direta à pergunta do nome?
+  if (isNameQuestion(lastAssistantText)) {
+    const parsed = parseNameAnswer(currentText);
+    if (parsed) {
+      try {
+        await admin.from("whatsapp_contact_names").upsert({
+          portfolio_id: portfolioId,
+          phone: storagePhone,
+          name: parsed,
+          source: "informado_pelo_cliente",
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "portfolio_id,phone" });
+      } catch (e) {
+        console.error("[NAME] upsert fail", e);
+      }
+      return { name: parsed, source: "informado_pelo_cliente" };
     }
-    return { name: normalized, source: "perfil_whatsapp" };
   }
 
-  // Etapa 4: nada confiável — a IA deve perguntar
+  // 3) Sem nome confiável
   return { name: null, source: null };
 }
+
 
 function splitMessage(text: string): string[] {
   let raw = (text ?? "").trim();
@@ -955,12 +941,9 @@ async function processPayload(payload: any) {
     // Mantém memória suficiente para retomar conversas do dia anterior sem estourar tokens.
     const trimmedRecent = recent.slice(-60);
 
-    // === RESOLUÇÃO DE NOME DO CONTATO (hierarquia com filtro de qualidade) ===
-    const userTextsForName = [
-      ...trimmedRecent.filter((m) => m.role !== "assistant").map((m) => m.mensagem),
-      text,
-    ];
-    const resolvedName = await resolveContactName(portfolioId, storagePhone, pushName, userTextsForName);
+    // === RESOLUÇÃO DE NOME DO CONTATO (só pergunta direta) ===
+    const lastAssistantText = [...trimmedRecent].reverse().find((m) => m.role === "assistant")?.mensagem ?? null;
+    const resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
     console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source });
 
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
@@ -969,14 +952,17 @@ async function processPayload(payload: any) {
     const nameBlock = resolvedName.name
       ? [
           `[NOME DO CONTATO]`,
-          `O contato se chama: ${resolvedName.name} (fonte: ${resolvedName.source}).`,
-          `Use esse nome com naturalidade quando fizer sentido. NÃO pergunte o nome de novo.`,
+          `O contato se chama: ${resolvedName.name}.`,
+          `Use esse nome com naturalidade quando fizer sentido. NUNCA pergunte o nome de novo.`,
         ].join("\n")
       : [
           `[NOME DO CONTATO]`,
-          `Você ainda NÃO sabe o nome do contato com certeza. NÃO invente e NÃO use nome do perfil.`,
-          `Assim que fizer sentido no fluxo (no início da conversa, ou logo antes de agendar/passar contato), pergunte o nome de forma natural — ex.: "Com quem eu tô falando? 😊" ou "Pode me passar seu nome?". Não pergunte de forma brusca no meio de outro assunto.`,
+          `Você NÃO sabe o nome do contato. NUNCA invente, NUNCA deduza a partir do que a pessoa escreveu e NUNCA use nome de perfil do WhatsApp.`,
+          `OBRIGATÓRIO: nesta resposta, além de responder/saudar normalmente, inclua uma pergunta curta e natural pedindo o nome — ex.: "Bom dia! Qual é o seu nome, por favor?" ou "Oi! Antes de mais nada, qual é o seu nome? 😊".`,
+          `Se você já perguntou e a pessoa não respondeu o nome, não insista na mesma mensagem; pergunte de novo mais adiante, de forma natural.`,
+          `Enquanto não souber o nome, trate a pessoa sem nome (ex.: "você"), nunca com um nome inventado.`,
         ].join("\n");
+
     systemPrompt = [`[${modeLine}]`, systemPrompt, "", buildTimeContext(agent), "", nameBlock, "", buildConversationState(trimmedRecent, text)].join("\n");
 
     if (sdrLead) {
