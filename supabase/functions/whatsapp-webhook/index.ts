@@ -1483,7 +1483,14 @@ async function processPayload(payload: any) {
                 headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
                 body: JSON.stringify({ number: dest, text: reportText }),
               })
-                .then((r) => console.log("send-report", { dest, status: r.status, ok: r.ok, trigger }))
+                .then(async (r) => {
+                  console.log("send-report", { dest, status: r.status, ok: r.ok, trigger });
+                  if (r.ok) {
+                    const body = await r.json().catch(() => null);
+                    await logSystemSentMessage(extractSentMessageIds(body), instance, { portfolioId, phone: dest });
+                  }
+                  return r;
+                })
                 .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
             }
           }
