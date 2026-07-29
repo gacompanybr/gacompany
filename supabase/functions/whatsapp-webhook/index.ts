@@ -1379,20 +1379,13 @@ async function processPayload(payload: any) {
               portfolioId, storagePhone, trigger, ageMin: Math.round((nowMs - lastMs) / 60000),
             });
           } else {
-            await admin.from("whatsapp_report_dedupe").upsert({
-              portfolio_id: portfolioId,
-              phone: storagePhone,
-              trigger_type: trigger,
-              last_sent_at: new Date(nowMs).toISOString(),
-            }, { onConflict: "portfolio_id,phone,trigger_type" });
-
             const leadFone = sdrLead?.telefone ?? storagePhone;
 
             // Nome do lead: usa a hierarquia já resolvida no início do turno
-            // (Etapa 1: informado pelo cliente → Etapa 2: salvo no banco → Etapa 3: pushName filtrado).
+            // (só conta como válido se veio como resposta direta à pergunta do nome / banco).
             const leadNome = resolvedName.name ?? "Não informado";
 
-            // === Unidade (Bauru / Duartina) — extraída da conversa, sem travar o relatório ===
+            // === Unidade (Bauru / Duartina) — extraída da conversa ===
             const unidade = (() => {
               const falasCliente = [...trimmedRecent.filter((m) => m.role === "user").map((m) => m.mensagem), text];
               for (let i = falasCliente.length - 1; i >= 0; i--) {
@@ -1403,37 +1396,82 @@ async function processPayload(payload: any) {
               return "Não informado";
             })();
 
+            const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
+              .slice(-12)
+              .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+              .join("\n");
 
-
-
-            // === Motivo real via IA leve (fallback silencioso) ===
+            // === Motivo real + checagem "é mesmo um paciente?" via IA leve ===
             let motivoReal = "Motivo não identificado";
+            let ehPaciente: boolean | null = null;
+            let assuntoDetectado = "";
             try {
-              const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
-                .slice(-12)
-                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
-                .join("\n");
               const motResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
                   model: "google/gemini-2.5-flash-lite",
                   messages: [
-                    { role: "system", content: "Você é um analista que resume o motivo real de contato em conversas de WhatsApp de forma objetiva e específica." },
-                    { role: "user", content: `Com base no histórico desta conversa, resuma em uma frase curta (máximo 10 palavras) qual é o motivo real pelo qual esta pessoa entrou em contato. Seja objetivo e específico. Exemplos: "Quer extrair um dente", "Interesse em implante", "Dúvida sobre valor de prótese", "Veio pelo anúncio — quer agendar consulta". Responda APENAS a frase, sem explicações.\n\nHistórico:\n${histParaMotivo}` },
+                    { role: "system", content: "Você analisa conversas de WhatsApp de uma clínica odontológica e responde SOMENTE com JSON válido." },
+                    { role: "user", content: `Analise o histórico abaixo e responda um JSON com as chaves:\n` +
+                      `- "is_patient": true APENAS se a pessoa é um paciente/lead buscando atendimento odontológico (agendar, avaliação, dor, orçamento de tratamento). Use false se o assunto for aluguel de sala, fornecedor, parceria comercial, cobrança, currículo/funcionário, ou qualquer assunto administrativo/comercial.\n` +
+                      `- "subject": 2 a 5 palavras descrevendo o assunto real da conversa.\n` +
+                      `- "motivo": frase curta (máx 10 palavras) com o motivo real do contato, específico. Se não der pra saber, use "Motivo não identificado".\n\n` +
+                      `Histórico:\n${histParaMotivo}` },
                   ],
-                  temperature: 0.2,
-                  max_tokens: 50,
+                  temperature: 0.1,
+                  max_tokens: 120,
                 }),
               });
               if (motResp.ok) {
                 const motJson = await motResp.json();
-                const raw = String(motJson.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`]+$/g, "");
-                if (raw) motivoReal = raw.length > 140 ? raw.slice(0, 140) + "…" : raw;
+                const rawTxt = String(motJson.choices?.[0]?.message?.content ?? "");
+                const m = rawTxt.match(/\{[\s\S]*\}/);
+                const parsed = m ? JSON.parse(m[0]) : {};
+                if (typeof parsed.is_patient === "boolean") ehPaciente = parsed.is_patient;
+                if (parsed.subject) assuntoDetectado = String(parsed.subject).slice(0, 80);
+                const mot = String(parsed.motivo ?? "").trim().replace(/^["'`]+|["'`]+$/g, "");
+                if (mot) motivoReal = mot.length > 140 ? mot.slice(0, 140) + "…" : mot;
               }
             } catch (e) {
               console.error("motivo-extract fail", e);
             }
+
+            // === TRAVA DE VALIDAÇÃO — nome + unidade + motivo real + é paciente ===
+            const FALLBACK_RE = /^(n[aã]o\s+informado|n[aã]o\s+identificad[oa]|desconhecid[oa]|sem\s+nome|cliente|contato|—|-)?$/i;
+            const GENERIC_MOTIVO_RE = /^(motivo n[aã]o identificad[oa]|contato|d[uú]vida|informa[cç][õo]es?|atendimento|conversa|outro assunto|n[aã]o informado)\.?$/i;
+            const NAO_PACIENTE_RE = /(aluguel|alugar|locat[aá]ri[oa]|sala\b|fornecedor|parceria|representante|cobran[cç]a|boleto em aberto|curr[ií]culo|vaga de emprego|funcion[aá]ri[oa]|nota fiscal)/i;
+
+            const conversaTexto = histParaMotivo.toLowerCase();
+            const falhas: string[] = [];
+
+            if (!resolvedName.name || FALLBACK_RE.test(String(leadNome).trim())) falhas.push("nome_ausente");
+            if (unidade !== "Bauru" && unidade !== "Duartina") falhas.push("unidade_ausente");
+            if (!motivoReal || GENERIC_MOTIVO_RE.test(motivoReal.trim()) || motivoReal.trim().length < 8) falhas.push("motivo_generico");
+            if (ehPaciente === false) falhas.push("nao_e_paciente");
+            else if (ehPaciente === null && NAO_PACIENTE_RE.test(conversaTexto)) falhas.push("assunto_nao_odontologico");
+
+            if (falhas.length > 0) {
+              console.log("[REPORT-BLOCK] relatório bloqueado pela validação", {
+                portfolioId, storagePhone, trigger, falhas, leadNome, unidade, motivoReal, assuntoDetectado,
+              });
+              await admin.from("leads_incompletos").insert({
+                portfolio_id: portfolioId,
+                phone: storagePhone,
+                trigger_type: trigger,
+                motivo_falha: falhas.join(","),
+                nome_capturado: resolvedName.name ?? null,
+                unidade_capturada: unidade === "Não informado" ? null : unidade,
+                motivo_capturado: motivoReal,
+                contexto: { assunto: assuntoDetectado, is_patient: ehPaciente, name_source: resolvedName.source ?? null },
+              }).then(({ error }) => { if (error) console.error("leads_incompletos insert fail", error); });
+            } else {
+            await admin.from("whatsapp_report_dedupe").upsert({
+              portfolio_id: portfolioId,
+              phone: storagePhone,
+              trigger_type: trigger,
+              last_sent_at: new Date(nowMs).toISOString(),
+            }, { onConflict: "portfolio_id,phone,trigger_type" });
 
             const nowSP = new Date().toLocaleString("pt-BR", {
               timeZone: "America/Sao_Paulo",
@@ -1493,8 +1531,10 @@ async function processPayload(payload: any) {
                 })
                 .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
             }
+            }
           }
           }
+
         }
       }
 
