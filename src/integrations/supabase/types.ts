@@ -678,6 +678,45 @@ export type Database = {
           },
         ]
       }
+      leads_incompletos: {
+        Row: {
+          contexto: Json
+          created_at: string
+          id: string
+          motivo_capturado: string | null
+          motivo_falha: string
+          nome_capturado: string | null
+          phone: string
+          portfolio_id: string
+          trigger_type: string
+          unidade_capturada: string | null
+        }
+        Insert: {
+          contexto?: Json
+          created_at?: string
+          id?: string
+          motivo_capturado?: string | null
+          motivo_falha: string
+          nome_capturado?: string | null
+          phone: string
+          portfolio_id: string
+          trigger_type: string
+          unidade_capturada?: string | null
+        }
+        Update: {
+          contexto?: Json
+          created_at?: string
+          id?: string
+          motivo_capturado?: string | null
+          motivo_falha?: string
+          nome_capturado?: string | null
+          phone?: string
+          portfolio_id?: string
+          trigger_type?: string
+          unidade_capturada?: string | null
+        }
+        Relationships: []
+      }
       mercadolivre_integracoes: {
         Row: {
           access_token: string
