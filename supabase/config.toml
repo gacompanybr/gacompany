@@ -36,6 +36,9 @@ verify_jwt = false
 [functions.whatsapp-keepalive]
 verify_jwt = false
 
+[functions.whatsapp-followup]
+verify_jwt = false
+
 
 
 
