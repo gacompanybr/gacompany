@@ -637,6 +637,55 @@ function extractSentMessageIds(responseJson: any): string[] {
   return Array.from(new Set(out));
 }
 
+// Classificação binária via IA leve (flash-lite). Retorna false em qualquer falha.
+async function aiClassifyBool(prompt: string): Promise<boolean> {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-lite",
+      messages: [
+        { role: "system", content: "Você é um classificador. Responda SOMENTE com true ou false." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0,
+      max_tokens: 5,
+    }),
+  });
+  if (!r.ok) {
+    console.error("[AI-CLS] gateway erro", r.status, (await r.text()).slice(0, 200));
+    return false;
+  }
+  const j = await r.json();
+  const out = String(j.choices?.[0]?.message?.content ?? "").toLowerCase();
+  return /\btrue\b/.test(out);
+}
+
+// Extração de uma frase curta via IA leve.
+async function aiExtractShort(prompt: string): Promise<string> {
+  try {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: "Responda apenas com a frase pedida, sem explicações e sem aspas." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 60,
+      }),
+    });
+    if (!r.ok) return "";
+    const j = await r.json();
+    const s = String(j.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`]+$/g, "");
+    return s.length > 140 ? s.slice(0, 140) + "…" : s;
+  } catch {
+    return "";
+  }
+}
+
 async function sendOnce(instance: string, targets: string[], text: string, ctx?: SendCtx): Promise<boolean> {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
@@ -1329,17 +1378,21 @@ async function processPayload(payload: any) {
         await admin.from("sdr_leads").update({ status: newStatus }).eq("id", sdrLead.id);
       }
 
-      // Detecta "promessa de repasse" (fora de horário / registro para retorno)
-      const replyNorm = reply
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-      const promiseRegex = /(vou passar|vou deixar marcado|vou registrar|equipe vai entrar em contato|alguem vai te retornar|vou repassar|deixar anotado|no horario comercial|quando a clinica abrir|nossa equipe vai)/i;
+      // Detecta "promessa de repasse" via classificação por IA (mais robusto
+      // que lista fixa de palavras-chave — pega variações de frase).
       let promiseTriggered = false;
-      if (!trigger && promiseRegex.test(replyNorm)) {
-        promiseTriggered = true;
-        trigger = "human_requested";
-        if (!newStatus) newStatus = "aguardando_humano";
+      if (!trigger && reply.trim()) {
+        try {
+          promiseTriggered = await aiClassifyBool(
+            `A mensagem abaixo, enviada por uma assistente de atendimento, comunica ao cliente que um profissional ou a equipe vai retornar o contato dele em algum momento futuro (seja porque está fora do horário, seja porque precisa confirmar algo com a equipe, agendamento pendente, etc)?\n\nMensagem: "${reply}"\n\nResponda apenas: true ou false`,
+          );
+        } catch (e) {
+          console.error("[PROMISE] classificação falhou", (e as Error).message);
+        }
+        if (promiseTriggered) {
+          trigger = "human_requested";
+          if (!newStatus) newStatus = "aguardando_humano";
+        }
       }
 
       // Dispara o relatório — SDR ou RECEPTIVO
@@ -1536,6 +1589,100 @@ async function processPayload(payload: any) {
           }
 
         }
+      }
+
+      // ==========================================================
+      // RELATÓRIO INDEPENDENTE — Pagamento / comprovante recebido
+      // ==========================================================
+      try {
+        const isPayment = await aiClassifyBool(
+          `A mensagem abaixo do cliente indica que ele fez ou está enviando comprovante de um pagamento (PIX, transferência, boleto pago, etc)?\n\nMensagem: "${text}"\n\nResponda apenas: true ou false`,
+        );
+        if (isPayment) {
+          const { data: agentRow2 } = await admin
+            .from("whatsapp_agents")
+            .select("report_group_id, report_number")
+            .eq("portfolio_id", portfolioId)
+            .maybeSingle();
+          const destPay: string[] = [];
+          if (agentRow2?.report_group_id) destPay.push(agentRow2.report_group_id);
+          if (agentRow2?.report_number) destPay.push(String(agentRow2.report_number).replace(/\D/g, ""));
+
+          if (destPay.length === 0) {
+            console.log("[PAYMENT] detectado mas sem destino configurado", { portfolioId });
+          } else {
+            const PAY_TRIGGER = "payment_received";
+            const { data: lastPay } = await admin
+              .from("whatsapp_report_dedupe")
+              .select("last_sent_at")
+              .eq("portfolio_id", portfolioId)
+              .eq("phone", storagePhone)
+              .eq("trigger_type", PAY_TRIGGER)
+              .maybeSingle();
+            const lastPayMs = lastPay?.last_sent_at ? new Date(lastPay.last_sent_at).getTime() : 0;
+            if (lastPayMs && Date.now() - lastPayMs < 60 * 60 * 1000) {
+              console.log("[PAYMENT] suprimido por dedupe 60min", { portfolioId, storagePhone });
+            } else {
+              const histPay = [...trimmedRecent, { role: "user" as const, mensagem: text }]
+                .slice(-12)
+                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+                .join("\n");
+              const referente = await aiExtractShort(
+                `Com base no histórico abaixo de uma clínica odontológica, responda em uma frase curta (máx 12 palavras) A QUE SE REFERE O PAGAMENTO que o cliente acabou de informar (ex: "Pagamento de parcela do tratamento ortodôntico", "PIX referente à consulta de avaliação"). Se não der pra saber, responda "Pagamento não especificado".\n\nHistórico:\n${histPay}`,
+              ) || "Pagamento não especificado";
+
+              const unidadePay = (() => {
+                const falas = [...trimmedRecent.filter((m) => m.role === "user").map((m) => m.mensagem), text];
+                for (let i = falas.length - 1; i >= 0; i--) {
+                  const f = String(falas[i] ?? "");
+                  if (/duartina/i.test(f)) return "Duartina";
+                  if (/bauru/i.test(f)) return "Bauru";
+                }
+                return "Não informado";
+              })();
+
+              const nowSP2 = new Date().toLocaleString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+              }).replace(",", " às");
+
+              const payText = [
+                `💰 *PAGAMENTO RECEBIDO*`,
+                ``,
+                `👤 Nome: ${resolvedName.name ?? "Não informado"}`,
+                `📍 Unidade: ${unidadePay}`,
+                `📱 WhatsApp: +${storagePhone} — https://wa.me/${storagePhone}`,
+                `📋 Referente a: ${referente}`,
+                `🕐 Data/hora: ${nowSP2}`,
+              ].join("\n");
+
+              await admin.from("whatsapp_report_dedupe").upsert({
+                portfolio_id: portfolioId,
+                phone: storagePhone,
+                trigger_type: PAY_TRIGGER,
+                last_sent_at: new Date().toISOString(),
+              }, { onConflict: "portfolio_id,phone,trigger_type" });
+
+              for (const dest of destPay) {
+                fetch(`${EVO_URL}/message/sendText/${instance}`, {
+                  method: "POST",
+                  headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+                  body: JSON.stringify({ number: dest, text: payText }),
+                })
+                  .then(async (r) => {
+                    console.log("send-report", { dest, status: r.status, ok: r.ok, trigger: PAY_TRIGGER });
+                    if (r.ok) {
+                      const body = await r.json().catch(() => null);
+                      await logSystemSentMessage(extractSentMessageIds(body), instance, { portfolioId, phone: dest });
+                    }
+                  })
+                  .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[PAYMENT] classificação falhou", (e as Error).message);
       }
 
     }
