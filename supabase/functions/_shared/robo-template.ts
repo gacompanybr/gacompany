@@ -83,12 +83,12 @@ export function buildRoboWorkflow(robo: any, workflowName: string, env: RoboBuil
   code = replaceConst(code, "LOVABLE_API_KEY", J(env.LOVABLE_API_KEY));
   code = replaceConst(code, "HORARIOS_PADRAO", J(horariosPorDia));
 
-  // DEDUPE_VERSION muda a cada save/edit — força reset do static data local
-  // (dedupeDesdeMs, fails, lastSentMs) na próxima execução. Usa updated_at em ms
-  // com fallback pra Date.now() se não vier.
-  const upd = robo.updated_at ? Date.parse(String(robo.updated_at)) : NaN;
-  const dedupeVersion = Number.isFinite(upd) ? upd : Date.now();
+  // DEDUPE_VERSION é constante de versão da LÓGICA de dedupe do template.
+  // Só deve ser incrementado manualmente quando essa lógica mudar de propósito.
+  // (Antes era derivado de updated_at, o que resetava o baseline em todo save/sync.)
+  const dedupeVersion = 20260731;
   code = replaceConst(code, "DEDUPE_VERSION", String(dedupeVersion));
+
 
   node.parameters = { ...(node.parameters ?? {}), jsCode: code };
 
