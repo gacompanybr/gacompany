@@ -637,6 +637,55 @@ function extractSentMessageIds(responseJson: any): string[] {
   return Array.from(new Set(out));
 }
 
+// Classificação binária via IA leve (flash-lite). Retorna false em qualquer falha.
+async function aiClassifyBool(prompt: string): Promise<boolean> {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-lite",
+      messages: [
+        { role: "system", content: "Você é um classificador. Responda SOMENTE com true ou false." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0,
+      max_tokens: 5,
+    }),
+  });
+  if (!r.ok) {
+    console.error("[AI-CLS] gateway erro", r.status, (await r.text()).slice(0, 200));
+    return false;
+  }
+  const j = await r.json();
+  const out = String(j.choices?.[0]?.message?.content ?? "").toLowerCase();
+  return /\btrue\b/.test(out);
+}
+
+// Extração de uma frase curta via IA leve.
+async function aiExtractShort(prompt: string): Promise<string> {
+  try {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: "Responda apenas com a frase pedida, sem explicações e sem aspas." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 60,
+      }),
+    });
+    if (!r.ok) return "";
+    const j = await r.json();
+    const s = String(j.choices?.[0]?.message?.content ?? "").trim().replace(/^["'`]+|["'`]+$/g, "");
+    return s.length > 140 ? s.slice(0, 140) + "…" : s;
+  } catch {
+    return "";
+  }
+}
+
 async function sendOnce(instance: string, targets: string[], text: string, ctx?: SendCtx): Promise<boolean> {
   const url = `${EVO_URL}/message/sendText/${instance}`;
   const headers = { apikey: EVO_KEY, "Content-Type": "application/json" };
