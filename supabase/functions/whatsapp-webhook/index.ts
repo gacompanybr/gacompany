@@ -1329,17 +1329,21 @@ async function processPayload(payload: any) {
         await admin.from("sdr_leads").update({ status: newStatus }).eq("id", sdrLead.id);
       }
 
-      // Detecta "promessa de repasse" (fora de horário / registro para retorno)
-      const replyNorm = reply
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
-      const promiseRegex = /(vou passar|vou deixar marcado|vou registrar|equipe vai entrar em contato|alguem vai te retornar|vou repassar|deixar anotado|no horario comercial|quando a clinica abrir|nossa equipe vai)/i;
+      // Detecta "promessa de repasse" via classificação por IA (mais robusto
+      // que lista fixa de palavras-chave — pega variações de frase).
       let promiseTriggered = false;
-      if (!trigger && promiseRegex.test(replyNorm)) {
-        promiseTriggered = true;
-        trigger = "human_requested";
-        if (!newStatus) newStatus = "aguardando_humano";
+      if (!trigger && reply.trim()) {
+        try {
+          promiseTriggered = await aiClassifyBool(
+            `A mensagem abaixo, enviada por uma assistente de atendimento, comunica ao cliente que um profissional ou a equipe vai retornar o contato dele em algum momento futuro (seja porque está fora do horário, seja porque precisa confirmar algo com a equipe, agendamento pendente, etc)?\n\nMensagem: "${reply}"\n\nResponda apenas: true ou false`,
+          );
+        } catch (e) {
+          console.error("[PROMISE] classificação falhou", (e as Error).message);
+        }
+        if (promiseTriggered) {
+          trigger = "human_requested";
+          if (!newStatus) newStatus = "aguardando_humano";
+        }
       }
 
       // Dispara o relatório — SDR ou RECEPTIVO
