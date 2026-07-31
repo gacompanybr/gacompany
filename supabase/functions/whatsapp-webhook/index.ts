@@ -1538,6 +1538,100 @@ async function processPayload(payload: any) {
         }
       }
 
+      // ==========================================================
+      // RELATÓRIO INDEPENDENTE — Pagamento / comprovante recebido
+      // ==========================================================
+      try {
+        const isPayment = await aiClassifyBool(
+          `A mensagem abaixo do cliente indica que ele fez ou está enviando comprovante de um pagamento (PIX, transferência, boleto pago, etc)?\n\nMensagem: "${text}"\n\nResponda apenas: true ou false`,
+        );
+        if (isPayment) {
+          const { data: agentRow2 } = await admin
+            .from("whatsapp_agents")
+            .select("report_group_id, report_number")
+            .eq("portfolio_id", portfolioId)
+            .maybeSingle();
+          const destPay: string[] = [];
+          if (agentRow2?.report_group_id) destPay.push(agentRow2.report_group_id);
+          if (agentRow2?.report_number) destPay.push(String(agentRow2.report_number).replace(/\D/g, ""));
+
+          if (destPay.length === 0) {
+            console.log("[PAYMENT] detectado mas sem destino configurado", { portfolioId });
+          } else {
+            const PAY_TRIGGER = "payment_received";
+            const { data: lastPay } = await admin
+              .from("whatsapp_report_dedupe")
+              .select("last_sent_at")
+              .eq("portfolio_id", portfolioId)
+              .eq("phone", storagePhone)
+              .eq("trigger_type", PAY_TRIGGER)
+              .maybeSingle();
+            const lastPayMs = lastPay?.last_sent_at ? new Date(lastPay.last_sent_at).getTime() : 0;
+            if (lastPayMs && Date.now() - lastPayMs < 60 * 60 * 1000) {
+              console.log("[PAYMENT] suprimido por dedupe 60min", { portfolioId, storagePhone });
+            } else {
+              const histPay = [...trimmedRecent, { role: "user" as const, mensagem: text }]
+                .slice(-12)
+                .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+                .join("\n");
+              const referente = await aiExtractShort(
+                `Com base no histórico abaixo de uma clínica odontológica, responda em uma frase curta (máx 12 palavras) A QUE SE REFERE O PAGAMENTO que o cliente acabou de informar (ex: "Pagamento de parcela do tratamento ortodôntico", "PIX referente à consulta de avaliação"). Se não der pra saber, responda "Pagamento não especificado".\n\nHistórico:\n${histPay}`,
+              ) || "Pagamento não especificado";
+
+              const unidadePay = (() => {
+                const falas = [...trimmedRecent.filter((m) => m.role === "user").map((m) => m.mensagem), text];
+                for (let i = falas.length - 1; i >= 0; i--) {
+                  const f = String(falas[i] ?? "");
+                  if (/duartina/i.test(f)) return "Duartina";
+                  if (/bauru/i.test(f)) return "Bauru";
+                }
+                return "Não informado";
+              })();
+
+              const nowSP2 = new Date().toLocaleString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+              }).replace(",", " às");
+
+              const payText = [
+                `💰 *PAGAMENTO RECEBIDO*`,
+                ``,
+                `👤 Nome: ${resolvedName.name ?? "Não informado"}`,
+                `📍 Unidade: ${unidadePay}`,
+                `📱 WhatsApp: +${storagePhone} — https://wa.me/${storagePhone}`,
+                `📋 Referente a: ${referente}`,
+                `🕐 Data/hora: ${nowSP2}`,
+              ].join("\n");
+
+              await admin.from("whatsapp_report_dedupe").upsert({
+                portfolio_id: portfolioId,
+                phone: storagePhone,
+                trigger_type: PAY_TRIGGER,
+                last_sent_at: new Date().toISOString(),
+              }, { onConflict: "portfolio_id,phone,trigger_type" });
+
+              for (const dest of destPay) {
+                fetch(`${EVO_URL}/message/sendText/${instance}`, {
+                  method: "POST",
+                  headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+                  body: JSON.stringify({ number: dest, text: payText }),
+                })
+                  .then(async (r) => {
+                    console.log("send-report", { dest, status: r.status, ok: r.ok, trigger: PAY_TRIGGER });
+                    if (r.ok) {
+                      const body = await r.json().catch(() => null);
+                      await logSystemSentMessage(extractSentMessageIds(body), instance, { portfolioId, phone: dest });
+                    }
+                  })
+                  .catch((e) => console.error("send-report fail", { dest, err: String(e) }));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[PAYMENT] classificação falhou", (e as Error).message);
+      }
+
     }
 
   }
