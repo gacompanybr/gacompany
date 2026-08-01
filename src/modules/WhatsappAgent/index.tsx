@@ -13,7 +13,7 @@ import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
 import { ConversasTab } from "./ConversasTab";
 import { SdrTab } from "./SdrTab";
-import { emptyAgent, type WhatsappAgent } from "./types";
+import { emptyAgent, DEFAULT_HORARIOS_AGENTE, DIAS, type WhatsappAgent } from "./types";
 
 export default function WhatsappAgentModule({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
