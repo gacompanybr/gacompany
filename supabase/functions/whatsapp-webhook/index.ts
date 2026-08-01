@@ -1572,7 +1572,7 @@ async function processPayload(payload: any) {
 
             // Nome do lead: usa a hierarquia já resolvida no início do turno
             // (só conta como válido se veio como resposta direta à pergunta do nome / banco).
-            const leadNome = resolvedName.name ?? "Não informado";
+            const leadNome = resolvedName.name ?? "Não identificado";
 
             // === Unidade (Bauru / Duartina) — extraída da conversa ===
             const unidade = (() => {
