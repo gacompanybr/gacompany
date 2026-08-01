@@ -1,80 +1,70 @@
-## Objetivo
+# Correção definitiva — preço zerado (ML) + duplicados no grupo
 
-Corrigir 3 workflows n8n (via os builders TS que geram o JSON) e adicionar validação de instância Evolution ao salvar robôs — sem alterar nada fora do escopo listado.
+## Diagnóstico (confirmado nos arquivos e no banco)
 
-## Arquivos afetados
+### 1. Preço null em todos os produtos do Mercado Livre
 
-- `supabase/functions/_shared/robo-template.json` — código JS do nó "Disparar Promo"
-- `supabase/functions/_shared/robo-template.ts` — injeta `DEDUPE_VERSION` por robô
-- `supabase/functions/_shared/ml-scrapper-template.json` — nós "Code in JavaScript2" e "Subcategorização"
-- `supabase/functions/n8n-sync/index.ts` — reset de static-data ao upsert do robô + validação Evolution
-- `supabase/functions/evolution-instance/index.ts` — endpoint `connection_state`
-- `src/modules/Robo/index.tsx` — indicador 🟢/🔴 em tempo real; aviso (não bloqueia) se instância não estiver `open`
+O caminho do preço no workflow gerado (`ml-scrapper-template.json`) é:
+
+```text
+Extrair HTML (parser nordic)  -> preco = "39.69"  (numero puro, sem "R$")
+Split Out / Filter / Subcategorização
+Parse Preço                   -> calcula price / price_old / discount_pct (numeros OK)
+Dedupe / Filter2 / Acumular / HTTP afiliado / Merge
+Edit Fields (Set v3)          -> preco_produtos = {{ $json.preco }}   ("39.69")
+Code in JavaScript2           -> parsePreco(d.preco_produtos)
+                                 regex exige /R\$\s*.../ -> nao casa
+                                 price = null, priceoriginal = null
+Upsert row(s)                 -> price / priceoriginal / pricediscountrate = null
+```
+
+Ou seja: o `Parse Preço` já calcula o preço certo, mas o `Edit Fields` (node Set v3, que só mantém os campos listados) **descarta `price`, `price_old` e `discount_pct`**, e o `Code in JavaScript2` recalcula a partir de uma string numérica sem `R$` — e devolve `null`. O robô então monta a mensagem com preço vazio/zerado.
+
+### 2. Duplicados no grupo (Shopee e também ML)
+
+No nó "Disparar Promo" (`robo-template.json`):
+
+- A trava persistente no banco está **comentada** (linha `// if (await jaFoiEnviado(item)) ...`). Hoje nada consulta `robo_produtos_enviados` antes de enviar.
+- A única trava é a local (`localJaFoiEnviado`), que só olha linhas da própria data table com `sending=true` **e** `sent_at >= sd.dedupeDesdeMs` (static data do n8n). Todo re-import/recriação do workflow zera esse baseline → histórico vira vazio → tudo volta a ser enviável.
+- Para plataformas não-ML (Shopee) o `produtoSimilar` só bloqueia **link exato**. Shortlink de afiliado muda a cada scrap, então o mesmo produto passa como novo.
+
+Confirmação no banco: em `robo_produtos_enviados` há vários casos do mesmo `productname` enviado 2–3 vezes com `product_key` diferente (ex.: "Calça Alfaiataria Feminina Wide Leg Social Cintura Alta" 3x no robô ML - ADRIANA), provando que a chave por link não segura e que a trava por título não está sendo aplicada em produção.
 
 ## Correções
 
-### PROBLEMA 1 — Robô Shopee (146/146 bloqueados)
+### A. `supabase/functions/_shared/ml-scrapper-template.json`
 
-Em `robo-template.json` (nó "Disparar Promo"):
-
-1. Adicionar `const DEDUPE_VERSION = __DEDUPE_VERSION__;` no topo (o `robo-template.ts` substitui esse token por um número inteiro derivado de `robo.updated_at` — muda a cada save/edit).
-2. Logo após `const sd = $getWorkflowStaticData("global")`, inserir o bloco de reset:
+1. Nó **Edit Fields**: adicionar `options.includeOtherFields = true` (garante que `price`, `price_old`, `discount_pct` cheguem ao próximo nó) e adicionar explicitamente os campos numéricos `price`, `price_old`, `discount_pct`.
+2. Nó **Code in JavaScript2**: preço passa a priorizar o que já veio pronto, com o parse de string como fallback:
    ```js
-   if (sd._dedupeVersion !== DEDUPE_VERSION) {
-     sd._dedupeVersion = DEDUPE_VERSION;
-     sd.dedupeDesdeMs = Date.now();
-     sd.fails = {};
-     sd.lastSentMs = 0;
-   }
-   const DEDUPE_DESDE_MS = sd.dedupeDesdeMs;
+   const num = (v) => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : null; };
+   const p = parsePreco(d.preco_produtos);           // fallback (string "R$ ...")
+   const price         = num(d.price)      ?? p.price;
+   const priceOriginal = num(d.price_old)  ?? p.priceOriginal;
+   const discount      = num(d.discount_pct) ?? p.discount;
    ```
-   (remove o `if (!sd.dedupeDesdeMs) …` atual).
-3. Dentro de `escolher()`, remover/comentar `if (await jaFoiEnviado(item)) { dedupeSkips++; continue; }`. Manter `localJaFoiEnviado` (Jaccard) e `registrarEnviado()` só pós-envio confirmado.
+   Além disso, aceitar número puro dentro de `parsePreco` (se a string não tiver `R$` mas for numérica, usar direto) — assim mesmo que algum campo se perca no meio do fluxo o preço nunca sai null.
+3. Trava de qualidade antes do `Upsert`: se `price` continuar null, o item é descartado (log `[CJS2] drop_sem_preco=N`) em vez de gravar linha zerada na data table.
 
-Em `robo-template.ts`:
-- Adicionar `replaceConst(code, "DEDUPE_VERSION", String(deriveVersion(robo)))` onde `deriveVersion` = timestamp de `robo.updated_at` em segundos (fallback `Date.now()`).
+### B. `supabase/functions/_shared/robo-template.json` (nó "Disparar Promo")
 
-Em `n8n-sync/index.ts` (fluxo `upsert_workflow` do robô):
-- Após criar/atualizar o workflow, disparar `DELETE /api/v1/workflows/{id}/static-data` (best-effort, log se falhar). Isso substitui as tentativas POST/PUT com body `{}` que estavam ali.
+1. **Reativar a trava persistente**: descomentar `if (await jaFoiEnviado(item)) { dedupeSkips++; queima a linha; continue; }`, agora queimando a linha com `__DEDUPE__:` (igual à trava local) para não virar zumbi.
+2. **Dedupe local não depende mais de static data**: remover o filtro `sent_at >= DEDUPE_DESDE_MS` da montagem do `sentHistory`. A janela de 45 dias passa a valer sempre (static data continua só para intervalo/fails).
+3. **Shopee passa a ter trava por título**: em `produtoSimilar`, para plataformas sem id extraível, além do link exato, comparar título normalizado com Jaccard `>= 0.85` (alto o suficiente para não derrubar variações legítimas de tamanho/cor, que têm tokens distintos).
 
-### PROBLEMA 2 — Scrapper ML (2-4 itens)
+### C. `supabase/functions/scrapper-api/index.ts`
 
-Em `ml-scrapper-template.json`, nó "Code in JavaScript2":
+Em `check_sent_product` / `record_sent_product`, incluir uma chave adicional `pn:<titulo normalizado>` no `product_key` gravado e consultado (hoje a chave sai do link, que muda a cada scrap). Assim o match "exact" já pega o mesmo produto re-listado, sem depender da varredura de 400 linhas + similaridade.
 
-1. Substituir `sales: Number(d.sales) || 0` e `rating: Number(d.rating) || 0` pelas funções `parseSalesText`/`parseRatingText` lendo `d.vendas_text || d.vendas_text_alt || d.sales_text` e `d.rating_text || d.avaliacoes_text`.
-2. Corrigir `imageURL: d.imagem_produtos` → `imageUrl: d.imagem_produtos`.
+### D. Re-sincronização
 
-No nó "Subcategorização", dentro do loop de produtos, após `if (includesAny(title, EXCLUDE_KEYWORDS)) continue;`:
-```js
-const MIN_SALES_FINAL  = Number(cfg.min_sales_final  ?? 0);
-const MIN_RATING_FINAL = Number(cfg.min_rating_final ?? 0);
-if (MIN_RATING_FINAL > 0 && j.rating > 0 && j.rating < MIN_RATING_FINAL) continue;
-if (MIN_SALES_FINAL  > 0 && j.sales  > 0 && j.sales  < MIN_SALES_FINAL ) continue;
-```
-
-Sobre a Correção 3 pedida (baixar `min_rating_final` do CONFIG ML para 0): esse valor vem do registro do job na tabela `scrapper_jobs` (config do usuário), não do template. Não altero automaticamente — deixo instrução para o usuário ajustar no UI. **Confirmar se deve alterar via SQL para o job `94976051` também.**
-
-### PROBLEMA 3 — Verificar TABLE_ID Shopee
-
-Não é mudança de código; é uma checagem. Vou executar `GET /api/v1/data-tables` no n8n durante o build e reportar se `hj9r6CfIATcBlX91` corresponde a `SHOPEE_SCRAPPER_ADRIANA`. Se divergir, aviso o usuário no chat (sem escrever nada). Se bater, apenas confirmo.
-
-### PROBLEMA 4 — Instância Evolution
-
-Em `evolution-instance/index.ts`:
-- Nova action `connection_state`: `GET /instance/connectionState/{instanceName}` → retorna `{ state, ok: state === "open" }`.
-- Manter `validate_instance` existente (usada no save).
-
-Em `src/modules/Robo/index.tsx`:
-- Ao salvar, chamar `validate_instance`; se `state !== "open"`, apenas mostrar **aviso** (toast amarelo) e prosseguir com o save (hoje bloqueia — mudar para não bloquear, conforme pedido).
-- Ao abrir a página / expandir um robô, chamar `connection_state` para cada `instancia_id` e mostrar 🟢 Conectado / 🔴 Desconectado ao lado do campo. Refetch a cada 30s via `setInterval` enquanto a view estiver aberta.
-
-Propagação automática do `INSTANCE` no workflow n8n já acontece hoje: `robo-template.ts` lê `robo.instancia_id` no build e o `n8n-sync` faz PUT do workflow no save. Nada a mudar aí.
+Após as alterações, disparar `n8n-sync` (`upsert_workflow`) para todos os scrappers ML ativos e todos os robôs ativos, para que os workflows no n8n sejam regravados com os templates corrigidos.
 
 ## Fora de escopo
 
-- Não alterar `whatsapp-webhook`, SDR, CRM, autenticação, UI de outros módulos.
-- Não mexer em `robo_produtos_enviados` (limpeza histórica é responsabilidade do usuário / SQL manual, se quiser).
+- Não altero UI, SDR, CRM, agente WhatsApp nem outros módulos.
+- Não apago linhas com `price` null já existentes nas data tables (posso rodar limpeza se você pedir).
 
-## Perguntas antes de implementar
+## Pergunta
 
-1. Devo também rodar SQL para setar `config.min_rating_final = 0` no `scrapper_jobs` do job `94976051` (Correção 3 do Problema 2)? Ou o usuário ajusta pela UI?
+As linhas já gravadas com `price` null nas data tables do ML devem ser apagadas/queimadas (marcadas como `sending=true`) para não serem disparadas zeradas antes do próximo scrap?
