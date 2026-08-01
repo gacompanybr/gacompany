@@ -564,7 +564,7 @@
     },
     {
       "parameters": {
-        "fieldToSplitOut": "['Nomes Produtos'], ['Imagem Produtos (src)'], preco, link_compra, ['Imagem Produtos (data-src)'], ['Imagem Produtos (srcset)'], ['Imagem Produtos (data-srcset)'], vendas_text, rating_text, categoria",
+        "fieldToSplitOut": "['Nomes Produtos'], ['Imagem Produtos (src)'], preco, preco_antigo, desconto, link_compra, ['Imagem Produtos (data-src)'], ['Imagem Produtos (srcset)'], ['Imagem Produtos (data-srcset)'], vendas_text, rating_text, categoria",
         "options": {}
       },
       "id": "45331d64-75a5-4742-8c89-76c2bbf9785f",
