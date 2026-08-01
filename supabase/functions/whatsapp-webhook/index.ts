@@ -1285,7 +1285,10 @@ async function processPayload(payload: any) {
     // === RESOLUÇÃO DE NOME DO CONTATO (só pergunta direta) ===
     const lastAssistantText = [...trimmedRecent].reverse().find((m) => m.role === "assistant")?.mensagem ?? null;
     const resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
-    console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source });
+    // Quantas vezes o robô já perguntou o nome nesta conversa (máx. 2 perguntas)
+    const nameAsks = trimmedRecent.filter((m) => m.role === "assistant" && isNameQuestion(m.mensagem)).length;
+    const stopAskingName = nameAsks >= 2;
+    console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source, nameAsks });
 
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
