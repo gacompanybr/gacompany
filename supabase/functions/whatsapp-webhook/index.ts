@@ -1786,7 +1786,7 @@ async function processPayload(payload: any) {
               const payText = [
                 `💰 *PAGAMENTO RECEBIDO*`,
                 ``,
-                `👤 Nome: ${resolvedName.name ?? "Não informado"}`,
+                `👤 Nome: ${resolvedName.name ?? "Não identificado"}`,
                 `📍 Unidade: ${unidadePay}`,
                 `📱 WhatsApp: +${storagePhone} — https://wa.me/${storagePhone}`,
                 `📋 Referente a: ${referente}`,
