@@ -1209,6 +1209,7 @@ export type Database = {
           id: string
           image_url: string | null
           link_compra: string | null
+          name_key: string | null
           offerlink: string | null
           portfolio_id: string
           product_key: string
@@ -1224,6 +1225,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           link_compra?: string | null
+          name_key?: string | null
           offerlink?: string | null
           portfolio_id: string
           product_key: string
@@ -1239,6 +1241,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           link_compra?: string | null
+          name_key?: string | null
           offerlink?: string | null
           portfolio_id?: string
           product_key?: string
