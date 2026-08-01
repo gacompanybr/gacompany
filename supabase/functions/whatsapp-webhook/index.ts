@@ -1015,7 +1015,13 @@ async function processPayload(payload: any) {
 
     // Fora do expediente: o robô fica invisível — sem leitura, sem resposta, sem banco.
     if (!dentroDoHorario(agent)) {
-      console.log("[HORARIO] fora do expediente, ignorando mensagem", { portfolioId, remoteJid, inicio: agent.horario_inicio, fim: agent.horario_fim });
+      const _diaHoje = DIA_MAP[nowSaoPaulo().getDay()];
+      const _janelaHoje = janelaDoDia(agent, _diaHoje);
+      console.log("[HORARIO] fora do expediente, ignorando mensagem", {
+        portfolioId, remoteJid, dia: _diaHoje,
+        janela: _janelaHoje ? `${_janelaHoje.inicio}-${_janelaHoje.fim}` : "fechado",
+        grade: gradeSemana(agent),
+      });
       continue;
     }
 
