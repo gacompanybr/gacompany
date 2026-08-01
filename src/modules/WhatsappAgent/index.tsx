@@ -88,8 +88,8 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       const cfg = horarios[d.value];
       if (!cfg?.enabled) continue;
       if (!cfg.inicio || !cfg.fim) return toast.error(`${d.label}: preencha início e fim`);
-      if (cfg.fim <= cfg.inicio) return toast.error(`${d.label}: o horário final deve ser maior que o inicial`);
     }
+
     const habilitados = DIAS.filter((d) => horarios[d.value]?.enabled).map((d) => d.value);
     const inicios = habilitados.map((d) => horarios[d].inicio).sort();
     const fins = habilitados.map((d) => horarios[d].fim).sort();
