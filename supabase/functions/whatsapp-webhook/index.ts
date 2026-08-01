@@ -1299,11 +1299,17 @@ async function processPayload(payload: any) {
           `O contato se chama: ${resolvedName.name}.`,
           `Use esse nome com naturalidade quando fizer sentido. NUNCA pergunte o nome de novo.`,
         ].join("\n")
+      : stopAskingName
+      ? [
+          `[NOME DO CONTATO]`,
+          `Você NÃO sabe o nome do contato. NUNCA invente, NUNCA deduza a partir do que a pessoa escreveu e NUNCA use nome de perfil do WhatsApp.`,
+          `Você já perguntou o nome duas vezes e não obteve resposta. NÃO pergunte de novo. Trate a pessoa por "você" e siga o atendimento normalmente.`,
+        ].join("\n")
       : [
           `[NOME DO CONTATO]`,
           `Você NÃO sabe o nome do contato. NUNCA invente, NUNCA deduza a partir do que a pessoa escreveu e NUNCA use nome de perfil do WhatsApp.`,
-          `OBRIGATÓRIO: nesta resposta, além de responder/saudar normalmente, inclua uma pergunta curta e natural pedindo o nome — ex.: "Bom dia! Qual é o seu nome, por favor?" ou "Oi! Antes de mais nada, qual é o seu nome? 😊".`,
-          `Se você já perguntou e a pessoa não respondeu o nome, não insista na mesma mensagem; pergunte de novo mais adiante, de forma natural.`,
+          `OBRIGATÓRIO: nesta resposta, responda primeiro o que a pessoa perguntou e, no final, inclua uma pergunta curta e natural pedindo o nome — ex.: "Claro, consigo verificar pra você. Só me confirma seu nome, por favor?".`,
+          `NUNCA envie uma mensagem só com "qual seu nome?" — a pergunta do nome vem sempre junto com a resposta do assunto.`,
           `Enquanto não souber o nome, trate a pessoa sem nome (ex.: "você"), nunca com um nome inventado.`,
         ].join("\n");
 
