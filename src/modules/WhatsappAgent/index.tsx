@@ -56,6 +56,7 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       setLocal({
         ...agent,
         dias_semana: Array.isArray(agent.dias_semana) ? agent.dias_semana as string[] : [],
+        horarios_por_dia: { ...DEFAULT_HORARIOS_AGENTE, ...((agent as any).horarios_por_dia ?? {}) },
         faqs: Array.isArray(agent.faqs) ? agent.faqs as any : [],
       });
       return;
