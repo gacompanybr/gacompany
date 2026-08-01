@@ -482,12 +482,53 @@ function isNameQuestion(text: string | null | undefined): boolean {
   return NAME_QUESTION_PATTERNS.some((re) => re.test(s));
 }
 
-// Respostas que claramente NÃO são nome
-const NOT_A_NAME = new Set([
-  "nao", "não", "n", "nunca", "pra que", "para que", "por que", "porque", "por quê",
-  "sim", "ok", "oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "obrigado",
-  "obrigada", "quem", "eu", "vc", "voce", "você", "?", "kkk", "kk", "hahaha",
-]);
+// ---- Filtro determinístico de "não é nome" (roda antes de qualquer IA) ----
+
+// minúsculas, sem acento, sem pontuação, espaços colapsados
+function normLoose(raw: string): string {
+  return String(raw ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Cumprimentos / cortesias / palavras comuns — tolerante a letra repetida e falta de espaço
+const GREETING_RE =
+  /^(bo+m+\s*di+a+|boa+\s*(tarde+|noite+)|oi+|ola+|opa+|e+\s*a+e+|eae+|alo+|salve|tudo\s*(bem|bom|certo|joia)|blz|beleza|obrigad[oa]*|agradecid[oa]|de\s*nada|por\s*favor|pfv|pf|desculpa|ok+|okay|certo|sim|nao|nunca|talvez|entendi|valeu|vlw|bom|boa|prazer|ai|aqui|eu|vc|voce|tu|quem|isso|claro|so|ta|tah|ata|hum+|kk+|ha+|rs+)$/;
+
+const COMMON_WORD_RE =
+  /^(preciso|precisando|to|estou|tou|quero|queria|gostaria|pode|poderia|consegue|tem|teria|quanto|quanta|qual|como|onde|quando|porque|porq|pq|ajuda|ajudar|informacao|informacoes|atendimento|agendar|agendamento|marcar|consulta|dentista|orcamento|preco|valor|horario|dia|hoje|amanha|urgente|dor|dente|dentes)$/;
+
+function looksLikeNotAName(candidate: string): boolean {
+  const n = normLoose(candidate);
+  if (!n) return true;
+  if (/\d/.test(n)) return true;
+  if (String(candidate).trim().endsWith("?")) return true;
+  if (GREETING_RE.test(n)) return true;
+  const words = n.split(" ");
+  if (words.length === 1 && (COMMON_WORD_RE.test(words[0]) || GREETING_RE.test(words[0]))) return true;
+  // frases de cortesia com mais palavras: "boa tarde tudo bem", "tudo bem?"
+  const semCumprimento = stripGreeting(n);
+  if (!semCumprimento) return true;
+  return false;
+}
+
+// Tira cumprimentos/cortesias do começo (e o "sou/meu nome é") — devolve o resto
+function stripGreeting(normalized: string): string {
+  let s = normalized;
+  let prev = "";
+  const LEAD =
+    /^(bo+m+\s*di+a+|boa+\s*(tarde+|noite+)|oi+|ola+|opa+|e+\s*a+e+|eae+|alo+|salve|tudo\s*(bem|bom|certo|joia)|blz|beleza|obrigad[oa]*|por\s*favor|pfv|entao|ai|e|ah|ok+)\b\s*/;
+  const SELF =
+    /^(me\s*chamo|meu\s*nome\s*(e|eh)?|sou\s*(o|a|os)?|aqui\s*(e|eh)?\s*(o|a)?|pode\s*me\s*chamar\s*de|quem\s*fala\s*(e|eh)?\s*(o|a)?)\s*/;
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(LEAD, "").replace(SELF, "").trim();
+  }
+  return s.trim();
+}
 
 function normalizeName(raw: string): string {
   return raw
@@ -502,11 +543,13 @@ function normalizeName(raw: string): string {
 function parseNameAnswer(raw: string | null | undefined): string | null {
   let s = (raw ?? "").toString().trim();
   if (!s) return null;
+  if (/\d/.test(s)) return null;
+  if (s.endsWith("?")) return null;
   // remove emojis e pontuação de borda
   s = s.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").trim();
   s = s.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "").trim();
   if (!s) return null;
-  if (s.length > 40) return null;
+  if (s.length > 60) return null;
 
   // prefixos comuns: "meu nome é X", "sou o X", "me chamo X"
   const m = s.match(
@@ -514,16 +557,25 @@ function parseNameAnswer(raw: string | null | undefined): string | null {
   );
   if (m && m[1]) s = m[1].trim();
 
-  const lower = s.toLowerCase();
-  if (NOT_A_NAME.has(lower)) return null;
+  // Descola cumprimento do nome: "Bom dia, Ana" → "Ana"
+  const restoNorm = stripGreeting(normLoose(s));
+  if (!restoNorm) return null;
+  // Reconstrói mantendo acentos: pega as últimas N palavras do original
+  const origWords = s.replace(/[,.;:!]+/g, " ").split(/\s+/).filter(Boolean);
+  const nWords = restoNorm.split(" ").length;
+  let candidate = origWords.slice(Math.max(0, origWords.length - nWords)).join(" ").trim();
+  if (!candidate) candidate = s;
+
+  if (looksLikeNotAName(candidate)) return null;
 
   // só letras, espaços, apóstrofo e hífen
-  if (!/^[\p{L}][\p{L}'\-]*(?:\s+[\p{L}][\p{L}'\-]*){0,2}$/u.test(s)) return null;
-  const letters = s.replace(/[^\p{L}]/gu, "");
+  if (!/^[\p{L}][\p{L}'\-]*(?:\s+[\p{L}][\p{L}'\-]*){0,2}$/u.test(candidate)) return null;
+  const letters = candidate.replace(/[^\p{L}]/gu, "");
   if (letters.length < 2) return null;
 
-  return normalizeName(s);
+  return normalizeName(candidate);
 }
+
 
 type ResolvedName = { name: string | null; source: "informado_pelo_cliente" | null };
 
