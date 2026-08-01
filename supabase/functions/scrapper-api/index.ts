@@ -479,6 +479,22 @@ Deno.serve(async (req) => {
         if (exactErr) return json({ error: exactErr.message }, 500);
         if ((exact ?? []).length > 0) return json({ sent: true, reason: "exact", key, match: exact![0] });
 
+        // Chave por TÍTULO normalizado: o mesmo produto re-listado ganha id/link novos,
+        // então product_key muda e o "exact" acima não pega. Título normalizado pega.
+        const nameKey = `name:${normProductText(incoming.productname).slice(0, 160)}`;
+        if (nameKey !== "name:" && nameKey !== key) {
+          const { data: byName, error: byNameErr } = await admin
+            .from("robo_produtos_enviados")
+            .select("id, productname, product_key, sent_at")
+            .eq("robo_id", roboId)
+            .eq("name_key", nameKey)
+            .gte("sent_at", since)
+            .limit(1);
+          if (byNameErr) return json({ error: byNameErr.message }, 500);
+          if ((byName ?? []).length > 0) return json({ sent: true, reason: "name", key, match: byName![0] });
+        }
+
+
         const { data: recent, error: recentErr } = await admin
           .from("robo_produtos_enviados")
           .select("id, productname, product_key, sent_at, offerlink, link_compra, image_url")
@@ -668,7 +684,10 @@ Deno.serve(async (req) => {
             table_id: body.table_id ?? null,
             row_id: body.row_id == null ? null : String(body.row_id),
             product_key: key,
+            name_key: `name:${normProductText(body.productname).slice(0, 160)}`,
             productname: body.productname ?? null,
+
+
             offerlink: body.offerlink ?? null,
             link_compra: body.link_compra ?? null,
             image_url: body.imageUrl ?? null,
