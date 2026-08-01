@@ -615,14 +615,30 @@ async function saveContactName(portfolioId: string, storagePhone: string, name: 
   }
 }
 
+// Uma única checagem por IA (barata), só no momento de salvar o nome pela 1ª vez.
+// Fail-safe: qualquer falha/timeout → false (não salva).
+async function aiIsPersonName(candidate: string): Promise<boolean> {
+  try {
+    const p = Promise.race([
+      aiClassifyBool(
+        `"${candidate}" é um nome próprio de pessoa? Responda apenas true ou false. Cumprimentos (bom dia, oi), frases e palavras comuns não são nomes.`,
+      ),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 8000)),
+    ]);
+    return await p;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveContactName(
   portfolioId: string,
   storagePhone: string,
   lastAssistantText: string | null,
   currentText: string,
 ): Promise<ResolvedName> {
-  // 1) Nome já salvo para esse contato → TRAVADO. Nunca re-extrai, nunca roda IA.
-  //    Única exceção: correção explícita feita pelo próprio cliente.
+  // 1) Nome já salvo para esse contato → TRAVADO.
+  //    Exceções: correção explícita do cliente, ou nome salvo inválido (cumprimento) → limpa.
   try {
     const { data: saved } = await admin
       .from("whatsapp_contact_names")
@@ -637,7 +653,20 @@ async function resolveContactName(
         await saveContactName(portfolioId, storagePhone, corrected);
         return { name: corrected, source: "informado_pelo_cliente" };
       }
-      return { name: saved.name, source: "informado_pelo_cliente" };
+      // Auto-correção do banco contaminado: "Bom dia", "Oi", etc.
+      if (looksLikeNotAName(String(saved.name))) {
+        console.log("[NAME] nome salvo inválido, descartando", { nome: saved.name, storagePhone });
+        try {
+          await admin.from("whatsapp_contact_names")
+            .delete()
+            .eq("portfolio_id", portfolioId)
+            .eq("phone", storagePhone);
+        } catch (e) {
+          console.error("[NAME] delete inválido fail", e);
+        }
+      } else {
+        return { name: saved.name, source: "informado_pelo_cliente" };
+      }
     }
   } catch (e) {
     console.error("[NAME] lookup fail", e);
@@ -648,17 +677,12 @@ async function resolveContactName(
   if (isNameQuestion(lastAssistantText)) {
     const parsed = parseNameAnswer(currentText);
     if (parsed) {
-      try {
-        await admin.from("whatsapp_contact_names").upsert({
-          portfolio_id: portfolioId,
-          phone: storagePhone,
-          name: parsed,
-          source: "informado_pelo_cliente",
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "portfolio_id,phone" });
-      } catch (e) {
-        console.error("[NAME] upsert fail", e);
+      const ok = await aiIsPersonName(parsed);
+      if (!ok) {
+        console.log("[NAME] IA rejeitou candidato, não salva", { candidato: parsed });
+        return { name: null, source: null };
       }
+      await saveContactName(portfolioId, storagePhone, parsed);
       return { name: parsed, source: "informado_pelo_cliente" };
     }
   }
@@ -666,6 +690,7 @@ async function resolveContactName(
   // 3) Sem nome confiável
   return { name: null, source: null };
 }
+
 
 
 function splitMessage(text: string): string[] {
