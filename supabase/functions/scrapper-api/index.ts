@@ -684,7 +684,8 @@ Deno.serve(async (req) => {
             table_id: body.table_id ?? null,
             row_id: body.row_id == null ? null : String(body.row_id),
             product_key: key,
-            productname: body.productname ?? null,
+            name_key: `name:${normProductText(body.productname).slice(0, 160)}`,
+
             offerlink: body.offerlink ?? null,
             link_compra: body.link_compra ?? null,
             image_url: body.imageUrl ?? null,
