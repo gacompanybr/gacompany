@@ -12,6 +12,7 @@ export type WhatsappAgent = {
   horario_inicio: string | null;
   horario_fim: string | null;
   dias_semana: string[];
+  horarios_por_dia: Record<string, { enabled: boolean; inicio: string; fim: string }>;
   fora_horario_msg: string | null;
   faqs: Faq[];
   modelo_ia: "gemini" | "openai";
