@@ -1795,6 +1795,7 @@ export type Database = {
           fora_horario_msg: string | null
           horario_fim: string | null
           horario_inicio: string | null
+          horarios_por_dia: Json
           id: string
           instancia_id: string | null
           instrucoes_base: string | null
@@ -1823,6 +1824,7 @@ export type Database = {
           fora_horario_msg?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
+          horarios_por_dia?: Json
           id?: string
           instancia_id?: string | null
           instrucoes_base?: string | null
@@ -1851,6 +1853,7 @@ export type Database = {
           fora_horario_msg?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
+          horarios_por_dia?: Json
           id?: string
           instancia_id?: string | null
           instrucoes_base?: string | null

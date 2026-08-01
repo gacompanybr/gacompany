@@ -13,7 +13,7 @@ import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
 import { ConversasTab } from "./ConversasTab";
 import { SdrTab } from "./SdrTab";
-import { emptyAgent, type WhatsappAgent } from "./types";
+import { emptyAgent, DEFAULT_HORARIOS_AGENTE, DIAS, type WhatsappAgent } from "./types";
 
 export default function WhatsappAgentModule({ portfolioId }: { portfolioId: string }) {
   const qc = useQueryClient();
@@ -56,6 +56,7 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       setLocal({
         ...agent,
         dias_semana: Array.isArray(agent.dias_semana) ? agent.dias_semana as string[] : [],
+        horarios_por_dia: { ...DEFAULT_HORARIOS_AGENTE, ...((agent as any).horarios_por_dia ?? {}) },
         faqs: Array.isArray(agent.faqs) ? agent.faqs as any : [],
       });
       return;
@@ -82,13 +83,27 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
 
   async function save() {
     if (!local) return;
+    const horarios = { ...DEFAULT_HORARIOS_AGENTE, ...(local.horarios_por_dia ?? {}) };
+    for (const d of DIAS) {
+      const cfg = horarios[d.value];
+      if (!cfg?.enabled) continue;
+      if (!cfg.inicio || !cfg.fim) return toast.error(`${d.label}: preencha início e fim`);
+      if (cfg.fim <= cfg.inicio) return toast.error(`${d.label}: o horário final deve ser maior que o inicial`);
+    }
+    const habilitados = DIAS.filter((d) => horarios[d.value]?.enabled).map((d) => d.value);
+    const inicios = habilitados.map((d) => horarios[d].inicio).sort();
+    const fins = habilitados.map((d) => horarios[d].fim).sort();
+
     setSaving(true);
     const { id, ...rest } = local;
     const { error } = await supabase
       .from("whatsapp_agents")
       .update({
         ...rest,
-        dias_semana: local.dias_semana as any,
+        horarios_por_dia: horarios as any,
+        dias_semana: habilitados as any,
+        horario_inicio: inicios[0] ?? local.horario_inicio,
+        horario_fim: fins[fins.length - 1] ?? local.horario_fim,
         faqs: local.faqs as any,
       })
       .eq("id", id);

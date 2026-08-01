@@ -12,6 +12,7 @@ export type WhatsappAgent = {
   horario_inicio: string | null;
   horario_fim: string | null;
   dias_semana: string[];
+  horarios_por_dia: Record<string, { enabled: boolean; inicio: string; fim: string }>;
   fora_horario_msg: string | null;
   faqs: Faq[];
   modelo_ia: "gemini" | "openai";
@@ -23,6 +24,17 @@ export type WhatsappAgent = {
 };
 
 export type Faq = { pergunta: string; resposta: string };
+
+export const DEFAULT_HORARIOS_AGENTE: Record<string, { enabled: boolean; inicio: string; fim: string }> = {
+  seg: { enabled: true, inicio: "08:00", fim: "18:00" },
+  ter: { enabled: true, inicio: "08:00", fim: "18:00" },
+  qua: { enabled: true, inicio: "08:00", fim: "18:00" },
+  qui: { enabled: true, inicio: "08:00", fim: "18:00" },
+  sex: { enabled: true, inicio: "08:00", fim: "18:00" },
+  sab: { enabled: false, inicio: "08:00", fim: "12:00" },
+  dom: { enabled: false, inicio: "08:00", fim: "12:00" },
+};
+
 
 export const TOM_OPTIONS = [
   { value: "profissional", label: "Profissional" },
@@ -70,6 +82,7 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     horario_inicio: "08:00",
     horario_fim: "18:00",
     dias_semana: ["seg", "ter", "qua", "qui", "sex"],
+    horarios_por_dia: DEFAULT_HORARIOS_AGENTE,
     fora_horario_msg: "Olá! No momento estou fora do horário de atendimento.",
     faqs: [],
     modelo_ia: "gemini",

@@ -366,18 +366,51 @@ function buildConversationState(recent: { role: string; mensagem: string }[], cu
 
 
 
+const DIA_MAP = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+const DIA_LABEL: Record<string, string> = {
+  seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom",
+};
+
+function nowSaoPaulo(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+}
+
+// Janela de atendimento do dia atual. null = fechado hoje.
+function janelaDoDia(agent: any, diaKey: string): { inicio: string; fim: string } | null {
+  const porDia = agent?.horarios_por_dia;
+  if (porDia && typeof porDia === "object" && !Array.isArray(porDia) && porDia[diaKey]) {
+    const cfg = porDia[diaKey];
+    if (cfg?.enabled === false) return null;
+    if (cfg?.inicio && cfg?.fim) return { inicio: String(cfg.inicio), fim: String(cfg.fim) };
+    return null;
+  }
+  // legado: dias_semana + horario_inicio/horario_fim
+  const dias = Array.isArray(agent?.dias_semana) ? agent.dias_semana : [];
+  if (dias.length && !dias.includes(diaKey)) return null;
+  if (!agent?.horario_inicio || !agent?.horario_fim) return null;
+  return { inicio: String(agent.horario_inicio), fim: String(agent.horario_fim) };
+}
+
+function toMin(hhmm: string): number {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 function dentroDoHorario(agent: any): boolean {
   try {
-    const dias = Array.isArray(agent.dias_semana) ? agent.dias_semana : [];
-    const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const diaHoje = map[now.getDay()];
-    if (dias.length && !dias.includes(diaHoje)) return false;
-    if (!agent.horario_inicio || !agent.horario_fim) return true;
-    const [hi, mi] = agent.horario_inicio.split(":").map(Number);
-    const [hf, mf] = agent.horario_fim.split(":").map(Number);
-    const startMin = hi * 60 + mi;
-    const endMin = hf * 60 + mf;
+    const now = nowSaoPaulo();
+    const diaHoje = DIA_MAP[now.getDay()];
+    const janela = janelaDoDia(agent, diaHoje);
+    if (!janela) {
+      // Sem configuração alguma (nem por dia nem legado) → não bloqueia.
+      const porDia = agent?.horarios_por_dia;
+      const temPorDia = porDia && typeof porDia === "object" && !Array.isArray(porDia) && Object.keys(porDia).length > 0;
+      const temLegado = !!(agent?.horario_inicio && agent?.horario_fim);
+      if (!temPorDia && !temLegado) return true;
+      return false;
+    }
+    const startMin = toMin(janela.inicio);
+    const endMin = toMin(janela.fim);
     const nowMin = now.getHours() * 60 + now.getMinutes();
     if (startMin > endMin) {
       return nowMin >= startMin || nowMin <= endMin;
@@ -388,33 +421,44 @@ function dentroDoHorario(agent: any): boolean {
   }
 }
 
+// Grade compacta da semana, só dias abertos. Ex.: "Seg 08:00–18:00 · Sáb 08:00–12:00"
+function gradeSemana(agent: any): string {
+  const partes: string[] = [];
+  for (const key of ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]) {
+    const j = janelaDoDia(agent, key);
+    if (j) partes.push(`${DIA_LABEL[key]} ${j.inicio}–${j.fim}`);
+  }
+  return partes.length ? partes.join(" · ") : "não configurado";
+}
+
 function buildTimeContext(agent: any): string {
   try {
-    const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
     const nomeDia = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const now = nowSaoPaulo();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
     const dd = String(now.getDate()).padStart(2, "0");
     const mo = String(now.getMonth() + 1).padStart(2, "0");
-    const dias: string[] = Array.isArray(agent?.dias_semana) ? agent.dias_semana : [];
-    const diasLabel = dias.length ? dias.join(", ") : "não configurado";
-    const horaLabel = agent?.horario_inicio && agent?.horario_fim ? `${agent.horario_inicio} às ${agent.horario_fim}` : "não configurado";
+    const diaHoje = DIA_MAP[now.getDay()];
+    const janela = janelaDoDia(agent, diaHoje);
     const dentro = dentroDoHorario(agent);
-    const diaHoje = map[now.getDay()];
     const linhas = [
       `[CONTEXTO TEMPORAL — fuso America/Sao_Paulo]`,
       `- Agora: ${nomeDia[now.getDay()]} (${diaHoje}), ${dd}/${mo}, ${hh}:${mm}.`,
-      `- Horário comercial do estabelecimento: ${horaLabel}. Dias: ${diasLabel}.`,
+      janela
+        ? `- Hoje (${nomeDia[now.getDay()]}) atendemos das ${janela.inicio} às ${janela.fim}.`
+        : `- Hoje (${nomeDia[now.getDay()]}) NÃO há atendimento (estabelecimento fechado).`,
+      `- Grade da semana (somente dias com atendimento): ${gradeSemana(agent)}. NUNCA prometa horário em dia que não está nessa grade.`,
       dentro
-        ? `- ESTAMOS DENTRO do horário comercial agora. Você pode oferecer atendimento/agendamento para HOJE.`
-        : `- ESTAMOS FORA do horário comercial agora. NUNCA diga "atendemos ainda hoje", "conseguimos te atender agora" ou prometa horário para hoje. Ofereça o próximo dia útil dentro do horário comercial acima e deixe claro que a equipe confirma no próximo expediente.`,
+        ? `- ESTAMOS DENTRO do horário de atendimento agora. Você pode oferecer atendimento/agendamento para HOJE.`
+        : `- ESTAMOS FORA do horário de atendimento agora. NUNCA diga "atendemos ainda hoje", "conseguimos te atender agora" ou prometa horário para hoje. Ofereça o próximo dia com atendimento na grade acima e deixe claro que a equipe confirma no próximo expediente.`,
     ];
     return linhas.join("\n");
   } catch {
     return "";
   }
 }
+
 
 // ============================================================
 // IDENTIFICAÇÃO DE NOME DO CONTATO
@@ -438,12 +482,54 @@ function isNameQuestion(text: string | null | undefined): boolean {
   return NAME_QUESTION_PATTERNS.some((re) => re.test(s));
 }
 
-// Respostas que claramente NÃO são nome
-const NOT_A_NAME = new Set([
-  "nao", "não", "n", "nunca", "pra que", "para que", "por que", "porque", "por quê",
-  "sim", "ok", "oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "obrigado",
-  "obrigada", "quem", "eu", "vc", "voce", "você", "?", "kkk", "kk", "hahaha",
-]);
+// ---- Filtro determinístico de "não é nome" (roda antes de qualquer IA) ----
+
+// minúsculas, sem acento, sem pontuação, espaços colapsados
+function normLoose(raw: string): string {
+  return String(raw ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Cumprimentos / cortesias / palavras comuns — tolerante a letra repetida e falta de espaço
+const GREETING_RE =
+  /^(bo+m+\s*di+a+|boa+\s*(tarde+|noite+)|oi+|ola+|opa+|e+\s*a+e+|eae+|alo+|salve|tudo\s*(bem|bom|certo|joia)|blz|beleza|obrigad[oa]*|agradecid[oa]|de\s*nada|por\s*favor|pfv|pf|desculpa|ok+|okay|certo|sim|nao|nunca|talvez|entendi|valeu|vlw|bom|boa|prazer|ai|aqui|eu|vc|voce|tu|quem|isso|claro|so|ta|tah|ata|hum+|kk+|ha+|rs+)$/;
+
+const COMMON_WORD_RE =
+  /^(preciso|precisando|to|tô|estou|tou|quero|queria|gostaria|pode|poderia|consegue|tem|teria|quanto|quanta|qual|como|onde|quando|porque|porq|pq|ajuda|ajudar|informacao|informacoes|atendimento|agendar|agendamento|marcar|consulta|dentista|orcamento|preco|valor|horario|dia|hoje|amanha|urgente|dor|dente|dentes|moca|mocinha|senhor|senhora|senhorita|amig[oa]|querid[oa]|gente|dr|dra|doutor|doutora|voces|voce|obrigad[oa]*)$/;
+
+function looksLikeNotAName(candidate: string): boolean {
+  const n = normLoose(candidate);
+  if (!n) return true;
+  if (/\d/.test(n)) return true;
+  if (String(candidate).trim().endsWith("?")) return true;
+  if (GREETING_RE.test(n)) return true;
+  const words = n.split(" ");
+  // Qualquer palavra comum/cumprimento no candidato invalida (ex.: "tô precisando", "boa noite moça")
+  if (words.some((w) => COMMON_WORD_RE.test(w) || GREETING_RE.test(w))) return true;
+  // frases de cortesia com mais palavras: "boa tarde tudo bem", "tudo bem?"
+  const semCumprimento = stripGreeting(n);
+  if (!semCumprimento) return true;
+  return false;
+}
+
+// Tira cumprimentos/cortesias do começo (e o "sou/meu nome é") — devolve o resto
+function stripGreeting(normalized: string): string {
+  let s = normalized;
+  let prev = "";
+  const LEAD =
+    /^(bo+m+\s*di+a+|boa+\s*(tarde+|noite+)|oi+|ola+|opa+|e+\s*a+e+|eae+|alo+|salve|tudo\s*(bem|bom|certo|joia)|blz|beleza|obrigad[oa]*|por\s*favor|pfv|entao|ai|e|ah|ok+)\b\s*/;
+  const SELF =
+    /^(me\s*chamo|meu\s*nome\s*(e|eh)?|sou\s*(o|a|os)?|aqui\s*(e|eh)?\s*(o|a)?|pode\s*me\s*chamar\s*de|quem\s*fala\s*(e|eh)?\s*(o|a)?)\s*/;
+  while (s !== prev) {
+    prev = s;
+    s = s.replace(LEAD, "").replace(SELF, "").trim();
+  }
+  return s.trim();
+}
 
 function normalizeName(raw: string): string {
   return raw
@@ -458,11 +544,13 @@ function normalizeName(raw: string): string {
 function parseNameAnswer(raw: string | null | undefined): string | null {
   let s = (raw ?? "").toString().trim();
   if (!s) return null;
+  if (/\d/.test(s)) return null;
+  if (s.endsWith("?")) return null;
   // remove emojis e pontuação de borda
   s = s.replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").trim();
   s = s.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "").trim();
   if (!s) return null;
-  if (s.length > 40) return null;
+  if (s.length > 60) return null;
 
   // prefixos comuns: "meu nome é X", "sou o X", "me chamo X"
   const m = s.match(
@@ -470,16 +558,25 @@ function parseNameAnswer(raw: string | null | undefined): string | null {
   );
   if (m && m[1]) s = m[1].trim();
 
-  const lower = s.toLowerCase();
-  if (NOT_A_NAME.has(lower)) return null;
+  // Descola cumprimento do nome: "Bom dia, Ana" → "Ana"
+  const restoNorm = stripGreeting(normLoose(s));
+  if (!restoNorm) return null;
+  // Reconstrói mantendo acentos: pega as últimas N palavras do original
+  const origWords = s.replace(/[,.;:!]+/g, " ").split(/\s+/).filter(Boolean);
+  const nWords = restoNorm.split(" ").length;
+  let candidate = origWords.slice(Math.max(0, origWords.length - nWords)).join(" ").trim();
+  if (!candidate) candidate = s;
+
+  if (looksLikeNotAName(candidate)) return null;
 
   // só letras, espaços, apóstrofo e hífen
-  if (!/^[\p{L}][\p{L}'\-]*(?:\s+[\p{L}][\p{L}'\-]*){0,2}$/u.test(s)) return null;
-  const letters = s.replace(/[^\p{L}]/gu, "");
+  if (!/^[\p{L}][\p{L}'\-]*(?:\s+[\p{L}][\p{L}'\-]*){0,2}$/u.test(candidate)) return null;
+  const letters = candidate.replace(/[^\p{L}]/gu, "");
   if (letters.length < 2) return null;
 
-  return normalizeName(s);
+  return normalizeName(candidate);
 }
+
 
 type ResolvedName = { name: string | null; source: "informado_pelo_cliente" | null };
 
@@ -519,14 +616,30 @@ async function saveContactName(portfolioId: string, storagePhone: string, name: 
   }
 }
 
+// Uma única checagem por IA (barata), só no momento de salvar o nome pela 1ª vez.
+// Fail-safe: qualquer falha/timeout → false (não salva).
+async function aiIsPersonName(candidate: string): Promise<boolean> {
+  try {
+    const p = Promise.race([
+      aiClassifyBool(
+        `"${candidate}" é um nome próprio de pessoa? Responda apenas true ou false. Cumprimentos (bom dia, oi), frases e palavras comuns não são nomes.`,
+      ),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 8000)),
+    ]);
+    return await p;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveContactName(
   portfolioId: string,
   storagePhone: string,
   lastAssistantText: string | null,
   currentText: string,
 ): Promise<ResolvedName> {
-  // 1) Nome já salvo para esse contato → TRAVADO. Nunca re-extrai, nunca roda IA.
-  //    Única exceção: correção explícita feita pelo próprio cliente.
+  // 1) Nome já salvo para esse contato → TRAVADO.
+  //    Exceções: correção explícita do cliente, ou nome salvo inválido (cumprimento) → limpa.
   try {
     const { data: saved } = await admin
       .from("whatsapp_contact_names")
@@ -541,7 +654,20 @@ async function resolveContactName(
         await saveContactName(portfolioId, storagePhone, corrected);
         return { name: corrected, source: "informado_pelo_cliente" };
       }
-      return { name: saved.name, source: "informado_pelo_cliente" };
+      // Auto-correção do banco contaminado: "Bom dia", "Oi", etc.
+      if (looksLikeNotAName(String(saved.name))) {
+        console.log("[NAME] nome salvo inválido, descartando", { nome: saved.name, storagePhone });
+        try {
+          await admin.from("whatsapp_contact_names")
+            .delete()
+            .eq("portfolio_id", portfolioId)
+            .eq("phone", storagePhone);
+        } catch (e) {
+          console.error("[NAME] delete inválido fail", e);
+        }
+      } else {
+        return { name: saved.name, source: "informado_pelo_cliente" };
+      }
     }
   } catch (e) {
     console.error("[NAME] lookup fail", e);
@@ -552,17 +678,12 @@ async function resolveContactName(
   if (isNameQuestion(lastAssistantText)) {
     const parsed = parseNameAnswer(currentText);
     if (parsed) {
-      try {
-        await admin.from("whatsapp_contact_names").upsert({
-          portfolio_id: portfolioId,
-          phone: storagePhone,
-          name: parsed,
-          source: "informado_pelo_cliente",
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "portfolio_id,phone" });
-      } catch (e) {
-        console.error("[NAME] upsert fail", e);
+      const ok = await aiIsPersonName(parsed);
+      if (!ok) {
+        console.log("[NAME] IA rejeitou candidato, não salva", { candidato: parsed });
+        return { name: null, source: null };
       }
+      await saveContactName(portfolioId, storagePhone, parsed);
       return { name: parsed, source: "informado_pelo_cliente" };
     }
   }
@@ -570,6 +691,7 @@ async function resolveContactName(
   // 3) Sem nome confiável
   return { name: null, source: null };
 }
+
 
 
 function splitMessage(text: string): string[] {
@@ -971,7 +1093,13 @@ async function processPayload(payload: any) {
 
     // Fora do expediente: o robô fica invisível — sem leitura, sem resposta, sem banco.
     if (!dentroDoHorario(agent)) {
-      console.log("[HORARIO] fora do expediente, ignorando mensagem", { portfolioId, remoteJid, inicio: agent.horario_inicio, fim: agent.horario_fim });
+      const _diaHoje = DIA_MAP[nowSaoPaulo().getDay()];
+      const _janelaHoje = janelaDoDia(agent, _diaHoje);
+      console.log("[HORARIO] fora do expediente, ignorando mensagem", {
+        portfolioId, remoteJid, dia: _diaHoje,
+        janela: _janelaHoje ? `${_janelaHoje.inicio}-${_janelaHoje.fim}` : "fechado",
+        grade: gradeSemana(agent),
+      });
       continue;
     }
 
@@ -1158,7 +1286,10 @@ async function processPayload(payload: any) {
     // === RESOLUÇÃO DE NOME DO CONTATO (só pergunta direta) ===
     const lastAssistantText = [...trimmedRecent].reverse().find((m) => m.role === "assistant")?.mensagem ?? null;
     const resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
-    console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source });
+    // Quantas vezes o robô já perguntou o nome nesta conversa (máx. 2 perguntas)
+    const nameAsks = trimmedRecent.filter((m) => m.role === "assistant" && isNameQuestion(m.mensagem)).length;
+    const stopAskingName = nameAsks >= 2;
+    console.log("[NAME] resolved", { portfolioId, storagePhone, name: resolvedName.name, source: resolvedName.source, nameAsks });
 
     // System prompt: tag explícita do MODO + estado + (se SDR) contexto isolado do lead.
     let systemPrompt = buildSystemPrompt(agent);
@@ -1169,11 +1300,17 @@ async function processPayload(payload: any) {
           `O contato se chama: ${resolvedName.name}.`,
           `Use esse nome com naturalidade quando fizer sentido. NUNCA pergunte o nome de novo.`,
         ].join("\n")
+      : stopAskingName
+      ? [
+          `[NOME DO CONTATO]`,
+          `Você NÃO sabe o nome do contato. NUNCA invente, NUNCA deduza a partir do que a pessoa escreveu e NUNCA use nome de perfil do WhatsApp.`,
+          `Você já perguntou o nome duas vezes e não obteve resposta. NÃO pergunte de novo. Trate a pessoa por "você" e siga o atendimento normalmente.`,
+        ].join("\n")
       : [
           `[NOME DO CONTATO]`,
           `Você NÃO sabe o nome do contato. NUNCA invente, NUNCA deduza a partir do que a pessoa escreveu e NUNCA use nome de perfil do WhatsApp.`,
-          `OBRIGATÓRIO: nesta resposta, além de responder/saudar normalmente, inclua uma pergunta curta e natural pedindo o nome — ex.: "Bom dia! Qual é o seu nome, por favor?" ou "Oi! Antes de mais nada, qual é o seu nome? 😊".`,
-          `Se você já perguntou e a pessoa não respondeu o nome, não insista na mesma mensagem; pergunte de novo mais adiante, de forma natural.`,
+          `OBRIGATÓRIO: nesta resposta, responda primeiro o que a pessoa perguntou e, no final, inclua uma pergunta curta e natural pedindo o nome — ex.: "Claro, consigo verificar pra você. Só me confirma seu nome, por favor?".`,
+          `NUNCA envie uma mensagem só com "qual seu nome?" — a pergunta do nome vem sempre junto com a resposta do assunto.`,
           `Enquanto não souber o nome, trate a pessoa sem nome (ex.: "você"), nunca com um nome inventado.`,
         ].join("\n");
 
@@ -1436,7 +1573,7 @@ async function processPayload(payload: any) {
 
             // Nome do lead: usa a hierarquia já resolvida no início do turno
             // (só conta como válido se veio como resposta direta à pergunta do nome / banco).
-            const leadNome = resolvedName.name ?? "Não informado";
+            const leadNome = resolvedName.name ?? "Não identificado";
 
             // === Unidade (Bauru / Duartina) — extraída da conversa ===
             const unidade = (() => {
@@ -1498,7 +1635,8 @@ async function processPayload(payload: any) {
             const conversaTexto = histParaMotivo.toLowerCase();
             const falhas: string[] = [];
 
-            if (!resolvedName.name || FALLBACK_RE.test(String(leadNome).trim())) falhas.push("nome_ausente");
+            // Nome ausente só bloqueia enquanto o robô ainda pode perguntar (menos de 2 perguntas).
+            if ((!resolvedName.name || FALLBACK_RE.test(String(leadNome).trim())) && !stopAskingName) falhas.push("nome_ausente");
             if (unidade !== "Bauru" && unidade !== "Duartina") falhas.push("unidade_ausente");
             if (!motivoReal || GENERIC_MOTIVO_RE.test(motivoReal.trim()) || motivoReal.trim().length < 8) falhas.push("motivo_generico");
             if (ehPaciente === false) falhas.push("nao_e_paciente");
@@ -1649,7 +1787,7 @@ async function processPayload(payload: any) {
               const payText = [
                 `💰 *PAGAMENTO RECEBIDO*`,
                 ``,
-                `👤 Nome: ${resolvedName.name ?? "Não informado"}`,
+                `👤 Nome: ${resolvedName.name ?? "Não identificado"}`,
                 `📍 Unidade: ${unidadePay}`,
                 `📱 WhatsApp: +${storagePhone} — https://wa.me/${storagePhone}`,
                 `📋 Referente a: ${referente}`,
