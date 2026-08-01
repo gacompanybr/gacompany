@@ -366,18 +366,51 @@ function buildConversationState(recent: { role: string; mensagem: string }[], cu
 
 
 
+const DIA_MAP = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+const DIA_LABEL: Record<string, string> = {
+  seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom",
+};
+
+function nowSaoPaulo(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+}
+
+// Janela de atendimento do dia atual. null = fechado hoje.
+function janelaDoDia(agent: any, diaKey: string): { inicio: string; fim: string } | null {
+  const porDia = agent?.horarios_por_dia;
+  if (porDia && typeof porDia === "object" && !Array.isArray(porDia) && porDia[diaKey]) {
+    const cfg = porDia[diaKey];
+    if (cfg?.enabled === false) return null;
+    if (cfg?.inicio && cfg?.fim) return { inicio: String(cfg.inicio), fim: String(cfg.fim) };
+    return null;
+  }
+  // legado: dias_semana + horario_inicio/horario_fim
+  const dias = Array.isArray(agent?.dias_semana) ? agent.dias_semana : [];
+  if (dias.length && !dias.includes(diaKey)) return null;
+  if (!agent?.horario_inicio || !agent?.horario_fim) return null;
+  return { inicio: String(agent.horario_inicio), fim: String(agent.horario_fim) };
+}
+
+function toMin(hhmm: string): number {
+  const [h, m] = String(hhmm).split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 function dentroDoHorario(agent: any): boolean {
   try {
-    const dias = Array.isArray(agent.dias_semana) ? agent.dias_semana : [];
-    const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const diaHoje = map[now.getDay()];
-    if (dias.length && !dias.includes(diaHoje)) return false;
-    if (!agent.horario_inicio || !agent.horario_fim) return true;
-    const [hi, mi] = agent.horario_inicio.split(":").map(Number);
-    const [hf, mf] = agent.horario_fim.split(":").map(Number);
-    const startMin = hi * 60 + mi;
-    const endMin = hf * 60 + mf;
+    const now = nowSaoPaulo();
+    const diaHoje = DIA_MAP[now.getDay()];
+    const janela = janelaDoDia(agent, diaHoje);
+    if (!janela) {
+      // Sem configuração alguma (nem por dia nem legado) → não bloqueia.
+      const porDia = agent?.horarios_por_dia;
+      const temPorDia = porDia && typeof porDia === "object" && !Array.isArray(porDia) && Object.keys(porDia).length > 0;
+      const temLegado = !!(agent?.horario_inicio && agent?.horario_fim);
+      if (!temPorDia && !temLegado) return true;
+      return false;
+    }
+    const startMin = toMin(janela.inicio);
+    const endMin = toMin(janela.fim);
     const nowMin = now.getHours() * 60 + now.getMinutes();
     if (startMin > endMin) {
       return nowMin >= startMin || nowMin <= endMin;
@@ -388,33 +421,44 @@ function dentroDoHorario(agent: any): boolean {
   }
 }
 
+// Grade compacta da semana, só dias abertos. Ex.: "Seg 08:00–18:00 · Sáb 08:00–12:00"
+function gradeSemana(agent: any): string {
+  const partes: string[] = [];
+  for (const key of ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]) {
+    const j = janelaDoDia(agent, key);
+    if (j) partes.push(`${DIA_LABEL[key]} ${j.inicio}–${j.fim}`);
+  }
+  return partes.length ? partes.join(" · ") : "não configurado";
+}
+
 function buildTimeContext(agent: any): string {
   try {
-    const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
     const nomeDia = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const now = nowSaoPaulo();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
     const dd = String(now.getDate()).padStart(2, "0");
     const mo = String(now.getMonth() + 1).padStart(2, "0");
-    const dias: string[] = Array.isArray(agent?.dias_semana) ? agent.dias_semana : [];
-    const diasLabel = dias.length ? dias.join(", ") : "não configurado";
-    const horaLabel = agent?.horario_inicio && agent?.horario_fim ? `${agent.horario_inicio} às ${agent.horario_fim}` : "não configurado";
+    const diaHoje = DIA_MAP[now.getDay()];
+    const janela = janelaDoDia(agent, diaHoje);
     const dentro = dentroDoHorario(agent);
-    const diaHoje = map[now.getDay()];
     const linhas = [
       `[CONTEXTO TEMPORAL — fuso America/Sao_Paulo]`,
       `- Agora: ${nomeDia[now.getDay()]} (${diaHoje}), ${dd}/${mo}, ${hh}:${mm}.`,
-      `- Horário comercial do estabelecimento: ${horaLabel}. Dias: ${diasLabel}.`,
+      janela
+        ? `- Hoje (${nomeDia[now.getDay()]}) atendemos das ${janela.inicio} às ${janela.fim}.`
+        : `- Hoje (${nomeDia[now.getDay()]}) NÃO há atendimento (estabelecimento fechado).`,
+      `- Grade da semana (somente dias com atendimento): ${gradeSemana(agent)}. NUNCA prometa horário em dia que não está nessa grade.`,
       dentro
-        ? `- ESTAMOS DENTRO do horário comercial agora. Você pode oferecer atendimento/agendamento para HOJE.`
-        : `- ESTAMOS FORA do horário comercial agora. NUNCA diga "atendemos ainda hoje", "conseguimos te atender agora" ou prometa horário para hoje. Ofereça o próximo dia útil dentro do horário comercial acima e deixe claro que a equipe confirma no próximo expediente.`,
+        ? `- ESTAMOS DENTRO do horário de atendimento agora. Você pode oferecer atendimento/agendamento para HOJE.`
+        : `- ESTAMOS FORA do horário de atendimento agora. NUNCA diga "atendemos ainda hoje", "conseguimos te atender agora" ou prometa horário para hoje. Ofereça o próximo dia com atendimento na grade acima e deixe claro que a equipe confirma no próximo expediente.`,
     ];
     return linhas.join("\n");
   } catch {
     return "";
   }
 }
+
 
 // ============================================================
 // IDENTIFICAÇÃO DE NOME DO CONTATO
