@@ -54,39 +54,49 @@ export function ConfigTab({
 
       <Card className="p-5 space-y-4">
         <h3 className="font-semibold">Horários de Atendimento</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Início</Label>
-            <Input type="time" value={agent.horario_inicio ?? ""} onChange={(e) => onChange({ horario_inicio: e.target.value })} />
-          </div>
-          <div>
-            <Label>Fim</Label>
-            <Input type="time" value={agent.horario_fim ?? ""} onChange={(e) => onChange({ horario_fim: e.target.value })} />
-          </div>
-        </div>
-        <div>
-          <Label>Dias da semana</Label>
-          <div className="flex flex-wrap gap-3 mt-2">
-            {DIAS.map((d) => (
-              <label key={d.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <Checkbox
-                  checked={agent.dias_semana.includes(d.value)}
-                  onCheckedChange={(v) => {
-                    const next = v
-                      ? [...agent.dias_semana, d.value]
-                      : agent.dias_semana.filter((x) => x !== d.value);
-                    onChange({ dias_semana: next });
-                  }}
+        <div className="space-y-2">
+          {DIAS.map((d) => {
+            const cfg = agent.horarios_por_dia?.[d.value] ?? { enabled: false, inicio: "08:00", fim: "18:00" };
+            const setCfg = (p: Partial<typeof cfg>) =>
+              onChange({
+                horarios_por_dia: {
+                  ...(agent.horarios_por_dia ?? {}),
+                  [d.value]: { ...cfg, ...p },
+                },
+              });
+            return (
+              <div key={d.value} className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer w-20 shrink-0">
+                  <Checkbox
+                    checked={!!cfg.enabled}
+                    onCheckedChange={(v) => setCfg({ enabled: !!v })}
+                  />
+                  {d.label}
+                </label>
+                <Input
+                  type="time"
+                  className="max-w-[130px]"
+                  disabled={!cfg.enabled}
+                  value={cfg.inicio ?? ""}
+                  onChange={(e) => setCfg({ inicio: e.target.value })}
                 />
-                {d.label}
-              </label>
-            ))}
-          </div>
+                <span className="text-xs text-muted-foreground">até</span>
+                <Input
+                  type="time"
+                  className="max-w-[130px]"
+                  disabled={!cfg.enabled}
+                  value={cfg.fim ?? ""}
+                  onChange={(e) => setCfg({ fim: e.target.value })}
+                />
+              </div>
+            );
+          })}
         </div>
         <p className="text-xs text-muted-foreground">
           Fora do horário configurado o robô fica invisível e não envia mensagens automáticas.
         </p>
       </Card>
+
 
       <Card className="p-5 space-y-4">
         <h3 className="font-semibold">Modelo de IA</h3>
