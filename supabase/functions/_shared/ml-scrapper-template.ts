@@ -460,35 +460,40 @@ function __dedupeKeys(j) {
 }
 
 if (out.length && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSecret)}) {
-  // BUGFIX: itens em 'out' vêm no formato {json: row}, então precisamos ler j.json
-  // (antes lia j.offerlink direto = undefined, keys=[], API deixava passar tudo).
-  const claimResp = await this.helpers.httpRequest({
-    method: 'POST',
-    url: ${JSON.stringify(scrapperApi)},
-    headers: { 'Authorization': 'Bearer ' + ${JSON.stringify(scrapperSecret)}, 'Content-Type': 'application/json' },
-    body: {
-      action: 'claim_scrapper_products',
-      scrapper_job_id: ${JSON.stringify(jobId)},
-      table_id: ${JSON.stringify(tableId)},
-      products: out.map((item, index) => {
-        const j = (item && item.json) ? item.json : item;
-        return {
-          index,
-          keys: __dedupeKeys(j),
-          productname: j.productname || null,
-          offerlink: j.offerlink || null,
-          link_compra: j.link_compra || null,
-          price: j.price || null,
-        };
-      }),
-    },
-    json: true,
-  });
-  const allowedIndexes = new Set((claimResp.allowed || []).map(a => Number(a.index)));
-  const beforeClaim = out.length;
-  out = out.filter((_, index) => allowedIndexes.has(index));
-  console.log('[Dedupe Persistente] entrada=' + beforeClaim + ' | duplicados=' + ((claimResp.duplicates || []).length) + ' | novos=' + out.length);
+  // Registra o histórico persistente, mas NÃO bloqueia mais a entrada na data table.
+  // Motivo: o gate da própria data table (acima) já garante que nenhuma linha
+  // duplicada seja inserida, e o disparador (robo_produtos_enviados) garante que
+  // nada é enviado duas vezes pro grupo. O filtro aqui era um terceiro gate que
+  // zerava o output quando as linhas tinham sido queimadas/apagadas da tabela.
+  try {
+    const claimResp = await this.helpers.httpRequest({
+      method: 'POST',
+      url: ${JSON.stringify(scrapperApi)},
+      headers: { 'Authorization': 'Bearer ' + ${JSON.stringify(scrapperSecret)}, 'Content-Type': 'application/json' },
+      body: {
+        action: 'claim_scrapper_products',
+        scrapper_job_id: ${JSON.stringify(jobId)},
+        table_id: ${JSON.stringify(tableId)},
+        products: out.map((item, index) => {
+          const j = (item && item.json) ? item.json : item;
+          return {
+            index,
+            keys: __dedupeKeys(j),
+            productname: j.productname || null,
+            offerlink: j.offerlink || null,
+            link_compra: j.link_compra || null,
+            price: j.price || null,
+          };
+        }),
+      },
+      json: true,
+    });
+    console.log('[Historico Scrapper] itens=' + out.length + ' | ja_conhecidos=' + ((claimResp && claimResp.duplicates || []).length));
+  } catch (e) {
+    console.log('[Historico Scrapper] falhou (ignorado):', e && e.message);
+  }
 }
+
 
 return out;`;
 
