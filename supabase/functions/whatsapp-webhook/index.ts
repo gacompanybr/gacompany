@@ -1634,7 +1634,8 @@ async function processPayload(payload: any) {
             const conversaTexto = histParaMotivo.toLowerCase();
             const falhas: string[] = [];
 
-            if (!resolvedName.name || FALLBACK_RE.test(String(leadNome).trim())) falhas.push("nome_ausente");
+            // Nome ausente só bloqueia enquanto o robô ainda pode perguntar (menos de 2 perguntas).
+            if ((!resolvedName.name || FALLBACK_RE.test(String(leadNome).trim())) && !stopAskingName) falhas.push("nome_ausente");
             if (unidade !== "Bauru" && unidade !== "Duartina") falhas.push("unidade_ausente");
             if (!motivoReal || GENERIC_MOTIVO_RE.test(motivoReal.trim()) || motivoReal.trim().length < 8) falhas.push("motivo_generico");
             if (ehPaciente === false) falhas.push("nao_e_paciente");
