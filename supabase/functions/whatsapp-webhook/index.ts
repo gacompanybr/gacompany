@@ -499,7 +499,7 @@ const GREETING_RE =
   /^(bo+m+\s*di+a+|boa+\s*(tarde+|noite+)|oi+|ola+|opa+|e+\s*a+e+|eae+|alo+|salve|tudo\s*(bem|bom|certo|joia)|blz|beleza|obrigad[oa]*|agradecid[oa]|de\s*nada|por\s*favor|pfv|pf|desculpa|ok+|okay|certo|sim|nao|nunca|talvez|entendi|valeu|vlw|bom|boa|prazer|ai|aqui|eu|vc|voce|tu|quem|isso|claro|so|ta|tah|ata|hum+|kk+|ha+|rs+)$/;
 
 const COMMON_WORD_RE =
-  /^(preciso|precisando|to|estou|tou|quero|queria|gostaria|pode|poderia|consegue|tem|teria|quanto|quanta|qual|como|onde|quando|porque|porq|pq|ajuda|ajudar|informacao|informacoes|atendimento|agendar|agendamento|marcar|consulta|dentista|orcamento|preco|valor|horario|dia|hoje|amanha|urgente|dor|dente|dentes)$/;
+  /^(preciso|precisando|to|tô|estou|tou|quero|queria|gostaria|pode|poderia|consegue|tem|teria|quanto|quanta|qual|como|onde|quando|porque|porq|pq|ajuda|ajudar|informacao|informacoes|atendimento|agendar|agendamento|marcar|consulta|dentista|orcamento|preco|valor|horario|dia|hoje|amanha|urgente|dor|dente|dentes|moca|mocinha|senhor|senhora|senhorita|amig[oa]|querid[oa]|gente|dr|dra|doutor|doutora|voces|voce|obrigad[oa]*)$/;
 
 function looksLikeNotAName(candidate: string): boolean {
   const n = normLoose(candidate);
@@ -508,7 +508,8 @@ function looksLikeNotAName(candidate: string): boolean {
   if (String(candidate).trim().endsWith("?")) return true;
   if (GREETING_RE.test(n)) return true;
   const words = n.split(" ");
-  if (words.length === 1 && (COMMON_WORD_RE.test(words[0]) || GREETING_RE.test(words[0]))) return true;
+  // Qualquer palavra comum/cumprimento no candidato invalida (ex.: "tô precisando", "boa noite moça")
+  if (words.some((w) => COMMON_WORD_RE.test(w) || GREETING_RE.test(w))) return true;
   // frases de cortesia com mais palavras: "boa tarde tudo bem", "tudo bem?"
   const semCumprimento = stripGreeting(n);
   if (!semCumprimento) return true;
