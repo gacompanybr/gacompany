@@ -82,6 +82,7 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     horario_inicio: "08:00",
     horario_fim: "18:00",
     dias_semana: ["seg", "ter", "qua", "qui", "sex"],
+    horarios_por_dia: DEFAULT_HORARIOS_AGENTE,
     fora_horario_msg: "Olá! No momento estou fora do horário de atendimento.",
     faqs: [],
     modelo_ia: "gemini",
