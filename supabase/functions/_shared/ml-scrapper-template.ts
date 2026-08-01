@@ -546,6 +546,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   replaceStringsDeep(wf, {
     "__DATA_TABLE_ID__": tableId,
     "HHVRHOgRDCza0NBQ": tableId,
+    "__N8N_API_KEY__": (Deno.env.get("N8N_API_KEY") ?? ""),
   });
 
   const dedupeNode = findNode(wf, "Dedupe Precoce por ID");
