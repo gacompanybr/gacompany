@@ -1814,6 +1814,12 @@ async function processPayload(payload: any) {
                 return "Não informado";
               })();
 
+              const nomePay = resolvedName.name
+                ?? (await recoverNameFromConversation(portfolioId, storagePhone, histPay));
+              if (!resolvedName.name && nomePay) {
+                resolvedName = { name: nomePay, source: "informado_pelo_cliente" };
+              }
+
               const nowSP2 = new Date().toLocaleString("pt-BR", {
                 timeZone: "America/Sao_Paulo",
                 day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -1822,7 +1828,7 @@ async function processPayload(payload: any) {
               const payText = [
                 `💰 *PAGAMENTO RECEBIDO*`,
                 ``,
-                `👤 Nome: ${resolvedName.name ?? "Não identificado"}`,
+                `👤 Nome: ${nomePay ?? "Não identificado"}`,
                 `📍 Unidade: ${unidadePay}`,
                 `📱 WhatsApp: +${storagePhone} — https://wa.me/${storagePhone}`,
                 `📋 Referente a: ${referente}`,
