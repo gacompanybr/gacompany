@@ -692,6 +692,36 @@ async function resolveContactName(
   return { name: null, source: null };
 }
 
+/**
+ * Fallback SÓ para relatórios: se não há nome resolvido/salvo, tenta recuperar
+ * o nome que já apareceu na conversa (inclusive quando a própria IA já chamou
+ * o cliente pelo nome). Valida com os mesmos filtros + IA e salva se aprovado.
+ */
+async function recoverNameFromConversation(
+  portfolioId: string,
+  storagePhone: string,
+  hist: string,
+): Promise<string | null> {
+  try {
+    const raw = await aiExtractShort(
+      `Leia a conversa abaixo e responda SOMENTE o primeiro nome (ou nome e sobrenome) da PESSOA que está falando como CLIENTE. ` +
+      `O nome pode ter sido dito pelo cliente ou usado pela IA ao se dirigir a ele. ` +
+      `Se não houver nenhum nome de pessoa na conversa, responda exatamente: NENHUM.\n\n${hist}`,
+    );
+    const cand = String(raw ?? "").trim();
+    if (!cand || /^nenhum$/i.test(cand)) return null;
+    const parsed = parseNameAnswer(cand);
+    if (!parsed) return null;
+    if (!(await aiIsPersonName(parsed))) return null;
+    await saveContactName(portfolioId, storagePhone, parsed);
+    console.log("[NAME] recuperado da conversa para relatório", { parsed, storagePhone });
+    return parsed;
+  } catch (e) {
+    console.error("[NAME] recover fail", e);
+    return null;
+  }
+}
+
 
 
 function splitMessage(text: string): string[] {
@@ -1285,7 +1315,7 @@ async function processPayload(payload: any) {
 
     // === RESOLUÇÃO DE NOME DO CONTATO (só pergunta direta) ===
     const lastAssistantText = [...trimmedRecent].reverse().find((m) => m.role === "assistant")?.mensagem ?? null;
-    const resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
+    let resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
     // Quantas vezes o robô já perguntou o nome nesta conversa (máx. 2 perguntas)
     const nameAsks = trimmedRecent.filter((m) => m.role === "assistant" && isNameQuestion(m.mensagem)).length;
     const stopAskingName = nameAsks >= 2;
@@ -1571,9 +1601,19 @@ async function processPayload(payload: any) {
           } else {
             const leadFone = sdrLead?.telefone ?? storagePhone;
 
-            // Nome do lead: usa a hierarquia já resolvida no início do turno
-            // (só conta como válido se veio como resposta direta à pergunta do nome / banco).
-            const leadNome = resolvedName.name ?? "Não identificado";
+            // Nome do lead: hierarquia resolvida no turno; se vazio, tenta recuperar
+            // o nome que já apareceu na conversa antes de reportar "Não identificado".
+            const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
+              .slice(-12)
+              .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+              .join("\n");
+
+            const nomeRecuperado = resolvedName.name
+              ?? (await recoverNameFromConversation(portfolioId, storagePhone, histParaMotivo));
+            const leadNome = nomeRecuperado ?? "Não identificado";
+            if (!resolvedName.name && nomeRecuperado) {
+              resolvedName = { name: nomeRecuperado, source: "informado_pelo_cliente" };
+            }
 
             // === Unidade (Bauru / Duartina) — extraída da conversa ===
             const unidade = (() => {
@@ -1585,11 +1625,6 @@ async function processPayload(payload: any) {
               }
               return "Não informado";
             })();
-
-            const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
-              .slice(-12)
-              .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
-              .join("\n");
 
             // === Motivo real + checagem "é mesmo um paciente?" via IA leve ===
             let motivoReal = "Motivo não identificado";
@@ -1779,6 +1814,12 @@ async function processPayload(payload: any) {
                 return "Não informado";
               })();
 
+              const nomePay = resolvedName.name
+                ?? (await recoverNameFromConversation(portfolioId, storagePhone, histPay));
+              if (!resolvedName.name && nomePay) {
+                resolvedName = { name: nomePay, source: "informado_pelo_cliente" };
+              }
+
               const nowSP2 = new Date().toLocaleString("pt-BR", {
                 timeZone: "America/Sao_Paulo",
                 day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
@@ -1787,7 +1828,7 @@ async function processPayload(payload: any) {
               const payText = [
                 `💰 *PAGAMENTO RECEBIDO*`,
                 ``,
-                `👤 Nome: ${resolvedName.name ?? "Não identificado"}`,
+                `👤 Nome: ${nomePay ?? "Não identificado"}`,
                 `📍 Unidade: ${unidadePay}`,
                 `📱 WhatsApp: +${storagePhone} — https://wa.me/${storagePhone}`,
                 `📋 Referente a: ${referente}`,
