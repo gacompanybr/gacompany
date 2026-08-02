@@ -1315,7 +1315,7 @@ async function processPayload(payload: any) {
 
     // === RESOLUÇÃO DE NOME DO CONTATO (só pergunta direta) ===
     const lastAssistantText = [...trimmedRecent].reverse().find((m) => m.role === "assistant")?.mensagem ?? null;
-    const resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
+    let resolvedName = await resolveContactName(portfolioId, storagePhone, lastAssistantText, text);
     // Quantas vezes o robô já perguntou o nome nesta conversa (máx. 2 perguntas)
     const nameAsks = trimmedRecent.filter((m) => m.role === "assistant" && isNameQuestion(m.mensagem)).length;
     const stopAskingName = nameAsks >= 2;
