@@ -692,6 +692,36 @@ async function resolveContactName(
   return { name: null, source: null };
 }
 
+/**
+ * Fallback SÓ para relatórios: se não há nome resolvido/salvo, tenta recuperar
+ * o nome que já apareceu na conversa (inclusive quando a própria IA já chamou
+ * o cliente pelo nome). Valida com os mesmos filtros + IA e salva se aprovado.
+ */
+async function recoverNameFromConversation(
+  portfolioId: string,
+  storagePhone: string,
+  hist: string,
+): Promise<string | null> {
+  try {
+    const raw = await aiExtractShort(
+      `Leia a conversa abaixo e responda SOMENTE o primeiro nome (ou nome e sobrenome) da PESSOA que está falando como CLIENTE. ` +
+      `O nome pode ter sido dito pelo cliente ou usado pela IA ao se dirigir a ele. ` +
+      `Se não houver nenhum nome de pessoa na conversa, responda exatamente: NENHUM.\n\n${hist}`,
+    );
+    const cand = String(raw ?? "").trim();
+    if (!cand || /^nenhum$/i.test(cand)) return null;
+    const parsed = parseNameAnswer(cand);
+    if (!parsed) return null;
+    if (!(await aiIsPersonName(parsed))) return null;
+    await saveContactName(portfolioId, storagePhone, parsed);
+    console.log("[NAME] recuperado da conversa para relatório", { parsed, storagePhone });
+    return parsed;
+  } catch (e) {
+    console.error("[NAME] recover fail", e);
+    return null;
+  }
+}
+
 
 
 function splitMessage(text: string): string[] {
