@@ -1601,9 +1601,19 @@ async function processPayload(payload: any) {
           } else {
             const leadFone = sdrLead?.telefone ?? storagePhone;
 
-            // Nome do lead: usa a hierarquia já resolvida no início do turno
-            // (só conta como válido se veio como resposta direta à pergunta do nome / banco).
-            const leadNome = resolvedName.name ?? "Não identificado";
+            // Nome do lead: hierarquia resolvida no turno; se vazio, tenta recuperar
+            // o nome que já apareceu na conversa antes de reportar "Não identificado".
+            const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
+              .slice(-12)
+              .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
+              .join("\n");
+
+            const nomeRecuperado = resolvedName.name
+              ?? (await recoverNameFromConversation(portfolioId, storagePhone, histParaMotivo));
+            const leadNome = nomeRecuperado ?? "Não identificado";
+            if (!resolvedName.name && nomeRecuperado) {
+              resolvedName = { name: nomeRecuperado, source: "informado_pelo_cliente" };
+            }
 
             // === Unidade (Bauru / Duartina) — extraída da conversa ===
             const unidade = (() => {
@@ -1615,11 +1625,6 @@ async function processPayload(payload: any) {
               }
               return "Não informado";
             })();
-
-            const histParaMotivo = [...trimmedRecent, { role: "user" as const, mensagem: text }, { role: "assistant" as const, mensagem: reply }]
-              .slice(-12)
-              .map((m) => `${m.role === "assistant" ? "IA" : "CLIENTE"}: ${m.mensagem}`)
-              .join("\n");
 
             // === Motivo real + checagem "é mesmo um paciente?" via IA leve ===
             let motivoReal = "Motivo não identificado";
