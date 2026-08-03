@@ -2411,8 +2411,10 @@ Deno.serve(async (req) => {
       const candidates = rows.filter((r) =>
         r?.sending === true && String(r?.sent_at ?? "").trim().startsWith("__DEDUPE__")
       );
+      const maxRows = Math.max(1, Math.min(400, Number(body?.maxRows ?? 120)));
+      const slice = candidates.slice(0, maxRows);
       let released = 0;
-      for (const r of candidates) {
+      await Promise.all(slice.map(async (r) => {
         try {
           await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
             method: "PATCH",
@@ -2423,8 +2425,12 @@ Deno.serve(async (req) => {
           });
           released++;
         } catch (_) {}
-      }
-      return j({ ok: true, tableId: finalTableId, checked: rows.length, released });
+      }));
+      return j({
+        ok: true, tableId: finalTableId, checked: rows.length,
+        candidates: candidates.length, released, remaining: Math.max(0, candidates.length - released),
+      });
+
     }
 
 
