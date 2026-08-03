@@ -479,7 +479,32 @@ Deno.serve(async (req) => {
         if (exactErr) return json({ error: exactErr.message }, 500);
         if ((exact ?? []).length > 0) return json({ sent: true, reason: "exact", key, match: exact![0] });
 
-        // Chave por TÍTULO normalizado: o mesmo produto re-listado ganha id/link novos,
+        // Plataformas sem ID estável (Shopee etc): só identidade forte.
+        // Título é chave fraca aqui — nada de similaridade difusa, que queimava produtos diferentes.
+        const hasStableId = key.startsWith("ml:");
+        if (!hasStableId) {
+          const links = [incoming.offerlink, incoming.link_compra]
+            .map((l: any) => String(l || "").trim())
+            .filter(Boolean);
+          if (links.length) {
+            const { data: recentLinks, error: linkErr } = await admin
+              .from("robo_produtos_enviados")
+              .select("id, productname, product_key, sent_at, offerlink, link_compra")
+              .eq("robo_id", roboId)
+              .gte("sent_at", since)
+              .order("sent_at", { ascending: false })
+              .limit(400);
+            if (linkErr) return json({ error: linkErr.message }, 500);
+            const lm = (recentLinks ?? []).find((r: any) =>
+              links.includes(String(r.offerlink || "").trim()) ||
+              links.includes(String(r.link_compra || "").trim())
+            );
+            if (lm) return json({ sent: true, reason: "link", key, match: lm });
+          }
+          return json({ sent: false, key });
+        }
+
+        // Chave por TÍTULO normalizado: o mesmo anúncio re-listado ganha id/link novos,
         // então product_key muda e o "exact" acima não pega. Título normalizado pega.
         const nameKey = `name:${normProductText(incoming.productname).slice(0, 160)}`;
         if (nameKey !== "name:" && nameKey !== key) {
@@ -494,7 +519,6 @@ Deno.serve(async (req) => {
           if ((byName ?? []).length > 0) return json({ sent: true, reason: "name", key, match: byName![0] });
         }
 
-
         const { data: recent, error: recentErr } = await admin
           .from("robo_produtos_enviados")
           .select("id, productname, product_key, sent_at, offerlink, link_compra, image_url")
@@ -506,6 +530,7 @@ Deno.serve(async (req) => {
         const match = (recent ?? []).find((r: any) => productsAreSimilar(incoming.productname, r.productname));
         if (match) return json({ sent: true, reason: "similar", key, match });
         return json({ sent: false, key });
+
       }
 
       if (bodyAction === "claim_scrapper_products") {
