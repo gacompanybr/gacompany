@@ -2290,10 +2290,6 @@ Deno.serve(async (req) => {
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
-
-      } catch (e) {
-        return j({ error: (e as Error).message, tableId, tableName }, 500);
-      }
     }
 
 
