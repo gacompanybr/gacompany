@@ -2395,8 +2395,19 @@ Deno.serve(async (req) => {
       }
       if (!finalTableId) return j({ error: "tableId, roboId ou jobId requerido" }, 400);
 
-      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
-      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const rows: any[] = [];
+      {
+        let cursor: string | null = null;
+        for (let page = 0; page < 40; page++) {
+          const qs = `limit=250${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+          const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?${qs}`);
+          const batch: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+          rows.push(...batch);
+          cursor = (resp && typeof resp.nextCursor === "string" && resp.nextCursor) ? resp.nextCursor : null;
+          if (!cursor || !batch.length) break;
+        }
+      }
+
       const candidates = rows.filter((r) =>
         r?.sending === true && String(r?.sent_at ?? "").trim().startsWith("__DEDUPE__")
       );
