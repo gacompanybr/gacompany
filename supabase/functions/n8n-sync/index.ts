@@ -2263,51 +2263,34 @@ Deno.serve(async (req) => {
       }
       if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
       try {
-        // Pagina a data table inteira: sem isso a listagem parava nas 250 primeiras
-        // linhas (as mais antigas, geralmente já enviadas) e os produtos novos
-        // do último scrap simplesmente não apareciam na tela.
+        // Pagina a data table inteira via cursor (API pública do n8n: limit<=250 + nextCursor).
+        // Sem isso a listagem parava nas 250 primeiras linhas (as mais antigas, já enviadas)
+        // e os produtos novos do último scrap simplesmente não apareciam na tela.
         const PAGE = 250;
         const MAX_ROWS = 5000;
         const seen = new Set<string>();
         const rows: any[] = [];
-        let lastErr = "";
-        let skip = 0;
+        let cursor: string | null = null;
         for (let page = 0; page < 40; page++) {
-          const candidates = page === 0
-            ? [`limit=${PAGE}`, `take=${PAGE}`, ``]
-            : [
-                `limit=${PAGE}&skip=${skip}`,
-                `take=${PAGE}&skip=${skip}`,
-                `limit=${PAGE}&offset=${skip}`,
-                `offset=${skip}&limit=${PAGE}`,
-              ];
-          let batch: any[] = [];
-          let gotResponse = false;
-          for (const qs of candidates) {
-            try {
-              const data = await n8nFetch(`/data-tables/${tableId}/rows${qs ? `?${qs}` : ""}`);
-              const parsed = data?.data ?? data ?? [];
-              batch = Array.isArray(parsed) ? parsed : [];
-              gotResponse = true;
-              lastErr = "";
-              if (batch.length) break;
-            } catch (err) { lastErr = err instanceof Error ? err.message : String(err); }
-          }
-          if (!gotResponse && page === 0 && lastErr) throw new Error(lastErr);
-          if (!batch.length) break;
-          let added = 0;
+          const qs = `limit=${PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+          const data = await n8nFetch(`/data-tables/${tableId}/rows?${qs}`);
+          const parsed = data?.data ?? data ?? [];
+          const batch: any[] = Array.isArray(parsed) ? parsed : [];
           for (const r of batch) {
             const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
             if (seen.has(k)) continue;
             seen.add(k);
             rows.push(r);
-            added++;
           }
-          if (!added || batch.length < PAGE || rows.length >= MAX_ROWS) break;
-          skip += PAGE;
+          cursor = (data && typeof data.nextCursor === "string" && data.nextCursor) ? data.nextCursor : null;
+          if (!cursor || !batch.length || rows.length >= MAX_ROWS) break;
         }
         rows.sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0));
-        return j({ rows, tableId, tableName });
+        return j({ rows, tableId, tableName, total: rows.length });
+      } catch (e) {
+        return j({ error: (e as Error).message, tableId, tableName }, 500);
+      }
+
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
