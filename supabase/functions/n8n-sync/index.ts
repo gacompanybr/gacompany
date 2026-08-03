@@ -2263,23 +2263,35 @@ Deno.serve(async (req) => {
       }
       if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
       try {
-        let rows: any[] = [];
-        let lastErr = "";
-        for (const path of [`/data-tables/${tableId}/rows?limit=250`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=250`]) {
-          try {
-            const data = await n8nFetch(path);
-            const parsed = data?.data ?? data ?? [];
-            rows = Array.isArray(parsed) ? parsed : [];
-            lastErr = "";
-            break;
-          } catch (err) { lastErr = err instanceof Error ? err.message : String(err); }
+        // Pagina a data table inteira via cursor (API pública do n8n: limit<=250 + nextCursor).
+        // Sem isso a listagem parava nas 250 primeiras linhas (as mais antigas, já enviadas)
+        // e os produtos novos do último scrap simplesmente não apareciam na tela.
+        const PAGE = 250;
+        const MAX_ROWS = 5000;
+        const seen = new Set<string>();
+        const rows: any[] = [];
+        let cursor: string | null = null;
+        for (let page = 0; page < 40; page++) {
+          const qs = `limit=${PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+          const data = await n8nFetch(`/data-tables/${tableId}/rows?${qs}`);
+          const parsed = data?.data ?? data ?? [];
+          const batch: any[] = Array.isArray(parsed) ? parsed : [];
+          for (const r of batch) {
+            const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            rows.push(r);
+          }
+          cursor = (data && typeof data.nextCursor === "string" && data.nextCursor) ? data.nextCursor : null;
+          if (!cursor || !batch.length || rows.length >= MAX_ROWS) break;
         }
-        if (lastErr) throw new Error(lastErr);
-        return j({ rows, tableId, tableName });
+        rows.sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0));
+        return j({ rows, tableId, tableName, total: rows.length });
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
     }
+
 
     if (action === "burn_stale_datatable_rows") {
       const tableId: string | null = body?.tableId ?? null;
@@ -2361,6 +2373,67 @@ Deno.serve(async (req) => {
       }
       return j({ ok: true, tableId: finalTableId, checked: rows.length, released, sinceMinutes });
     }
+
+    if (action === "release_dedupe_rows") {
+      // Libera linhas que o disparador queimou por dedupe (sent_at = "__DEDUPE__:...").
+      // Envios reais (sent_at com data ISO) NAO sao tocados.
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const jobId: string | null = body?.jobId ?? null;
+      let finalTableId = tableId;
+      if (!finalTableId && roboId) {
+        const { data: robo, error } = await admin
+          .from("robo_campanhas").select("n8n_datatable_id").eq("id", roboId).single();
+        if (error) throw error;
+        finalTableId = robo?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId && jobId) {
+        const { data: job, error } = await admin
+          .from("scrapper_jobs").select("n8n_datatable_id").eq("id", jobId).single();
+        if (error) throw error;
+        finalTableId = job?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId, roboId ou jobId requerido" }, 400);
+
+      const rows: any[] = [];
+      {
+        let cursor: string | null = null;
+        for (let page = 0; page < 40; page++) {
+          const qs = `limit=250${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+          const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?${qs}`);
+          const batch: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+          rows.push(...batch);
+          cursor = (resp && typeof resp.nextCursor === "string" && resp.nextCursor) ? resp.nextCursor : null;
+          if (!cursor || !batch.length) break;
+        }
+      }
+
+      const candidates = rows.filter((r) =>
+        r?.sending === true && String(r?.sent_at ?? "").trim().startsWith("__DEDUPE__")
+      );
+      const maxRows = Math.max(1, Math.min(400, Number(body?.maxRows ?? 120)));
+      const slice = candidates.slice(0, maxRows);
+      let released = 0;
+      await Promise.all(slice.map(async (r) => {
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: false, sent_at: "" },
+            }),
+          });
+          released++;
+        } catch (_) {}
+      }));
+      return j({
+        ok: true, tableId: finalTableId, checked: rows.length,
+        candidates: candidates.length, released, remaining: Math.max(0, candidates.length - released),
+      });
+
+    }
+
+
 
     if (action === "burn_duplicate_datatable_rows") {
       const tableId: string | null = body?.tableId ?? null;
