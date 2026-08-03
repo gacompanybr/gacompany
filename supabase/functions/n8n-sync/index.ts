@@ -2263,23 +2263,56 @@ Deno.serve(async (req) => {
       }
       if (!tableId) return j({ rows: [], warning: "data table não encontrada no n8n" });
       try {
-        let rows: any[] = [];
+        // Pagina a data table inteira: sem isso a listagem parava nas 250 primeiras
+        // linhas (as mais antigas, geralmente já enviadas) e os produtos novos
+        // do último scrap simplesmente não apareciam na tela.
+        const PAGE = 250;
+        const MAX_ROWS = 5000;
+        const seen = new Set<string>();
+        const rows: any[] = [];
         let lastErr = "";
-        for (const path of [`/data-tables/${tableId}/rows?limit=250`, `/data-tables/${tableId}/rows`, `/data-tables/${tableId}/rows?take=250`]) {
-          try {
-            const data = await n8nFetch(path);
-            const parsed = data?.data ?? data ?? [];
-            rows = Array.isArray(parsed) ? parsed : [];
-            lastErr = "";
-            break;
-          } catch (err) { lastErr = err instanceof Error ? err.message : String(err); }
+        let skip = 0;
+        for (let page = 0; page < 40; page++) {
+          const candidates = page === 0
+            ? [`limit=${PAGE}`, `take=${PAGE}`, ``]
+            : [
+                `limit=${PAGE}&skip=${skip}`,
+                `take=${PAGE}&skip=${skip}`,
+                `limit=${PAGE}&offset=${skip}`,
+                `offset=${skip}&limit=${PAGE}`,
+              ];
+          let batch: any[] = [];
+          let gotResponse = false;
+          for (const qs of candidates) {
+            try {
+              const data = await n8nFetch(`/data-tables/${tableId}/rows${qs ? `?${qs}` : ""}`);
+              const parsed = data?.data ?? data ?? [];
+              batch = Array.isArray(parsed) ? parsed : [];
+              gotResponse = true;
+              lastErr = "";
+              if (batch.length) break;
+            } catch (err) { lastErr = err instanceof Error ? err.message : String(err); }
+          }
+          if (!gotResponse && page === 0 && lastErr) throw new Error(lastErr);
+          if (!batch.length) break;
+          let added = 0;
+          for (const r of batch) {
+            const k = String(r?.id ?? JSON.stringify(r)).slice(0, 500);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            rows.push(r);
+            added++;
+          }
+          if (!added || batch.length < PAGE || rows.length >= MAX_ROWS) break;
+          skip += PAGE;
         }
-        if (lastErr) throw new Error(lastErr);
+        rows.sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0));
         return j({ rows, tableId, tableName });
       } catch (e) {
         return j({ error: (e as Error).message, tableId, tableName }, 500);
       }
     }
+
 
     if (action === "burn_stale_datatable_rows") {
       const tableId: string | null = body?.tableId ?? null;
