@@ -2362,6 +2362,50 @@ Deno.serve(async (req) => {
       return j({ ok: true, tableId: finalTableId, checked: rows.length, released, sinceMinutes });
     }
 
+    if (action === "release_dedupe_rows") {
+      // Libera linhas que o disparador queimou por dedupe (sent_at = "__DEDUPE__:...").
+      // Envios reais (sent_at com data ISO) NAO sao tocados.
+      const tableId: string | null = body?.tableId ?? null;
+      const roboId: string | null = body?.roboId ?? null;
+      const jobId: string | null = body?.jobId ?? null;
+      let finalTableId = tableId;
+      if (!finalTableId && roboId) {
+        const { data: robo, error } = await admin
+          .from("robo_campanhas").select("n8n_datatable_id").eq("id", roboId).single();
+        if (error) throw error;
+        finalTableId = robo?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId && jobId) {
+        const { data: job, error } = await admin
+          .from("scrapper_jobs").select("n8n_datatable_id").eq("id", jobId).single();
+        if (error) throw error;
+        finalTableId = job?.n8n_datatable_id ?? null;
+      }
+      if (!finalTableId) return j({ error: "tableId, roboId ou jobId requerido" }, 400);
+
+      const resp = await n8nFetch(`/data-tables/${finalTableId}/rows?limit=250`);
+      const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+      const candidates = rows.filter((r) =>
+        r?.sending === true && String(r?.sent_at ?? "").trim().startsWith("__DEDUPE__")
+      );
+      let released = 0;
+      for (const r of candidates) {
+        try {
+          await n8nFetch(`/data-tables/${finalTableId}/rows/update`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              filter: { type: "and", filters: [{ columnName: "id", condition: "eq", value: r.id }] },
+              data: { sending: false, sent_at: "" },
+            }),
+          });
+          released++;
+        } catch (_) {}
+      }
+      return j({ ok: true, tableId: finalTableId, checked: rows.length, released });
+    }
+
+
+
     if (action === "burn_duplicate_datatable_rows") {
       const tableId: string | null = body?.tableId ?? null;
       const roboId: string | null = body?.roboId ?? null;
