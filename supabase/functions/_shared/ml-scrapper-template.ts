@@ -510,6 +510,25 @@ if (out.length && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSec
   }
 }
 
+// Avisa o painel quando itens foram descartados por falta de link de afiliado
+// (sintoma classico de cookie/CSRF do Mercado Livre expirado).
+try {
+  if (typeof dropSemAfiliado === 'number' && dropSemAfiliado > 0 && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSecret)}) {
+    await this.helpers.httpRequest({
+      method: 'POST',
+      url: ${JSON.stringify(scrapperApi)},
+      headers: { 'Content-Type': 'application/json', 'x-scrapper-secret': ${JSON.stringify(scrapperSecret)} },
+      body: {
+        action: 'update_job',
+        job_id: ${JSON.stringify(jobId)},
+        ultimo_erro: 'affiliate_cookie_expired: ' + dropSemAfiliado + ' produto(s) descartado(s) sem link de afiliado. Atualize o ML_COOKIE / ML_CSRF.',
+      },
+      json: true,
+    });
+  }
+} catch (e) {
+  console.log('[Afiliado] falha ao reportar cookie expirado (ignorado):', e && e.message);
+}
 
 return out;`;
 
