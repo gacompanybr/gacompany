@@ -908,17 +908,39 @@ async function handleOutgoingMessage(payload: any, msg: any) {
     if (!msgId) return;
 
     const instance = normalizeInstance(payload, msg);
-    const { data: known } = await admin
-      .from("whatsapp_sent_messages_log")
-      .select("id")
-      .eq("message_id", msgId)
-      .maybeSingle();
-    if (known) return; // foi o próprio sistema
+
+    // O webhook fromMe da própria IA pode chegar ANTES do log do envio ser gravado.
+    // Tenta duas vezes, com uma pequena espera, antes de considerar humano.
+    const isKnownSystemId = async () => {
+      const { data } = await admin
+        .from("whatsapp_sent_messages_log")
+        .select("id")
+        .eq("message_id", msgId)
+        .maybeSingle();
+      return !!data;
+    };
+    if (await isKnownSystemId()) return; // foi o próprio sistema
+    await new Promise((r) => setTimeout(r, 2500));
+    if (await isKnownSystemId()) return;
 
     const portfolioId = await resolvePortfolioByInstance(instance);
     if (!portfolioId) return;
 
-    const phone = normalizePhoneDigits(remoteJid.split("@")[0]) || remoteJid.split("@")[0];
+    const phoneFromJid = normalizePhoneDigits(remoteJid.split("@")[0]) || remoteJid.split("@")[0];
+    // Rede de segurança extra: se o sistema enviou algo para este contato nos
+    // últimos 60s, a mensagem fromMe é da própria IA (id pode não bater em
+    // @lid / reenvios da Evolution) — não pausar.
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const { data: recentes } = await admin
+      .from("whatsapp_sent_messages_log")
+      .select("phone")
+      .eq("portfolio_id", portfolioId)
+      .gte("created_at", since)
+      .limit(50);
+    const suffixes = phoneSuffixes([phoneFromJid]);
+    if ((recentes ?? []).some((r: any) => matchesPhone(r.phone, suffixes))) return;
+
+    const phone = phoneFromJid;
     const pausedUntil = new Date(Date.now() + HUMAN_PAUSE_HOURS * 60 * 60 * 1000).toISOString();
     await admin.from("whatsapp_paused_contacts").upsert({
       portfolio_id: portfolioId,
