@@ -250,13 +250,16 @@ async function burnRowsAsAlreadyHandled(rows, reason) {
   if (!_BASE || !_KEY || !_TABLE || !Array.isArray(rows) || !rows.length) return { burned: 0, errors: 0 };
   const http = this.helpers.httpRequest;
   const now = new Date().toISOString();
+  // Linha queimada por DUPLICIDADE nunca foi enviada de verdade: marca com prefixo
+  // __DEDUPE__ pra nao entrar no historico de 45 dias do robo como envio real.
+  const burnStamp = '__DEDUPE__:' + now;
   let burned = 0, errors = 0;
   for (const row of rows) {
     const id = row?._row_id ?? row?.id;
     if (id == null || id === '') continue;
     const attempts = [
-      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/update', body: { filter: { type: 'and', filters: [{ columnName: 'id', condition: 'eq', value: id }] }, data: { sending: true, sent_at: now, updatedAt: now } } },
-      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/' + id, body: { data: { sending: true, sent_at: now, updatedAt: now } } },
+      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/update', body: { filter: { type: 'and', filters: [{ columnName: 'id', condition: 'eq', value: id }] }, data: { sending: true, sent_at: burnStamp, updatedAt: now } } },
+      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/' + id, body: { data: { sending: true, sent_at: burnStamp, updatedAt: now } } },
     ];
     let ok = false;
     for (const attempt of attempts) {
@@ -358,20 +361,33 @@ async function fetchExistingRows() {
   return rows;
 }
 
-const existingRows = await fetchExistingRows.call(this);
-const existingKeys = new Set();
-const duplicateAlreadyPendingRows = [];
-for (const row of existingRows) {
-  const flat = flatRow(row);
-  const keys = productKeys(flat);
-  const isAlreadySent = flat?.sending === true || String(flat?.sending).toLowerCase() === 'true' || !!String(flat?.sent_at ?? '').trim();
-  const duplicated = keys.some((key) => existingKeys.has(key));
-  if (duplicated && !isAlreadySent) duplicateAlreadyPendingRows.push(flat);
-  for (const key of keys) {
-    existingKeys.add(key);
+// A tabela e baixada UMA vez por execucao. Nas voltas do loop de tentativas o
+// conjunto de chaves vem do cache no static data (as chaves novas da rodada ja
+// sao cobertas pelo seenThisRun), evitando refazer o download completo.
+const _sdDedupe = $getWorkflowStaticData('global');
+const _execIdDedupe = $execution?.id ?? null;
+let existingKeys;
+let burnResult = { burned: 0, errors: 0 };
+if (_sdDedupe._dedupeCacheExecId === _execIdDedupe && Array.isArray(_sdDedupe._dedupeCacheKeys)) {
+  existingKeys = new Set(_sdDedupe._dedupeCacheKeys);
+} else {
+  const existingRows = await fetchExistingRows.call(this);
+  existingKeys = new Set();
+  const duplicateAlreadyPendingRows = [];
+  for (const row of existingRows) {
+    const flat = flatRow(row);
+    const keys = productKeys(flat);
+    const isAlreadySent = flat?.sending === true || String(flat?.sending).toLowerCase() === 'true' || !!String(flat?.sent_at ?? '').trim();
+    const duplicated = keys.some((key) => existingKeys.has(key));
+    if (duplicated && !isAlreadySent) duplicateAlreadyPendingRows.push(flat);
+    for (const key of keys) {
+      existingKeys.add(key);
+    }
   }
+  burnResult = await burnRowsAsAlreadyHandled.call(this, duplicateAlreadyPendingRows, 'duplicate_existing_pending');
+  _sdDedupe._dedupeCacheExecId = _execIdDedupe;
+  _sdDedupe._dedupeCacheKeys = [...existingKeys];
 }
-const burnResult = await burnRowsAsAlreadyHandled.call(this, duplicateAlreadyPendingRows, 'duplicate_existing_pending');
 
 const seenThisRun = new Set();
 const out = [];
@@ -494,6 +510,26 @@ if (out.length && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSec
   }
 }
 
+// Avisa o painel quando itens foram descartados por falta de link de afiliado
+// (sintoma classico de cookie/CSRF do Mercado Livre expirado).
+try {
+  if (typeof dropSemAfiliado === 'number' && dropSemAfiliado > 0 && ${JSON.stringify(scrapperApi)} && ${JSON.stringify(scrapperSecret)}) {
+    await this.helpers.httpRequest({
+      method: 'POST',
+      url: ${JSON.stringify(scrapperApi)},
+      headers: { 'Authorization': 'Bearer ' + ${JSON.stringify(scrapperSecret)}, 'Content-Type': 'application/json' },
+      body: {
+        action: 'update_job',
+        id: ${JSON.stringify(jobId)},
+        ultimo_erro: 'affiliate_cookie_expired: ' + dropSemAfiliado + ' produto(s) descartado(s) sem link de afiliado. Atualize o ML_COOKIE / ML_CSRF.',
+        ultima_affiliate_errors: dropSemAfiliado,
+      },
+      json: true,
+    });
+  }
+} catch (e) {
+  console.log('[Afiliado] falha ao reportar cookie expirado (ignorado):', e && e.message);
+}
 
 return out;`;
 

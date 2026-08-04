@@ -556,13 +556,32 @@ async function insertRow(tableId, row) {
 }
 
 async function listRows(tableId) {
-  const urls = [
-    \`\${N8N_BASE}/data-tables/\${tableId}/rows?limit=1000\`,
-    \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
-    \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=1000\`,
+  // Pagina até esgotar: o limite de ~1000 linhas deixava o dedupe por nome incompleto
+  // quando a tabela cresce.
+  const PAGE = 500;
+  const variants = [
+    (skip) => \`\${N8N_BASE}/data-tables/\${tableId}/rows?take=\${PAGE}&skip=\${skip}\`,
+    (skip) => \`\${N8N_BASE}/data-tables/\${tableId}/rows?limit=\${PAGE}&offset=\${skip}\`,
   ];
   let lastErr = null;
-  for (const url of urls) {
+  for (const build of variants) {
+    try {
+      const all = [];
+      for (let skip = 0; skip < 20000; skip += PAGE) {
+        const r = await http({ method: "GET", url: build(skip), headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
+        const rows = (r && (r.data || r)) || [];
+        if (!Array.isArray(rows) || rows.length === 0) break;
+        all.push(...rows);
+        if (rows.length < PAGE) break;
+      }
+      if (all.length) return all;
+    } catch (e) { lastErr = e; }
+  }
+  const fallbacks = [
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows?limit=1000\`,
+    \`\${N8N_BASE}/data-tables/\${tableId}/rows\`,
+  ];
+  for (const url of fallbacks) {
     try {
       const r = await http({ method: "GET", url, headers: { "X-N8N-API-KEY": N8N_KEY }, json: true });
       const rows = (r && (r.data || r)) || [];

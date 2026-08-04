@@ -1,1114 +1,1120 @@
 {
- "name": "ML - Lar em Ofertas — CORRIGIDO",
- "nodes": [
-  {
-   "parameters": {
-    "jsCode": "// ===== Acumula resultados entre tentativas do loop de retry =====\n// Cada tentativa do loop traz só os itens NOVOS encontrados nessa rodada\n// (já filtrados contra a planilha pelo \"Filter Already Saved\"). Aqui somamos\n// com tudo que já foi aceito nas tentativas anteriores desta mesma execução,\n// guardado no Static Data do workflow (sobrevive entre os \"saltos\" do loop).\n\nconst staticData = $getWorkflowStaticData('global'); // 'global' = compartilhado entre TODOS os nodes (precisa ser visto pelo 'Montar Links ML')\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\nconst MIN_TOTAL = Number(cfg.min_total_final ?? 30);\nconst MAX_TOTAL_FINAL = Number(cfg.max_total_final ?? 40);\nconst MAX_TENTATIVAS = Number(cfg.max_tentativas ?? 20);\n\n// Itens acumulados de tentativas anteriores (vazio na primeira tentativa)\nconst acumulados = Array.isArray(staticData.acumulados) ? staticData.acumulados : [];\nconst idsJaAcumulados = new Set(acumulados.map(j => j.link_compra).filter(Boolean));\n\n// Soma os itens novos desta tentativa, evitando duplicar ID dentro do acumulado\nconst novosItens = $input.all().map(item => item.json || {});\nfor (const j of novosItens) {\n  const id = String(j.link_compra || '').trim();\n  if (id && idsJaAcumulados.has(id)) continue;\n  if (id) idsJaAcumulados.add(id);\n  acumulados.push(j);\n  if (acumulados.length >= MAX_TOTAL_FINAL) break; // já bateu o teto, não precisa mais\n}\n\nconst tentativaAtual = Number(staticData.tentativa || 0);\n\n// Persiste o estado pra próxima volta do loop (se houver)\nstaticData.acumulados = acumulados;\nstaticData.tentativa = tentativaAtual + 1;\n\nconst atingiuPiso = acumulados.length >= MIN_TOTAL;\nconst atingiuTeto = acumulados.length >= MAX_TOTAL_FINAL;\nconst esgotouTentativas = (tentativaAtual + 1) >= MAX_TENTATIVAS;\n\nconst precisaContinuar = !atingiuPiso && !atingiuTeto && !esgotouTentativas;\n\n// Retorna UM item de controle (não os produtos) — o \"IF - Precisa Mais?\" decide\n// com base em precisaContinuar. Os produtos acumulados ficam só no Static Data\n// até a hora de finalizar (lidos pelo node \"Finalizar Acumulado\").\nreturn [{\n  json: {\n    precisaContinuar,\n    total_acumulado: acumulados.length,\n    tentativa: tentativaAtual + 1,\n    max_tentativas: MAX_TENTATIVAS,\n    min_total: MIN_TOTAL,\n    max_total_final: MAX_TOTAL_FINAL,\n  }\n}];\n"
-   },
-   "id": "e8a0f94e-57fa-4467-b5c8-50bfcd0517dc",
-   "name": "Acumular Resultados",
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    27248,
-    13888
-   ]
-  },
-  {
-   "parameters": {
-    "operation": "insert",
-    "dataTableId": {
-     "__rl": true,
-     "value": "__DATA_TABLE_ID__",
-     "mode": "list",
-     "cachedResultName": "JOB_DATA_TABLE",
-     "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
+  "name": "ML - Lar em Ofertas — CORRIGIDO",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// ===== Acumula resultados entre tentativas do loop de retry =====\n// Cada tentativa do loop traz só os itens NOVOS encontrados nessa rodada\n// (já filtrados contra a planilha pelo \"Filter Already Saved\"). Aqui somamos\n// com tudo que já foi aceito nas tentativas anteriores desta mesma execução,\n// guardado no Static Data do workflow (sobrevive entre os \"saltos\" do loop).\n\nconst staticData = $getWorkflowStaticData('global'); // 'global' = compartilhado entre TODOS os nodes (precisa ser visto pelo 'Montar Links ML')\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\nconst MIN_TOTAL = Number(cfg.min_total_final ?? 30);\nconst MAX_TOTAL_FINAL = Number(cfg.max_total_final ?? 40);\nconst MAX_TENTATIVAS = Number(cfg.max_tentativas ?? 20);\n\n// Itens acumulados de tentativas anteriores (vazio na primeira tentativa)\nconst acumulados = Array.isArray(staticData.acumulados) ? staticData.acumulados : [];\nconst idsJaAcumulados = new Set(acumulados.map(j => j.link_compra).filter(Boolean));\n\n// Soma os itens novos desta tentativa, evitando duplicar ID dentro do acumulado\nconst novosItens = $input.all().map(item => item.json || {});\nfor (const j of novosItens) {\n  const id = String(j.link_compra || '').trim();\n  if (id && idsJaAcumulados.has(id)) continue;\n  if (id) idsJaAcumulados.add(id);\n  acumulados.push(j);\n  if (acumulados.length >= MAX_TOTAL_FINAL) break; // já bateu o teto, não precisa mais\n}\n\nconst tentativaAtual = Number(staticData.tentativa || 0);\n\n// Persiste o estado pra próxima volta do loop (se houver)\nstaticData.acumulados = acumulados;\nstaticData.tentativa = tentativaAtual + 1;\n\nconst atingiuPiso = acumulados.length >= MIN_TOTAL;\nconst atingiuTeto = acumulados.length >= MAX_TOTAL_FINAL;\nconst esgotouTentativas = (tentativaAtual + 1) >= MAX_TENTATIVAS;\n\nconst precisaContinuar = !atingiuPiso && !atingiuTeto && !esgotouTentativas;\n\n// Retorna UM item de controle (não os produtos) — o \"IF - Precisa Mais?\" decide\n// com base em precisaContinuar. Os produtos acumulados ficam só no Static Data\n// até a hora de finalizar (lidos pelo node \"Finalizar Acumulado\").\nreturn [{\n  json: {\n    precisaContinuar,\n    total_acumulado: acumulados.length,\n    tentativa: tentativaAtual + 1,\n    max_tentativas: MAX_TENTATIVAS,\n    min_total: MIN_TOTAL,\n    max_total_final: MAX_TOTAL_FINAL,\n  }\n}];\n"
+      },
+      "id": "e8a0f94e-57fa-4467-b5c8-50bfcd0517dc",
+      "name": "Acumular Resultados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27248,
+        13888
+      ]
     },
-    "columns": {
-     "mappingMode": "defineBelow",
-     "value": {
-      "price": "={{ $json.price }}",
-      "priceoriginal": "={{ $json.priceoriginal }}",
-      "pricediscountrate": "={{ $json.pricediscountrate }}",
-      "commission_rate": "={{ $json.commission_rate }}",
-      "commission_value": "={{ $json.commission_value }}",
-      "sales": "={{ $json.sales }}",
-      "rating": "={{ $json.rating }}",
-      "productname": "={{ $json.productname }}",
-      "shopname": "={{ $json.shopname }}",
-      "imageUrl": "={{ $json.imageUrl }}",
-      "offerlink": "={{ $json.offerlink }}",
-      "link_compra": "={{ $json.link_compra }}",
-      "categoria": "={{ $json.categoria }}",
-      "sending": false
-     },
-     "matchingColumns": [],
-     "schema": [
-      {
-       "id": "productname",
-       "displayName": "productname",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
+    {
+      "parameters": {
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "__DATA_TABLE_ID__",
+          "mode": "list",
+          "cachedResultName": "JOB_DATA_TABLE",
+          "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "price": "={{ $json.price }}",
+            "priceoriginal": "={{ $json.priceoriginal }}",
+            "pricediscountrate": "={{ $json.pricediscountrate }}",
+            "commission_rate": "={{ $json.commission_rate }}",
+            "commission_value": "={{ $json.commission_value }}",
+            "sales": "={{ $json.sales }}",
+            "rating": "={{ $json.rating }}",
+            "productname": "={{ $json.productname }}",
+            "shopname": "={{ $json.shopname }}",
+            "imageUrl": "={{ $json.imageUrl }}",
+            "offerlink": "={{ $json.offerlink }}",
+            "link_compra": "={{ $json.link_compra }}",
+            "categoria": "={{ $json.categoria }}",
+            "sending": false
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "productname",
+              "displayName": "productname",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "priceoriginal",
+              "displayName": "priceoriginal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pricediscountrate",
+              "displayName": "pricediscountrate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "shopname",
+              "displayName": "shopname",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "offerlink",
+              "displayName": "offerlink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "imageUrl",
+              "displayName": "imageUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sending",
+              "displayName": "sending",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commission_rate",
+              "displayName": "commission_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commission_value",
+              "displayName": "commission_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sales",
+              "displayName": "sales",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rating",
+              "displayName": "rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "link_compra",
+              "displayName": "link_compra",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
       },
-      {
-       "id": "price",
-       "displayName": "price",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "priceoriginal",
-       "displayName": "priceoriginal",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "pricediscountrate",
-       "displayName": "pricediscountrate",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "shopname",
-       "displayName": "shopname",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "offerlink",
-       "displayName": "offerlink",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "imageUrl",
-       "displayName": "imageUrl",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "sending",
-       "displayName": "sending",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "boolean",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "commission_rate",
-       "displayName": "commission_rate",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "commission_value",
-       "displayName": "commission_value",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "sales",
-       "displayName": "sales",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "rating",
-       "displayName": "rating",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "number",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "sent_at",
-       "displayName": "sent_at",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "link_compra",
-       "displayName": "link_compra",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
-      },
-      {
-       "id": "categoria",
-       "displayName": "categoria",
-       "required": false,
-       "defaultMatch": false,
-       "display": true,
-       "type": "string",
-       "readOnly": false,
-       "removed": false
-      }
-     ],
-     "attemptToConvertTypes": true,
-     "convertFieldsToString": false
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        28400,
+        13888
+      ],
+      "id": "802e8145-fe7b-4b1c-ab9a-0854e7894e24",
+      "name": "Upsert row(s)",
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
     },
-    "options": {}
-   },
-   "type": "n8n-nodes-base.dataTable",
-   "typeVersion": 1.1,
-   "position": [
-    28400,
-    13888
-   ],
-   "id": "802e8145-fe7b-4b1c-ab9a-0854e7894e24",
-   "name": "Upsert row(s)",
-   "continueOnFail": true,
-   "retryOnFail": true,
-   "maxTries": 3,
-   "waitBetweenTries": 1500
-  },
-  {
-   "parameters": {
-    "operation": "get",
-    "dataTableId": {
-     "__rl": true,
-     "value": "__DATA_TABLE_ID__",
-     "mode": "list",
-     "cachedResultName": "JOB_DATA_TABLE",
-     "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "__DATA_TABLE_ID__",
+          "mode": "list",
+          "cachedResultName": "JOB_DATA_TABLE",
+          "cachedResultUrl": "/projects/uDyoFqPsWFH8JBfb/datatables/HHVRHOgRDCza0NBQ"
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        25312,
+        13376
+      ],
+      "id": "3e5dc026-3713-49f1-83e9-fac07b4273c9",
+      "name": "Get Existing IDs",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n//  Nó: \"Dedupe Precoce por ID\"   (n8n Code node)\n//  Modo: Run Once for All Items\n//  Posição: ANTES do HTTP Request2 (API de afiliado = caro/bot)\n//\n//  CHAVE = id MLB extraído do link_compra (existe ANTES do scrape),\n//  comparado contra a coluna \"ID\" da data table (mesmo id que o\n//  \"Filter Already Saved\" usa). O link de afiliado salvo NÃO tem\n//  o id, então a única chave confiável entre as duas fases é o id.\n//  Também remove duplicados dentro da própria rodada.\n// ============================================================\n\n// ---- extractId: MESMA lógica do \"Code in JavaScript2\" (formato precisa bater) ----\nfunction extractId(url) {\n  if (!url) return '';\n  const u = String(url);\n  const m =\n    u.match(/\\/p\\/([A-Z]+U?\\d+)/i) ||\n    u.match(/\\/up\\/([A-Z]+U?\\d+)/i) ||\n    u.match(/(MLB-?U?\\d+)/i);\n  return m ? m[1].replace('-', '').toUpperCase() : '';\n}\n\n// link cru do item nesta fase (Parse Preço grava em link_compra)\nfunction linkOf(j) {\n  return j.link_compra || j.link_produtos || j.link || j.url || '';\n}\n\n// id do item recém-encontrado (a partir do link cru)\nfunction incomingId(j) {\n  // se algum nó anterior já tiver setado um id, respeita; senão extrai do link\n  const direct = String(j.ID || j.id || '').trim().toUpperCase();\n  if (direct) return direct.replace('-', '');\n  return extractId(linkOf(j));\n}\n\n// ---- 1. Conjunto de ids JÁ SALVOS na planilha (coluna \"ID\") ----\nconst existing = new Set();\nlet existingRows = [];\ntry {\n  // Busca DIRETO na Data Table via API do n8n. O nó \"Get Existing IDs\" vinha\n  // voltando vazio, e por isso o dedupe não barrava nada (mesmos produtos voltando).\n  const _http = this.helpers.httpRequest;\n  const _BASE = \"https://n8n.gacompany.online/api/v1\";\n  const _KEY = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4ZTRiYThlOC01ZTg3LTRlY2EtYjg5NC0yNzgxNjA1Zjk3MzciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiNzllYTk2OGQtYTZhZC00NTI1LWE4YWYtNjRiODc2OTk1YzU0IiwiaWF0IjoxNzc5MjM4NDE5fQ.ohu4mPobwtuApSpWvuA-kReAEbU9zWIcxbT_6In5f4g\";\n  const _TABLE = \"HHVRHOgRDCza0NBQ\";\n  // PAGINACAO: pega TODAS as linhas em blocos (sem teto de 250). Dedup de ids no\n  // proprio loop torna eventuais sobreposicoes inofensivas; para quando uma pagina\n  // nao traz id novo (fim, ou caso o backend ignore o offset -> degrada com seguranca).\n  const _PAGE = 250;\n  const _rows = [];\n  const _seen = new Set();\n  let _cursor = '';\n  for (let _g = 0; _g < 500; _g++) {   // teto de seguranca: 500 * 200 = 100k linhas\n    let _resp;\n    try {\n      _resp = await _http({\n        method: \"GET\",\n        url: `${_BASE}/data-tables/${_TABLE}/rows`,\n        qs: _cursor ? { limit: _PAGE, cursor: _cursor } : { limit: _PAGE },\n        headers: { \"X-N8N-API-KEY\": _KEY },\n        json: true,\n      });\n    } catch (e) { break; }\n    const _batch = (_resp && _resp.data) ? _resp.data : (Array.isArray(_resp) ? _resp : []);\n    if (!_batch.length) break;\n    let _novos = 0;\n    for (const _r of _batch) {\n      const _idk = String((_r && _r.id) != null ? _r.id : \"\");\n      if (_idk && !_seen.has(_idk)) { _seen.add(_idk); _rows.push(_r); _novos++; }\n    }\n    if (_novos === 0) break;             // pagina sem id novo = acabou (ou offset ignorado)\n    if (_batch.length < _PAGE) break;    // ultima pagina\n    _cursor = (_resp && _resp.nextCursor) ? String(_resp.nextCursor) : '';\n    if (!_cursor) break;\n  }\n  existingRows = _rows.map(r => ({ json: r }));\n} catch (e) {\n  try { existingRows = $('Get Existing IDs').all(); } catch (_) { existingRows = []; }\n}\nfor (const r of existingRows) {\n  const row = r.json || {};\n  // A chave entre as duas fases é o id MLB, que fica DENTRO de link_compra.\n  let id = extractId(row.link_compra || row.link_produtos || row.link || row.url || '');\n  if (!id) id = String(row.id || row.ID || '').trim().toUpperCase().replace('-', '');\n  if (!id) id = extractId(row.offerlink || row.link_produtos_afiliado || '');\n  if (id) existing.add(id);\n}\n\n// ---- 2. Filtra os itens recém-encontrados ----\nconst seenThisRun = new Set();\nconst out = [];\nlet semId = 0, dropExisting = 0, dropDupRun = 0;\n\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  const id = incomingId(j);\n\n  if (!id) { semId++; out.push(it); continue; } // sem id não dá pra deduplicar: deixa passar\n\n  if (existing.has(id))    { dropExisting++; continue; } // já está na planilha\n  if (seenThisRun.has(id)) { dropDupRun++;   continue; } // repetido nesta rodada\n\n  seenThisRun.add(id);\n  out.push(it);\n}\n\nconsole.log(\n  `[Dedupe Precoce] entrada=${$input.all().length} | ` +\n  `na_planilha=${dropExisting} | dup_rodada=${dropDupRun} | ` +\n  `sem_id=${semId} | novos=${out.length} | base_existente=${existing.size}`\n);\n\nreturn out;\n"
+      },
+      "id": "5326e28f-3fdd-4e5d-98bf-bb9f14108d40",
+      "name": "Dedupe Precoce por ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26992,
+        13376
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-precisa-mais",
+              "leftValue": "={{ $json.precisaContinuar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8c256273-d7c3-44ba-a8c3-2c7f2b3eccd8",
+      "name": "IF - Precisa Mais?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        27520,
+        14048
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Seleciona os MELHORES produtos do pool acumulado e entrega só eles =====\n// Roda quando o loop de scraping termina. Ranqueia o pool por\n// desconto + vendas + avaliacao + valor de comissao (com teto de preco),\n// aplica o filtro de PALAVRAS PARECIDAS das ultimas execucoes e pega FINAL_PICK.\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\nconst staticData = $getWorkflowStaticData('global');\nconst acumulados = Array.isArray(staticData.acumulados) ? staticData.acumulados : [];\n\n// Limpa o estado pra proxima execucao agendada comecar do zero\nstaticData.acumulados = [];\nstaticData.tentativa = 0;\n\n// ---------- Knobs (ajustaveis no CONFIG ML) ----------\nconst FINAL_PICK   = Math.max(1, Number(cfg.final_pick ?? 3));        // quantos inserir por execucao\nconst MAX_PRICE    = Number(cfg.max_price ?? 0);                      // teto de preco (0 = sem teto) -> \"nada muito caro\"\nconst MIN_COMM_VAL = Number(cfg.min_commission_value ?? 0);          // comissao minima em R$ (estimada)\nconst W_SALES      = Number(cfg.w_sales ?? 0.35);\nconst W_RATING     = Number(cfg.w_rating ?? 0.20);\nconst W_DISCOUNT   = Number(cfg.w_discount ?? 0.25);\nconst W_COMMISSION = Number(cfg.w_commission ?? 0.20);\nconst WINDOW_H     = Number(cfg.similar_words_window_hours ?? 6);     // janela ~= 2 execucoes (3h cada)\nconst MIN_WORD_LEN = Number(cfg.similar_words_min_len ?? 4);\nconst STRICT_WORDS = String(cfg.similar_words_strict ?? 'false') === 'true'; // true = nunca completa com similar\nconst CATEGORIA    = String(cfg.ml_category_name ?? '').toLowerCase().trim();\nconst MIN_SALES    = Number(cfg.min_sales_final  ?? 10);   // vendas minimas: corta produto que \"ninguem sabe o que e\"\nconst MIN_RATING   = Number(cfg.min_rating_final ?? 4.0); // nota minima p/ \"bem avaliado\"\n\n// Taxa de comissao por categoria (mesma tabela do \"Code in JavaScript2\") -> p/ ESTIMAR o valor em R$\nfunction commissionRate(categoria) {\n  let table = {};\n  try {\n    const raw = cfg.commission_rate_by_category;\n    table = (raw && typeof raw === 'object') ? raw : JSON.parse(raw || '{}');\n  } catch (e) {}\n  const key = String(categoria || '').toLowerCase().trim();\n  const r = Number(table[key]);\n  return Number.isFinite(r) ? r : Number(cfg.commission_rate ?? table._default ?? 10);\n}\n\n// Comissao por FAIXA DE PRECO (mesma logica do \"Code in JavaScript2\"): item mais barato => % maior.\nfunction getCommissionPriceTiers(c) {\n  try {\n    const raw = c.commission_price_tiers;\n    const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw.trim() ? JSON.parse(raw) : null);\n    if (Array.isArray(arr) && arr.length) return arr.slice().sort((a, b) => (Number(a.max) || 0) - (Number(b.max) || 0));\n  } catch (e) {}\n  return null;\n}\nconst COMMISSION_TIERS = getCommissionPriceTiers(cfg);\nfunction rateByPrice(p) {\n  if (!COMMISSION_TIERS || !(p > 0)) return null;\n  for (const t of COMMISSION_TIERS) { if (p <= (Number(t.max) || 0)) return Number(t.rate); }\n  return Number(COMMISSION_TIERS[COMMISSION_TIERS.length - 1].rate);\n}\n\n// ---------- Helpers de texto / parsing ----------\nfunction norm(s) {\n  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim();\n}\nfunction titleOf(j) {\n  return j?._heuristica?.title_norm || norm(j?.['Nomes Produtos'] || j?.nome || j?.title || '');\n}\n// \"+5mil vendidos\", \"1,2 mil\", \"500 vendidos\", \"10 mil\" -> numero\nfunction parseSales(j) {\n  if (j.sales != null && j.sales !== '') { const n = Number(j.sales); if (Number.isFinite(n)) return n; }\n  const t = norm(String(j.vendas_text || '') + ' ' + String(j.vendas_text_alt || ''));\n  const m = t.match(/\\+?\\s*([\\d.,]+)\\s*(mil|k)?/);\n  if (!m) return 0;\n  let n = parseFloat(m[1].replace(/\\./g, '').replace(',', '.'));\n  if (!Number.isFinite(n)) return 0;\n  if (m[2]) n *= 1000;\n  return Math.round(n);\n}\n// \"4.8\", \"4,8\" -> nota 0..5\nfunction parseRating(j) {\n  if (j.rating != null && j.rating !== '') { const n = Number(j.rating); if (Number.isFinite(n) && n <= 5) return n; }\n  const t = String(j.rating_text || '').replace(',', '.');\n  const m = t.match(/([0-5](?:\\.\\d{1,2})?)/);\n  return m ? parseFloat(m[1]) : 0;\n}\n// Palavras \"significativas\" do titulo (ignora genericas/curtas/numeros)\nconst STOP = new Set(\n  String(cfg.similar_words_stoplist ??\n    'kit,kits,combo,jogo,conjunto,original,novo,nova,com,sem,para,por,pcs,pecas,peca,unidades,unidade,und,un,ml,kg,litro,litros,grama,gramas,premium,profissional,promocao,oferta,desconto,frete,gratis,the,and,uma,dos,das'\n  ).split(',').map(s => norm(s)).filter(Boolean)\n);\nfunction palavras(title) {\n  return norm(title).split(/[^a-z0-9]+/).filter(w => w.length >= MIN_WORD_LEN && !STOP.has(w) && !/^\\d+$/.test(w));\n}\n\n// ---------- 1) Normaliza candidatos ----------\nlet cands = acumulados.map(j => {\n  const price = Number(j.price) || 0;\n  const discount = Number(j.discount_pct ?? j.discount_pct_preview ?? 0) || 0;\n  const sales = parseSales(j);\n  const rating = parseRating(j);\n  const rate = rateByPrice(price) ?? commissionRate(j.categoria || j.categoria_origem || CATEGORIA);\n  const commVal = price > 0 ? Number((price * rate / 100).toFixed(2)) : 0;\n  return { j, price, discount, sales, rating, commVal };\n});\n\nconst totalPool = cands.length;\n\n// ---------- 2) Filtros duros: precisa de preco; teto de preco; comissao minima ----------\ncands = cands.filter(c => c.price > 0);\nif (MAX_PRICE > 0)    cands = cands.filter(c => c.price <= MAX_PRICE);\nif (MIN_COMM_VAL > 0) cands = cands.filter(c => c.commVal >= MIN_COMM_VAL);\n\n// ---------- 3) Score composto (cada sinal normalizado 0..100) ----------\nconst maxSales = Math.max(1, ...cands.map(c => c.sales));\nconst maxComm  = Math.max(1, ...cands.map(c => c.commVal));\nfor (const c of cands) {\n  const salesN  = (c.sales / maxSales) * 100;\n  const ratingN = (Math.min(c.rating, 5) / 5) * 100;\n  const discN   = Math.min(c.discount, 100);\n  const commN   = (c.commVal / maxComm) * 100;\n  c.scoreFinal = salesN * W_SALES + ratingN * W_RATING + discN * W_DISCOUNT + commN * W_COMMISSION;\n}\ncands.sort((a, b) => b.scoreFinal - a.scoreFinal);\n\n// ---------- 4) Palavras das ULTIMAS execucoes (janela WINDOW_H h), mesma categoria ----------\n// \"Get Existing IDs\" foi lido no inicio da execucao -> reflete o que foi inserido nas runs anteriores.\nlet recentes = [];\ntry { recentes = $('Get Existing IDs').all().map(r => r.json || {}); } catch (e) { recentes = []; }\nconst cutoff = Date.now() - WINDOW_H * 3600 * 1000;\nconst palavrasBloqueadas = new Set();\nfor (const r of recentes) {\n  const cat = String(r.categoria || '').toLowerCase().trim();\n  if (CATEGORIA && cat && cat !== CATEGORIA) continue;        // so a categoria deste scraper\n  const t = Date.parse(r.createdAt || r.sent_at || '') || 0;\n  if (t < cutoff) continue;                                   // fora da janela (>2 execucoes atras)\n  for (const w of palavras(r.productname || '')) palavrasBloqueadas.add(w);\n}\n\n// ---------- 5) Escolha com QUALIDADE (vendas + avaliacao) e sem palavra repetida ----------\n// Garante \"produtos tops\": exige vendas e nota minimas. Se faltar para fechar FINAL_PICK,\n// afrouxa em estagios — mas o ultimo estagio ainda exige vendas > 0 (nunca pega item\n// desconhecido que \"ninguem sabe o que e\"). cands ja vem ordenado por score desc.\nconst escolhidos = [];\nconst usadasNoLote = new Set();\nconst idsEscolhidos = new Set();\nfunction colide(ws) { for (const w of ws) if (palavrasBloqueadas.has(w) || usadasNoLote.has(w)) return true; return false; }\nfunction aceita(c) {\n  c.j.sales = c.sales;\n  c.j.rating = c.rating;\n  c.j.commission_value_estimado = c.commVal;\n  c.j._rank_final = Math.round(c.scoreFinal * 100) / 100;\n  escolhidos.push(c.j);\n  idsEscolhidos.add(String(c.j.link_compra || ''));\n  for (const w of palavras(titleOf(c.j))) usadasNoLote.add(w);\n}\n\n// Estagios de qualidade: (vendas_min, rating_min, aplica_dedup_de_palavra)\nconst estagiosQ = [\n  { vendas: MIN_SALES,                rating: MIN_RATING,                    dedupWords: true  }, // top + bem avaliado\n  { vendas: Math.ceil(MIN_SALES / 2), rating: Math.max(0, MIN_RATING - 0.3), dedupWords: true  }, // afrouxa um pouco\n  { vendas: 1,                        rating: 0,                             dedupWords: true  }, // ao menos teve venda\n  { vendas: 1,                        rating: 0,                             dedupWords: false }, // ultimo recurso (so se STRICT=false)\n];\nfor (const est of estagiosQ) {\n  if (escolhidos.length >= FINAL_PICK) break;\n  if (!est.dedupWords && STRICT_WORDS) continue; // respeita STRICT: nao fura palavra repetida\n  for (const c of cands) {\n    if (escolhidos.length >= FINAL_PICK) break;\n    if (idsEscolhidos.has(String(c.j.link_compra || ''))) continue; // ja escolhido em estagio anterior\n    if (c.sales < est.vendas) continue;                              // vendas minimas\n    if (est.rating > 0 && c.rating < est.rating) continue;           // nota minima (quando exigida)\n    if (est.dedupWords && colide(palavras(titleOf(c.j)))) continue;  // evita produto \"parecido\"\n    aceita(c);\n  }\n}\n\nconsole.log(`[Finalizar] pool=${totalPool} | apos_filtros=${cands.length} | bloqueadas_palavras=${palavrasBloqueadas.size} | escolhidos=${escolhidos.length}/${FINAL_PICK}`);\n\nreturn escolhidos.map(j => ({ json: j }));\n"
+      },
+      "id": "c1fbb651-6087-4dae-be12-8e40af45987b",
+      "name": "Finalizar Acumulado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28144,
+        13888
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== PARSE de URL e PREÇO (sem filtro de comissão aqui) =====\n// A taxa de comissão do Mercado Livre VARIA por produto/categoria/vendedor,\n// então não dá pra estimar com segurança antes de chamar a API de afiliado.\n// Por isso este node NÃO filtra mais por comissão — só limpa a URL e extrai o preço.\n// O corte de comissão mínima acontece depois, no \"Filter Already Saved\",\n// usando a comissão REAL (vinda da API/parse final em \"Code in JavaScript2\").\n\n// ===== 1. LIMPA URL =====\nfunction cleanMlUrl(u) {\n  if (!u) return '';\n\n  const urlParamMatch = u.match(/[?&]url=([^&]+)/i);\n  if (urlParamMatch) {\n    try { u = decodeURIComponent(urlParamMatch[1]); } catch(e) {}\n  }\n\n  const clickMatch = u.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s\"]+)/i);\n  if (clickMatch) {\n    try { u = decodeURIComponent(clickMatch[1]); } catch(e) {}\n  }\n\n  if (/click1\\.mercadolivre/i.test(u)) return '';\n\n  u = u.split('#')[0].split('?')[0];\n  return u;\n}\n\n// ===== 2. PARSE PREÇO =====\nfunction parseMlPrice(str) {\n  if (!str) return { price_old: null, price: null, discount_pct: null };\n\n  let s = str\n    .replace(/\\d+\\s*x\\s*R\\$\\s*[\\d\\.,]+/gi, ' ')\n    .replace(/no\\s+Pix|sem\\s+juros|\\bou\\b|\\bem\\b/gi, ' ');\n\n  const tryParse = (cleaned) => {\n    const matches = [...cleaned.matchAll(/R\\$\\s?([\\d\\.]+(?:,\\d{1,2})?)/g)];\n    return matches\n      .map(m => Number(parseFloat(m[1].replace(/\\./g, '').replace(',', '.')).toFixed(2)))\n      .filter(n => n >= 5)\n      .sort((a, b) => b - a);\n  };\n\n  const candidates = [];\n  for (const re of [/(\\d{2})\\s*%\\s*OFF/i, /(\\d)\\s*%\\s*OFF/i]) {\n    const m = s.match(re);\n    if (!m) continue;\n    const pct = parseInt(m[1]);\n    const precos = tryParse(s.replace(m[0], ' '));\n    if (precos.length >= 2) {\n      const realPct = Math.round((1 - precos[1] / precos[0]) * 100);\n      const diff = Math.abs(realPct - pct);\n      candidates.push({ price_old: precos[0], price: precos[1], discount_pct: pct, diff });\n    } else if (precos.length === 1) {\n      candidates.push({ price_old: (pct > 0 && pct < 100) ? Number((precos[0] / (1 - pct / 100)).toFixed(2)) : null, price: precos[0], discount_pct: pct, diff: 99 });\n    }\n  }\n\n  if (candidates.length) {\n    candidates.sort((a, b) => a.diff - b.diff);\n    const best = candidates[0];\n    return { price_old: best.price_old, price: best.price, discount_pct: best.discount_pct };\n  }\n\n  const precos = tryParse(s);\n  const _po = (precos.length >= 2 ? precos[0] : null), _pr = precos[1] ?? precos[0] ?? null;\n  const _dp = (_po && _pr && _po > _pr) ? Math.round((1 - _pr / _po) * 100) : null;\n  return { price_old: _po, price: _pr, discount_pct: _dp };\n}\n\n// ===== 3. PREÇOS NA ORDEM DA STRING (mesma logica do parser final) =====\nfunction pricesInOrder(str) {\n  if (!str) return [];\n  const main = String(str).split(/\\d+x\\s*R\\$/i)[0];\n  const re = /R\\$\\s*(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{1,2})?)/g;\n  const out = [];\n  let m;\n  while ((m = re.exec(main)) !== null) {\n    const v = parseFloat(m[1].replace(/\\./g, '').replace(',', '.'));\n    if (!isNaN(v) && v > 0) out.push(v);\n  }\n  return out;\n}\n\n// ===== 3.5 NORMALIZA PRECO NUMERICO (novo parser nordic) =====\n// O node \"Extrair HTML\" agora entrega preco/preco_antigo como numero em string\n// (ex.: \"39.69\"). Aqui reconstruimos a string \"R$ antigoR$ atual\" que as\n// funcoes acima esperam, sem mudar nenhuma outra regra.\nfunction brlStr(v) {\n  const n = Number(v);\n  if (!isFinite(n) || n <= 0) return '';\n  const [i, dd] = n.toFixed(2).split('.');\n  return 'R$ ' + i.replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.') + ',' + dd;\n}\nfunction normalizaPreco(j) {\n  const bruto = String(j.preco ?? j.preco_produtos ?? '');\n  if (/R\\$/.test(bruto)) return bruto;\n  const atual = brlStr(bruto.replace(',', '.'));\n  if (!atual) return bruto;\n  const antigo = brlStr(String(j.preco_antigo ?? '').replace(',', '.'));\n  return antigo ? antigo + atual : atual;\n}\n\n// ===== APLICA =====\nconst results = [];\n\nfor (const item of $input.all()) {\n  const j = item.json;\n  const link = cleanMlUrl(j.link_compra || j.link_produtos || '');\n\n  if (!link) continue; // sem link não tem como gerar link de afiliado, descarta\n\n  // descarta preço quebrado do ML: atual (2º R$) maior que o original (1º R$)\n  const precoStr = normalizaPreco(j);\n  const ord = pricesInOrder(precoStr);\n  if (ord.length >= 2 && ord[1] > ord[0]) continue;\n\n  const prices = parseMlPrice(precoStr);\n  if (!prices.price) continue; // sem preço não dá pra seguir, descarta\n\n  results.push({\n    json: {\n      ...j,\n      link_compra: link,\n      price_old: prices.price_old,\n      price: prices.price,\n      discount_pct: prices.discount_pct,\n    }\n  });\n}\n\nreturn results;\n"
+      },
+      "id": "06ffd405-6d23-4487-9990-9732be15b66a",
+      "name": "Parse Preço",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26992,
+        13536
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse de sales/rating a partir de texto do ML (adicionado pelo builder Lovable)\nfunction parseSalesText(t) {\n  if (!t) return 0;\n  const s = String(t).replace(/\\./g, '').replace(',', '.');\n  const m = s.match(/(\\d[\\d.]*)/);\n  if (!m) return 0;\n  const n = parseFloat(m[1]);\n  if (/mil/i.test(s)) return Math.round(n * 1000);\n  return Math.round(n) || 0;\n}\nfunction parseRatingText(t) {\n  if (!t) return 0;\n  const s = String(t).replace(',', '.');\n  const m = s.match(/(\\d(?:\\.\\d)?)/);\n  const n = parseFloat(m && m[1]);\n  return (Number.isFinite(n) && n > 0 && n <= 5) ? n : 0;\n}\n\nfunction numOrNull(v) {\n  if (v === null || v === undefined || v === '') return null;\n  const n = Number(String(v).replace(/\\s/g, '').replace(',', '.'));\n  return (Number.isFinite(n) && n > 0) ? n : null;\n}\nfunction parsePreco(str) {\n  if (!str) return { price: null, priceOriginal: null, discount: null };\n  const s = String(str);\n  // Se vier numero puro (ex.: \"39.69\" do parser nordic), usa direto.\n  if (!/R\\$/i.test(s)) {\n    const direct = numOrNull(s);\n    if (direct !== null) return { price: direct, priceOriginal: null, discount: null };\n  }\n  const main = s.split(/\\d+x\\s*R\\$/i)[0];\n  const priceRe = /R\\$\\s*(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{1,2})?)/g;\n  const prices = [];\n  let lastEnd = 0;\n  let m;\n  while ((m = priceRe.exec(main)) !== null) {\n    const v = parseFloat(m[1].replace(/\\./g, '').replace(',', '.'));\n    if (!isNaN(v) && v > 0) prices.push(v);\n    lastEnd = m.index + m[0].length;\n  }\n  const tail = main.slice(lastEnd);\n  const discM = tail.match(/^\\s*(\\d{1,2})\\s*%\\s*OFF/i);\n  const discount = discM ? parseInt(discM[1], 10) : null;\n  let price = null, priceOriginal = null;\n  if (prices.length >= 2) { priceOriginal = prices[0]; price = prices[1]; }\n  else if (prices.length === 1) {\n    price = prices[0];\n    if (discount && discount > 0 && discount < 100) priceOriginal = Number((price / (1 - discount / 100)).toFixed(2));\n  }\n  let finalDiscount = discount;\n  if (!finalDiscount && price && priceOriginal && priceOriginal > price) finalDiscount = Math.round((1 - price / priceOriginal) * 100);\n  return { price, priceOriginal, discount: finalDiscount };\n}\n\nfunction extractId(url) {\n  if (!url) return '';\n  const m = String(url).match(/\\/p\\/([A-Z]+U?\\d+)/i) || String(url).match(/\\/up\\/([A-Z]+U?\\d+)/i) || String(url).match(/(MLB-?U?\\d+)/i);\n  return m ? m[1].replace('-', '').toUpperCase() : '';\n}\n\n// ===== Helpers de dedupe multi-campo =====\nfunction normText(s) {\n  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n}\nfunction normUrl(u) {\n  if (!u) return '';\n  let s = String(u).trim().toLowerCase();\n  s = s.split('#')[0].split('?')[0];\n  s = s.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').replace(/\\/+$/, '');\n  return s;\n}\nfunction shortCode(u) {\n  if (!u) return '';\n  const m = String(u).match(/meli\\.la\\/([A-Za-z0-9]+)/i) || String(u).match(/mercadolivre\\.com[^\\s]*\\/social\\/[^\\/]+\\?[^\\s]*[?&]word=([A-Za-z0-9]+)/i);\n  return m ? m[1].toLowerCase() : '';\n}\nfunction addKeys(set, keys) { for (const k of keys) if (k) set.add(k); }\nfunction keysFor(row) {\n  const id = String(row.ID || row.id || '').toUpperCase().replace('-', '') || extractId(row.link_compra) || extractId(row.link_compra_original) || extractId(row.link_produtos) || extractId(row.offerlink) || extractId(row.link_produtos_afiliado);\n  const lc = normUrl(row.link_compra || row.link_compra_original || row.link_produtos || '');\n  const of = normUrl(row.offerlink || row.link_produtos_afiliado || '');\n  const sc = shortCode(row.offerlink || row.link_produtos_afiliado || '');\n  const pn = normText(row.productname || row.nome_produtos || '');\n  return {\n    id: id ? `id:${id}` : '',\n    lc: lc ? `lc:${lc}` : '',\n    of: of ? `of:${of}` : '',\n    sc: sc ? `sc:${sc}` : '',\n    pn: pn && pn.length > 6 ? `pn:${pn}` : '',\n  };\n}\n\nfunction extractCommissionRateFromApi(urlObj) {\n  if (!urlObj) return null;\n  const candidatos = [urlObj.commission_rate, urlObj.commission_percentage, urlObj.commission, urlObj.percentage, urlObj?.commission_info?.percentage, urlObj?.commission_info?.rate];\n  for (const c of candidatos) { const n = Number(c); if (Number.isFinite(n) && n > 0) return n; }\n  return null;\n}\nfunction getCommissionRateTable(cfg) {\n  const raw = cfg.commission_rate_by_category;\n  try { if (raw && typeof raw === 'object') return raw; if (typeof raw === 'string' && raw.trim()) return JSON.parse(raw); } catch (e) {}\n  return {};\n}\n\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\nconst COMMISSION_TABLE = getCommissionRateTable(cfg);\nconst DEFAULT_RATE = Number(cfg.commission_rate ?? COMMISSION_TABLE._default ?? 10);\nfunction getCommissionPriceTiers(c) {\n  try { const raw = c.commission_price_tiers; const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw.trim() ? JSON.parse(raw) : null); if (Array.isArray(arr) && arr.length) return arr.slice().sort((a, b) => (Number(a.max) || 0) - (Number(b.max) || 0)); } catch (e) {}\n  return null;\n}\nconst COMMISSION_TIERS = getCommissionPriceTiers(cfg);\nfunction rateByPrice(p) {\n  if (!COMMISSION_TIERS || !(p > 0)) return null;\n  for (const t of COMMISSION_TIERS) if (p <= (Number(t.max) || 0)) return Number(t.rate);\n  return Number(COMMISSION_TIERS[COMMISSION_TIERS.length - 1].rate);\n}\nfunction getCommissionRateByCategory(categoria) {\n  const key = String(categoria || '').toLowerCase().trim();\n  const rate = COMMISSION_TABLE[key];\n  return Number.isFinite(Number(rate)) ? Number(rate) : DEFAULT_RATE;\n}\n\n// ===== 1) Carrega TODAS as linhas da Data Table e monta o set de chaves =====\nconst existingKeys = new Set();\nconst existingRowByKey = new Map();\nconst _BASE_API = 'https://n8n.gacompany.online/api/v1';\nconst _API_KEY = '__N8N_API_KEY__';\nconst _TABLE_ID = '__DATA_TABLE_ID__';\ntry {\n  const _http = this.helpers.httpRequest;\n  const _BASE = _BASE_API;\n  const _KEY = _API_KEY;\n  const _TABLE = _TABLE_ID;\n  const _PAGE = 250;\n  let _cursor = '';\n  const _seenRow = new Set();\n  for (let _g = 0; _g < 500; _g++) {\n    let _resp;\n    try {\n      _resp = await _http({ method: 'GET', url: `${_BASE}/data-tables/${_TABLE}/rows`, qs: _cursor ? { limit: _PAGE, cursor: _cursor } : { limit: _PAGE }, headers: { 'X-N8N-API-KEY': _KEY }, json: true });\n    } catch (e) { break; }\n    const _batch = (_resp && _resp.data) ? _resp.data : (Array.isArray(_resp) ? _resp : []);\n    if (!_batch.length) break;\n    let _novos = 0;\n    for (const _r of _batch) {\n      const _idk = String(_r?.id ?? '');\n      if (_idk && _seenRow.has(_idk)) continue;\n      if (_idk) _seenRow.add(_idk);\n      const k = keysFor(_r);\n      const _strong = [k.id, k.lc, k.of, k.sc].filter(Boolean);\n      addKeys(existingKeys, _strong);\n      for (const _x of _strong) if (!existingRowByKey.has(_x)) existingRowByKey.set(_x, _r);\n      _novos++;\n    }\n    if (_novos === 0) break;\n    _cursor = (_resp && _resp.nextCursor) ? String(_resp.nextCursor) : '';\n    if (!_cursor) break;\n  }\n} catch (e) { console.log('[CJS2] falha ao carregar planilha:', e && e.message); }\nconsole.log(`[CJS2] chaves_existentes=${existingKeys.size}`);\n\n// ===== 2) Monta os itens e aplica dedupe multi-campo (planilha + intra-lote) =====\nconst batchKeys = new Set();\nconst now = new Date().toISOString();\nconst out = [];\nlet dropExisting = 0, dropBatch = 0, dropSemPreco = 0, refreshed = 0;\nlet dropSemAfiliado = 0;\n\nfor (const item of $input.all()) {\n  const d = item.json || item;\n  const _p = parsePreco(d.preco_produtos);\n  // Prioriza os numeros ja calculados no no \"Parse Preco\"; string e apenas fallback.\n  // O preco exato vem da string do scrape (preco_produtos). d.price vem\n  // arredondado do \"Parse Preco\", entao serve apenas como fallback.\n  const price = _p.price ?? numOrNull(d.price);\n  let priceOriginal = _p.priceOriginal ?? numOrNull(d.price_old) ?? numOrNull(d.priceoriginal);\n  if (priceOriginal !== null && price !== null && priceOriginal <= price) priceOriginal = null;\n  let discount = numOrNull(d.discount_pct) ?? _p.discount;\n  if (price !== null && priceOriginal !== null) discount = Math.round((1 - price / priceOriginal) * 100) || null;\n  else if (priceOriginal === null) discount = null;\n  const id = extractId(d.urls?.[0]?.origin_url) || extractId(d.link_compra_original);\n  const offerlink = d.urls?.[0]?.short_url || d.link_produtos_afiliado || '';\n  const commissionRate = extractCommissionRateFromApi(d.urls?.[0]) ?? rateByPrice(price) ?? getCommissionRateByCategory(d.categoria_origem);\n  const commissionValue = price ? Number((price * commissionRate / 100).toFixed(2)) : 0;\n\n  const row = {\n    ...d,\n    ID: id,\n    productname: d.nome_produtos || '',\n    price, pricediscountrate: discount,\n    shopname: 'Mercado Livre',\n    offerlink,\n    imageUrl: d.imagem_produtos || '',\n    sending: '',\n    commission_rate: commissionRate,\n    commission_value: commissionValue,\n    sales: parseSalesText(d.vendas_text || d.vendas_text_alt || d.sales_text || ''),\n    rating: parseRatingText(d.rating_text || d.avaliacoes_text || ''),\n    sent_at: '',\n    priceoriginal: priceOriginal,\n    createdAt: now, updatedAt: now,\n    categoria: d.categoria_origem || d.categoria || '',\n    link_compra: d.link_compra_original || d.link_compra || ''\n  };\n\n  if (!(Number(price) > 0)) { dropSemPreco++; continue; }\n  // Sem link de afiliado valido a linha entra na tabela e fica presa pra sempre no\n  // robo como link_invalido. Melhor descartar e avisar (cookie ML costuma ter expirado).\n  if (!/^https:\\/\\/meli\\.la\\//i.test(String(offerlink || ''))) { dropSemAfiliado++; continue; }\n  const k = keysFor(row);\n  const strongKeys = [k.id, k.lc, k.of, k.sc].filter(Boolean);\n  const allKeys = [...strongKeys, k.pn].filter(Boolean);\n\n  // intra-lote: bloqueia por qualquer chave (inclui nome) para nao inserir 2x no mesmo run\n  if (allKeys.some(x => batchKeys.has(x))) { dropBatch++; continue; }\n\n  // planilha: bloqueia SOMENTE por identidade forte (ID / link / shortlink).\n  // O nome do produto nao bloqueia mais, porque variacoes legitimas compartilham titulo.\n  const hitKey = strongKeys.find(x => existingKeys.has(x));\n  if (hitKey) {\n    dropExisting++;\n    // mantem a planilha com preco atualizado (sem criar linha nova)\n    const _r = existingRowByKey.get(hitKey);\n    if (_r && _r.id) {\n      try {\n        await this.helpers.httpRequest({\n          method: 'PATCH',\n          url: `${_BASE_API}/data-tables/${_TABLE_ID}/rows`,\n          headers: { 'X-N8N-API-KEY': _API_KEY },\n          body: {\n            filter: { type: 'and', filters: [{ columnName: 'id', condition: 'eq', value: Number(_r.id) }] },\n            data: {\n              price: price,\n              priceoriginal: priceOriginal,\n              pricediscountrate: discount,\n              offerlink: row.offerlink || _r.offerlink || '',\n              imageUrl: row.imageUrl || _r.imageUrl || '',\n            },\n          },\n          json: true,\n        });\n        refreshed++;\n      } catch (e) { /* atualizacao de preco e best-effort */ }\n    }\n    continue;\n  }\n\n  for (const x of allKeys) batchKeys.add(x);\n  out.push({ json: row });\n}\n\nconsole.log(`[CJS2] entrada=${$input.all().length} | drop_planilha=${dropExisting} | drop_lote=${dropBatch} | drop_sem_preco=${dropSemPreco} | drop_sem_afiliado=${dropSemAfiliado} | precos_atualizados=${refreshed} | saida=${out.length}`);\nif (dropSemAfiliado > 0) console.log('affiliate_cookie_expired: ' + dropSemAfiliado + ' itens sem link de afiliado (cookie/CSRF do ML provavelmente expirado)');\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28320,
+        13648
+      ],
+      "id": "e034eeb6-d6aa-4678-8361-ae73f5dc05f5",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const j = item.json;\n  if (!j.link_compra) continue;\n\n  results.push({\n    json: {\n      ...j,\n      link_compra: j.link_compra,\n      price_old: j.price_old ?? null,\n      price: j.price ?? null,\n      discount_pct: j.discount_pct ?? null,\n    },\n    pairedItem: { item: i }  // <-- isso resolve o erro\n  });\n}\n\n// Ordena por maior desconto antes de limitar\nresults.sort((a, b) => (b.json.discount_pct ?? 0) - (a.json.discount_pct ?? 0));\n\n// Antes filtrava aqui pra 10 candidatos, o que estrangulava o Filter2.\n// Agora passamos TODOS os candidatos ranqueados pro Filter2; o piso/teto\n// final de itens NOVOS e controlado em 'Acumular Resultados' (min/max_total_final).\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27328,
+        13280
+      ],
+      "id": "c36370ba-15b6-49fa-97f1-376f92a49d6d",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 9,12,15,18,21 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        25168,
+        13136
+      ],
+      "id": "09884a19-509e-4d3c-b0bf-6bed6c65f34c",
+      "name": "Schedule Trigger 12h"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CONFIG_NODE = \"CONFIG ML\";\nconst cfg = ($items(CONFIG_NODE)?.[0]?.json) ?? {};\n\nconst MIN_TOTAL          = Number(cfg.min_total          ?? 30);\nconst MAX_TOTAL          = Number(cfg.max_total          ?? 40);\nconst MAX_ITENS_CATEGORIA = Number(cfg.max_itens_categoria ?? 10);\nconst MAX_ITENS_MARCA    = Number(cfg.max_itens_marca    ?? 5);\nconst MIN_COMMISSION_VALUE = Number(cfg.min_commission_value ?? 8);\n\n// Pesos do ranking (ajustáveis no CONFIG ML)\nconst W_SALES      = Number(cfg.w_sales      ?? 0.5);  // peso de vendas\nconst W_COMMISSION = Number(cfg.w_commission ?? 0.4);  // peso de comissão\nconst W_DISCOUNT   = Number(cfg.w_discount   ?? 0.1);  // peso de desconto\n\n// ---------- Helpers ----------\nfunction normText(s) {\n  return String(s ?? \"\")\n    .toLowerCase()\n    .normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\nfunction getTitle(j) { return j.nome || j.title || j.name || j[\"Nomes Produtos\"] || j[\"['Nomes Produtos']\"] || \"\"; }\nfunction getLink(j)  { return j.link_compra || j.link || j.url || \"\"; }\nfunction num(v, def = 0) { const n = Number(v); return Number.isFinite(n) ? n : def; }\n\n// Extrai vendas do título ou de campo dedicado (\"+1mil vendidos\", \"500 vendidos\", etc)\nfunction getSales(j) {\n  if (j.sales != null) return num(j.sales);\n  if (j.vendas != null) return num(j.vendas);\n  const t = normText(getTitle(j) + \" \" + (j.preco || \"\"));\n  const m = t.match(/\\+?\\s*(\\d+(?:\\.\\d+)?)\\s*(mil|k)?\\s*vendid/i);\n  if (m) {\n    let n = parseFloat(m[1].replace(\",\", \".\"));\n    if (m[2]) n *= 1000;\n    return Math.round(n);\n  }\n  return 0;\n}\n\nfunction getCommission(j) {\n  // commission_rate em % (ex: 7 = 7%) | commission_value em R$\n  return num(j.commission_rate ?? j.comissao_pct ?? 0);\n}\n\nfunction getCommissionValue(j) {\n  // Nesse ponto do pipeline a comissão real ainda não existe (só depois da API de afiliado).\n  // Mantido apenas para fins informativos no campo _dedupe (debug), retorna 0 se não houver dado.\n  if (j.commission_value_estimado != null) return num(j.commission_value_estimado);\n  if (j.commission_value != null) return num(j.commission_value);\n  return 0;\n}\n\nfunction getDiscountPct(j) {\n  return num(j.discount_pct ?? j.discount_pct_preview ?? 0);\n}\n\nfunction getCategoria(j) { return normText(j.categoria || j.category || \"geral\"); }\nfunction getMarca(j)     { return normText(j.marca || j.brand || \"sem_marca\"); }\n\nfunction getExactKey(j) {\n  const title = normText(getTitle(j));\n  const link  = normText(getLink(j)).split(\"?\")[0].split(\"#\")[0];\n  return `${title}||${link}`;\n}\n\n// ---------- Score composto (normaliza vendas/comissão/desconto pra 0-100) ----------\nfunction rankScore(j, maxSales, maxCommission) {\n  const sales      = getSales(j);\n  const commission = getCommission(j);\n  const discount   = getDiscountPct(j);\n\n  const salesNorm      = maxSales      > 0 ? (sales      / maxSales)      * 100 : 0;\n  const commissionNorm = maxCommission > 0 ? (commission / maxCommission) * 100 : 0;\n  const discountNorm   = Math.min(discount, 100);\n\n  return (\n    salesNorm      * W_SALES +\n    commissionNorm * W_COMMISSION +\n    discountNorm   * W_DISCOUNT\n  );\n}\n\n// ---------- 1) Dedupe exato ----------\nconst inputItems = $input.all();\nconst bestByExact = new Map();\n\nfor (const it of inputItems) {\n  const j = it.json ?? {};\n  if (!getLink(j)) continue;\n  const k = getExactKey(j);\n  const prev = bestByExact.get(k);\n  // Mantém o de maior venda em caso de duplicata\n  if (!prev || getSales(j) > getSales(prev.json ?? {})) {\n    bestByExact.set(k, it);\n  }\n}\n\nconst deduped = Array.from(bestByExact.values()).map(it => it.json ?? {});\n\n// ---------- 2) Calcula máximos pra normalização ----------\n// OBS: a comissão REAL só fica disponível depois da chamada de API de afiliado\n// (mais adiante no pipeline). Aqui ainda não dá pra filtrar por comissão com segurança,\n// já que a taxa varia por produto/vendedor. O corte de comissão mínima acontece\n// no final do pipeline, no node \"Filter Already Saved\", com o valor real.\nconst maxSales      = Math.max(1, ...deduped.map(getSales));\nconst maxCommission = Math.max(1, ...deduped.map(getCommission));\n\n// ---------- 3) Ordena por score composto desc ----------\nconst ranked = deduped\n  .map(j => ({ j, _rank_score: rankScore(j, maxSales, maxCommission) }))\n  .sort((a, b) => b._rank_score - a._rank_score);\n\n// ---------- 4) Monta filas por categoria + round-robin, com limites de marca/categoria ----------\n// Função reaproveitável: dado um limite de categoria e de marca, monta as filas e\n// intercala (round-robin) entre as categorias, respeitando MAX_TOTAL.\nfunction montarRoundRobin(maxItensCategoria, maxItensMarca) {\n  const marcaCount = new Map();\n  const filaPorCategoria = new Map(); // categoria -> array de items prontos (na ordem de score)\n\n  for (const { j, _rank_score } of ranked) {\n    const cat   = getCategoria(j);\n    const marca = getMarca(j);\n\n    const fila = filaPorCategoria.get(cat) ?? [];\n    if (fila.length >= maxItensCategoria) continue;\n\n    const mCount = marcaCount.get(marca) ?? 0;\n    if (marca !== \"sem_marca\" && mCount >= maxItensMarca) continue;\n\n    fila.push({\n      json: {\n        ...j,\n        _rank_score: Math.round(_rank_score * 100) / 100,\n        _dedupe: {\n          sales:           getSales(j),\n          commission_rate: getCommission(j),\n          commission_value: getCommissionValue(j),\n          discount_pct:    getDiscountPct(j),\n          min_total:       MIN_TOTAL,\n          max_total:       MAX_TOTAL,\n          max_categoria:   maxItensCategoria,\n          max_marca:       maxItensMarca,\n          exact_key:       getExactKey(j),\n        }\n      }\n    });\n\n    filaPorCategoria.set(cat, fila);\n    marcaCount.set(marca, mCount + 1);\n  }\n\n  // Round-robin: mantém a ordem de categorias como apareceram primeiro no ranking\n  // (segue o round-robin de scraping definido em \"Montar Links ML\").\n  const categoriasOrdenadas = Array.from(filaPorCategoria.keys());\n  const out = [];\n  let algumaFilaTemItem = true;\n\n  while (algumaFilaTemItem && out.length < MAX_TOTAL) {\n    algumaFilaTemItem = false;\n    for (const cat of categoriasOrdenadas) {\n      if (out.length >= MAX_TOTAL) break;\n      const fila = filaPorCategoria.get(cat);\n      if (fila && fila.length > 0) {\n        out.push(fila.shift());\n        algumaFilaTemItem = true;\n      }\n    }\n  }\n\n  return out;\n}\n\n// ---------- 5) Afrouxa os limites progressivamente até atingir MIN_TOTAL ----------\n// Tenta primeiro com os limites normais (max_itens_categoria / max_itens_marca).\n// Se não atingir o piso de MIN_TOTAL produtos, vai abrindo os limites em estágios,\n// até atingir o piso ou esgotar todos os candidatos disponíveis (sempre respeitando MAX_TOTAL).\nconst estagios = [\n  { categoria: MAX_ITENS_CATEGORIA,     marca: MAX_ITENS_MARCA     },\n  { categoria: MAX_ITENS_CATEGORIA + 4, marca: MAX_ITENS_MARCA + 2 },\n  { categoria: MAX_ITENS_CATEGORIA + 8, marca: MAX_ITENS_MARCA + 4 },\n  { categoria: MAX_TOTAL,               marca: MAX_TOTAL           }, // sem limite efetivo\n];\n\nlet out = [];\nfor (const estagio of estagios) {\n  out = montarRoundRobin(estagio.categoria, estagio.marca);\n  if (out.length >= MIN_TOTAL) break;\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27136,
+        13232
+      ],
+      "id": "1ea8f3a5-0699-443e-aed4-d26f0f49710b",
+      "name": "Dedupe"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CONFIG_NODE = \"CONFIG ML\";\nconst cfg = ($items(CONFIG_NODE)?.[0]?.json) ?? {};\n\nconst SCORE_BASE          = Number(cfg.score_base           ?? 50);\nconst BONUS_HAS_IMAGE     = Number(cfg.bonus_has_image      ?? 10);\nconst BONUS_HAS_PRICE     = Number(cfg.bonus_has_price      ?? 10);\nconst BONUS_HAS_LINK      = Number(cfg.bonus_has_link       ?? 10);\nconst BONUS_HAS_BRAND     = Number(cfg.bonus_has_brand      ?? 8);\nconst BONUS_HAS_CATEGORY  = Number(cfg.bonus_has_category   ?? 6);\nconst BONUS_HAS_DISCOUNT  = Number(cfg.bonus_has_discount   ?? 8);\nconst PENALTY_CLICK_TRACK = Number(cfg.penalty_click_track  ?? 5);\n\n// ---------- Helpers ----------\nfunction normText(s) {\n  return String(s ?? \"\")\n    .toLowerCase()\n    .normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\nfunction getTitle(j) { return j.nome || j.title || j.name || j[\"Nomes Produtos\"] || j[\"['Nomes Produtos']\"] || \"\"; }\nfunction getImg(j)   { return j.imagem || j.image || j.img || j[\"Imagem Produtos (src)\"] || j[\"['Imagem Produtos (src)']\"] || \"\"; }\nfunction getPriceText(j) { return j.preco || j.price || j.valor || \"\"; }\nfunction getLink(j)  { return j.link_compra || j.link || j.url || \"\"; }\nfunction includesAny(text, arr) { for (const k of arr) if (text.includes(k)) return true; return false; }\n\n// ---------- Categorização genérica ----------\nconst CATEGORY_RULES = [\n  { key: \"eletronicos\",  label: \"Eletrônicos\",       words: [\"notebook\", \"laptop\", \"tablet\", \"celular\", \"smartphone\", \"iphone\", \"samsung\", \"xiaomi\", \"fone\", \"headphone\", \"earbud\", \"bluetooth\", \"smartwatch\", \"smart tv\", \"tv \", \"monitor\", \"teclado\", \"mouse\", \"webcam\", \"alexa\", \"echo\", \"kindle\"] },\n  { key: \"moda\",         label: \"Moda & Calçados\",   words: [\"tenis\", \"tênis\", \"sapato\", \"sandalia\", \"sandália\", \"bota\", \"chinelo\", \"camisa\", \"camiseta\", \"blusa\", \"calca\", \"calça\", \"vestido\", \"jaqueta\", \"casaco\", \"bolsa\", \"mochila\", \"carteira\", \"oculos\", \"óculos\"] },\n  { key: \"beleza\",       label: \"Beleza & Perfumaria\", words: [\"perfume\", \"eau de parfum\", \"eau de toilette\", \"edp\", \"edt\", \"colonia\", \"fragrancia\", \"batom\", \"maquiagem\", \"base \", \"rimel\", \"shampoo\", \"condicionador\", \"creme\", \"hidratante\", \"protetor solar\", \"sabonete\"] },\n  { key: \"casa\",         label: \"Casa & Decoração\",  words: [\"sofa\", \"sofá\", \"cadeira\", \"mesa\", \"cama\", \"colchao\", \"colchão\", \"guarda-roupa\", \"estante\", \"cortina\", \"tapete\", \"luminaria\", \"luminária\", \"panela\", \"frigideira\", \"talher\", \"prato\"] },\n  { key: \"eletrodomesticos\", label: \"Eletrodomésticos\", words: [\"geladeira\", \"fogao\", \"fogão\", \"microondas\", \"lavadora\", \"secadora\", \"ar condicionado\", \"ventilador\", \"aspirador\", \"liquidificador\", \"batedeira\", \"cafeteira\", \"air fryer\", \"fritadeira\"] },\n  { key: \"esporte\",      label: \"Esporte & Fitness\", words: [\"bicicleta\", \"bike\", \"esteira\", \"halter\", \"haltere\", \"anilha\", \"yoga\", \"academia\", \"suplemento\", \"whey\", \"creatina\", \"proteina\", \"patins\", \"skate\"] },\n  { key: \"infantil\",     label: \"Bebês & Infantil\",  words: [\"bebe\", \"bebê\", \"fralda\", \"carrinho de bebe\", \"berço\", \"berco\", \"mamadeira\", \"brinquedo\", \"lego\", \"boneca\", \"carrinho hot wheels\"] },\n  { key: \"ferramentas\",  label: \"Ferramentas\",       words: [\"furadeira\", \"parafusadeira\", \"serra\", \"lixadeira\", \"esmerilhadeira\", \"kit ferramenta\", \"chave de fenda\", \"martelo\"] },\n  { key: \"automotivo\",   label: \"Automotivo\",        words: [\"pneu\", \"oleo motor\", \"óleo motor\", \"bateria automotiva\", \"som automotivo\", \"tapete carro\", \"capa banco\"] },\n  { key: \"games\",        label: \"Games\",             words: [\"playstation\", \"ps5\", \"ps4\", \"xbox\", \"nintendo\", \"switch\", \"controle ps\", \"joystick\", \"jogo ps\"] },\n  { key: \"livros\",       label: \"Livros & Papelaria\", words: [\"livro\", \"caderno\", \"caneta\", \"lapis\", \"lápis\", \"agenda\", \"estojo\"] },\n  { key: \"pet\",          label: \"Pet Shop\",          words: [\"racao\", \"ração\", \"petisco\", \"coleira\", \"guia pet\", \"aquario\", \"aquário\", \"areia gato\"] }\n];\n\nconst BRAND_RULES = [\n  { key: \"samsung\",   label: \"Samsung\",      words: [\"samsung\", \"galaxy\"] },\n  { key: \"apple\",     label: \"Apple\",        words: [\"apple\", \"iphone\", \"ipad\", \"macbook\", \"airpods\"] },\n  { key: \"xiaomi\",    label: \"Xiaomi\",       words: [\"xiaomi\", \"redmi\", \"poco\"] },\n  { key: \"motorola\",  label: \"Motorola\",     words: [\"motorola\", \"moto g\", \"moto e\"] },\n  { key: \"lenovo\",    label: \"Lenovo\",       words: [\"lenovo\", \"ideapad\", \"thinkpad\"] },\n  { key: \"dell\",      label: \"Dell\",         words: [\"dell\", \"inspiron\", \"vostro\"] },\n  { key: \"lg\",        label: \"LG\",           words: [\"lg \"] },\n  { key: \"sony\",      label: \"Sony\",         words: [\"sony\", \"playstation\", \"bravia\"] },\n  { key: \"philips\",   label: \"Philips\",      words: [\"philips\", \"walita\"] },\n  { key: \"electrolux\",label: \"Electrolux\",   words: [\"electrolux\"] },\n  { key: \"brastemp\",  label: \"Brastemp\",     words: [\"brastemp\"] },\n  { key: \"consul\",    label: \"Consul\",       words: [\"consul\", \"consul \"] },\n  { key: \"jbl\",       label: \"JBL\",          words: [\"jbl\"] },\n  { key: \"anker\",     label: \"Anker\",        words: [\"anker\", \"soundcore\"] },\n  { key: \"nike\",      label: \"Nike\",         words: [\"nike\", \"air force\", \"air max\"] },\n  { key: \"adidas\",    label: \"Adidas\",       words: [\"adidas\"] },\n  { key: \"lacoste\",   label: \"Lacoste\",      words: [\"lacoste\"] },\n  { key: \"puma\",      label: \"Puma\",         words: [\"puma\"] },\n  { key: \"natura\",    label: \"Natura\",       words: [\"natura\"] },\n  { key: \"boticario\", label: \"O Boticário\",  words: [\"boticario\", \"boticário\"] },\n  { key: \"lattafa\",   label: \"Lattafa\",      words: [\"lattafa\"] }\n];\n\nconst EXCLUDE_KEYWORDS = [\n  \"adulto\", \"sex\", \"erotico\", \"erótico\",\n  \"cigarro eletronico\", \"vape\", \"pod \",\n  \"replica\", \"réplica\", \"falsificad\"\n];\n\nfunction pick(rules, title) {\n  for (const r of rules) if (includesAny(title, r.words)) return { key: r.key, label: r.label };\n  return null;\n}\n\nfunction extractDiscountPct(priceText) {\n  const m = String(priceText).match(/(\\d{1,2})\\s*%\\s*OFF/i);\n  return m ? Number(m[1]) : null;\n}\n\nfunction scoreItem(j, title, category, brand, discount_pct) {\n  let score = SCORE_BASE;\n  if (title.length >= 20) score += 5;\n  if (title.length >= 40) score += 5;\n  if (getImg(j))      score += BONUS_HAS_IMAGE;\n  if (getPriceText(j))score += BONUS_HAS_PRICE;\n  if (getLink(j))     score += BONUS_HAS_LINK;\n  if (category)       score += BONUS_HAS_CATEGORY;\n  if (brand)          score += BONUS_HAS_BRAND;\n  if (discount_pct && discount_pct >= 20) score += BONUS_HAS_DISCOUNT;\n  if (discount_pct && discount_pct >= 40) score += 5;\n  if (discount_pct && discount_pct >= 60) score += 5;\n  if (normText(getLink(j)).includes(\"click1.mercadolivre.com.br/mclics\")) score -= PENALTY_CLICK_TRACK;\n  const valueWords = [\"oferta\", \"promo\", \"desconto\", \"off\", \"original\", \"lacrado\", \"novo\", \"lançamento\", \"lancamento\", \"kit\", \"combo\", \"frete gratis\"];\n  for (const w of valueWords) if (title.includes(w)) score += 1;\n  return score;\n}\n\n// ---------- Execução ----------\nconst items = $input.all();\nconst out = [];\n\nfor (const it of items) {\n  try {\n    const j = it.json ?? {};\n    const titleRaw = getTitle(j);\n    const title    = normText(titleRaw);\n    if (!title) continue;\n    if (includesAny(title, EXCLUDE_KEYWORDS)) continue;\n\n    // Filtro seguro: 0 = sem dados extraidos, nao bloqueia.\n    const MIN_SALES_FINAL  = Number(cfg.min_sales_final  ?? 0);\n    const MIN_RATING_FINAL = Number(cfg.min_rating_final ?? 0);\n    if (MIN_RATING_FINAL > 0 && j.rating > 0 && j.rating < MIN_RATING_FINAL) continue;\n    if (MIN_SALES_FINAL  > 0 && j.sales  > 0 && j.sales  < MIN_SALES_FINAL ) continue;\n\n    const category = pick(CATEGORY_RULES, title) || { key: \"geral\", label: \"Geral\" };\n    const brand    = pick(BRAND_RULES, title);\n    const discount_pct = extractDiscountPct(getPriceText(j));\n    const score    = scoreItem(j, title, category, brand, discount_pct);\n\n    // categoria_origem = categoria definida na URL/CONFIG ML (round-robin das 5 categorias).\n    // categoria_detectada = classificação automática por palavra-chave no título (eletrônicos, moda, etc).\n    // \"categoria\" segue sendo a categoria de ORIGEM, pra não quebrar o round-robin e os limites por categoria no Dedupe.\n    const categoriaOrigem = j.categoria || cfg.ml_category_name || category.key;\n\n    out.push({\n      json: {\n        ...j,\n        categoria:           categoriaOrigem,\n        categoria_origem:    categoriaOrigem,\n        categoria_detectada: category.key,\n        categoria_label:     category.label,\n        name_key:        category.key,\n        marca:           brand?.key ?? null,\n        marca_label:     brand?.label ?? null,\n        discount_pct_preview: discount_pct,\n        score,\n        _heuristica: { title_raw: titleRaw, title_norm: title }\n      }\n    });\n  } catch (err) {\n    out.push({ json: { _error: true, _error_message: err?.message ?? String(err), _original: it.json ?? null } });\n  }\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26848,
+        13456
+      ],
+      "id": "86a2df39-2aa9-4148-a183-cf650756b54b",
+      "name": "Subcategorização"
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "nome_produtos",
+              "stringValue": "={{ $json['[\\'Nomes Produtos\\']'] }}"
+            },
+            {
+              "name": "imagem_produtos",
+              "stringValue": "={{ $json['[\\'Imagem Produtos (src)\\']'] }}"
+            },
+            {
+              "name": "preco_produtos",
+              "stringValue": "={{ $json.preco }}"
+            },
+            {
+              "name": "link_produtos_afiliado",
+              "stringValue": "={{ $json.urls?.[0]?.short_url || '' }}"
+            },
+            {
+              "name": "categoria_origem",
+              "stringValue": "={{ $json.categoria_origem || $json.categoria }}"
+            },
+            {
+              "name": "link_compra_original",
+              "stringValue": "={{ $json.link_compra }}"
+            },
+            {
+              "name": "link_compra",
+              "stringValue": "={{ $json.link_compra }}"
+            },
+            {
+              "name": "sales",
+              "stringValue": "={{ $json.sales }}"
+            },
+            {
+              "name": "rating",
+              "stringValue": "={{ $json.rating }}"
+            },
+            {
+              "name": "price",
+              "stringValue": "={{ $json.price }}"
+            },
+            {
+              "name": "price_old",
+              "stringValue": "={{ $json.price_old }}"
+            },
+            {
+              "name": "discount_pct",
+              "stringValue": "={{ $json.discount_pct }}"
+            }
+          ]
+        },
+        "options": {
+          "includeOtherFields": true
+        }
+      },
+      "id": "a7192d06-b8c0-45fa-b332-c8a71381a1ee",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        28064,
+        13520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "cookie",
+              "value": "={{ $('CONFIG ML').first().json.ml_cookie }}"
+            },
+            {
+              "name": "x-csrf-token",
+              "value": "={{ $('CONFIG ML').first().json.ml_csrf_token }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "origin",
+              "value": "https://www.mercadolivre.com.br"
+            },
+            {
+              "name": "referer",
+              "value": "https://www.mercadolivre.com.br/afiliados/linkbuilder"
+            },
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"urls\": [\"{{ $json.link_compra }}\"],\n  \"tag\": \"{{ $('CONFIG ML').first().json.ml_affiliate_tag }}\"\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 700
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "acf6b200-2672-4f96-90b8-bbd9385c1826",
+      "name": "HTTP Request2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        27488,
+        13520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "filter-1",
+              "leftValue": "={{ $json['[\\'Nomes Produtos\\']'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "filter-2",
+              "leftValue": "={{ $json['[\\'Imagem Produtos (src)\\']'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "fde1e5c0-b585-43de-9bf4-1e66912a6c24",
+              "leftValue": "={{ $json.preco }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "de6056f8-5d60-4477-b940-2f52df81dab8",
+              "leftValue": "={{ $json.link_compra }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "24667b03-5552-4876-a524-3ae8c43ee298",
+      "name": "Filter",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        26704,
+        13280
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "['Nomes Produtos'], ['Imagem Produtos (src)'], preco, preco_antigo, desconto, link_compra, ['Imagem Produtos (data-src)'], ['Imagem Produtos (srcset)'], ['Imagem Produtos (data-srcset)'], vendas_text, rating_text, categoria",
+        "options": {}
+      },
+      "id": "45331d64-75a5-4742-8c89-76c2bbf9785f",
+      "name": "Split Out",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        26480,
+        13280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Cookie",
+              "value": "={{ $json.ml_cookie }}"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "pt-BR,pt;q=0.9,en;q=0.8"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 12000,
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 800
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "84a804f5-ee75-49ff-b4ba-35171fa29fc4",
+      "name": "Extrair HTML1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        26000,
+        13040
+      ],
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Helpers =====\nfunction buildPaginatedUrl(baseUrl, page) {\n  // Remove fragmento (#...) e espacos: o que vem depois de # nao vai pro servidor\n  // e fazia o page=N/_Desde_N cair dentro do fragmento, quebrando a paginacao.\n  baseUrl = String(baseUrl).trim().split(\"#\")[0];\n  // /lista.mercadolivre.com.br usa offset (_Desde_N), 48 items por página\n  if (baseUrl.includes('lista.mercadolivre.com.br')) {\n    if (page <= 1) return baseUrl;\n    const offset = (page - 1) * 48 + 1;\n    const seg = `_Desde_${offset}`;\n    // ML tem ordem canonica fixa: ..._CustoFrete_Gratis _Desde_N _DiscountRange_30-100 _NoIndex_True\n    // Inserir o _Desde_N FORA dessa ordem faz o ML responder 200 com aviso de redirect\n    // no corpo (sem produtos). Entao inserimos logo ANTES do _DiscountRange (ou _NoIndex).\n    if (baseUrl.includes('_DiscountRange')) {\n      return baseUrl.replace('_DiscountRange', `${seg}_DiscountRange`);\n    }\n    if (baseUrl.includes('_NoIndex')) {\n      return baseUrl.replace('_NoIndex', `${seg}_NoIndex`);\n    }\n    if (baseUrl.includes('_')) {\n      return baseUrl.replace(/_([A-Z])/, `${seg}_$1`);\n    }\n    return `${baseUrl}${seg}`;\n  }\n\n  // /ofertas, /c/, busca normal — paginação via ?page=N\n  if (page <= 1) return baseUrl;\n  const sep = baseUrl.includes('?') ? '&' : '?';\n  return `${baseUrl}${sep}page=${page}`;\n}\n\n// ===== Estado do LOOP de tentativas (retry pra atingir o piso de produtos) =====\n// Cada vez que o workflow volta aqui (porque não atingiu o piso na tentativa anterior),\n// avança um bloco de páginas novo, pra não repetir o que já foi varrido antes.\nconst staticData = $getWorkflowStaticData('global'); // 'global' = compartilhado entre TODOS os nodes (precisa ser visto pelo 'Acumular Resultados')\n\n// ===== Reset de estado a cada EXECUCAO nova (agendada/manual) =====\n// O Static Data sobrevive entre execucoes. Sem zerar, 'tentativa' e 'acumulados'\n// vazariam de um dia pro outro, fazendo o pageOffset crescer pra paginas inexistentes.\n// So zera quando a execucao mudou; dentro do mesmo run (retry) mantem o acumulado.\nconst _execId = $execution?.id ?? null;\nif (staticData._execId !== _execId) {\n  staticData._execId = _execId;\n  staticData.tentativa = 0;\n  staticData.acumulados = [];\n  staticData.esgotadas = {};\n}\nconst tentativa = Number(staticData.tentativa || 0);\n\n// ===== Config =====\n// Lê SEMPRE do node CONFIG ML (não do input direto), pois este node também é\n// alimentado pelo \"IF - Precisa Mais?\" nas voltas do loop, cujo input não traz a config.\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\n\nconst settings = (() => {\n  const s = cfg.ml_queries;\n  if (s !== null && typeof s === 'object' && !Array.isArray(s)) return s.settings || s;\n  if (typeof s === 'string') {\n    try { const p = JSON.parse(s); return p.settings || p; } catch (e) {}\n  }\n  return {};\n})();\n\nconst pages = Math.max(1, Number(settings.pages || 5));\n// VELOCIDADE: cada tentativa varre no MAXIMO 5 paginas por categoria. O loop de\n// tentativas (pageOffset) continua avancando os blocos seguintes, entao o alcance\n// total de paginas e o mesmo — mas o piso de produtos e checado muito mais cedo.\nconst pagesPerAttempt = Math.max(1, Math.min(5, pages));\nconst pageOffset = tentativa * pagesPerAttempt;\n\nconst excludeCategories = Array.isArray(settings.exclude_categories)\n  ? settings.exclude_categories\n  : [];\n\n// ===== Categorias (múltiplas URLs) =====\n// ml_categories é um array de objetos { nome, url }, configurado no node CONFIG ML.\n// Mantém compatibilidade: se não houver ml_categories, cai de volta no ml_base_url antigo (1 categoria só).\nlet categories = [];\ntry {\n  const raw = cfg.ml_categories;\n  if (Array.isArray(raw)) {\n    categories = raw;\n  } else if (typeof raw === 'string' && raw.trim()) {\n    categories = JSON.parse(raw);\n  }\n} catch (e) {\n  categories = [];\n}\n\nif (!Array.isArray(categories) || categories.length === 0) {\n  // Fallback ROBUSTO: nichos embutidos no proprio node.\n  // Garante o round-robin mesmo se o campo ml_categories do CONFIG vier\n  // vazio ou quebrado (era isso que derrubava tudo pro feed generico 'casa').\n  categories = [\n    { nome: \"airfryer\", url: \"https://lista.mercadolivre.com.br/air-fryer_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"cama\", url: \"https://lista.mercadolivre.com.br/jogo-de-cama-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"organizador\", url: \"https://lista.mercadolivre.com.br/organizador-de-cozinha_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"vestido\", url: \"https://lista.mercadolivre.com.br/vestido-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"conjunto\", url: \"https://lista.mercadolivre.com.br/conjunto-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"bolsa\", url: \"https://lista.mercadolivre.com.br/bolsa-feminina_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"oculos\", url: \"https://lista.mercadolivre.com.br/oculos-de-sol-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"perfume\", url: \"https://lista.mercadolivre.com.br/perfume-importado_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"creme\", url: \"https://lista.mercadolivre.com.br/creme-hidratante-corporal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"legging\", url: \"https://lista.mercadolivre.com.br/legging-fitness_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"fitness\", url: \"https://lista.mercadolivre.com.br/conjunto-fitness-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" }\n  ];\n}\n\n// Filtra categorias sem URL válida (ex: placeholders não preenchidos)\ncategories = categories.filter(c => c && c.url && !/^COLE_AQUI/i.test(String(c.url).trim()));\n\n// Categorias que ja responderam \"nenhuma pagina com produtos\" nesta execucao\n// (marcadas pelo node \"Extrair HTML\") sao puladas: nao gasta requisicao em pagina inexistente.\nconst esgotadas = (staticData.esgotadas && typeof staticData.esgotadas === 'object') ? staticData.esgotadas : {};\nconst categoriesAtivas = categories.filter(c => !esgotadas[String((c && c.nome) || '').trim()]);\nif (categoriesAtivas.length) categories = categoriesAtivas;\nelse if (tentativa > 0) return [];\n\n// ===== Geração dos links em ROUND-ROBIN por categoria =====\n// Ordem de saída: cat1_p1, cat2_p1, cat3_p1, ..., catN_p1, cat1_p2, cat2_p2, ...\n// Assim o scraping já visita as categorias intercaladas, página por página.\nconst out = [];\n\ntry {\n  for (let page = 1; page <= pagesPerAttempt; page++) {\n    const pageReal = page + pageOffset; // avança o bloco de páginas a cada tentativa do loop\n    for (const cat of categories) {\n      const baseUrl = String(cat.url).trim();\n      const categoryName = String(cat.nome || 'categoria').trim();\n      const link = buildPaginatedUrl(baseUrl, pageReal);\n\n      out.push({\n        json: {\n          marketplace: 'mercadolivre',\n          name: `${categoryName}_p${pageReal}`,\n          categoria: categoryName,\n          page: pageReal,\n          tentativa,\n          link,\n          min_discount:        Number(settings.min_discount ?? 10),\n          min_rating:          Number(settings.min_rating   ?? 4.0),\n          free_shipping:       settings.free_shipping ?? true,\n          sort:                settings.sort || 'discount_desc',\n          exclude_categories:  excludeCategories,\n          ml_affiliate_endpoint: cfg.ml_affiliate_endpoint,\n          ml_affiliate_tag:      cfg.ml_affiliate_tag,\n          ml_csrf_token:         cfg.ml_csrf_token,\n          ml_cookie:             cfg.ml_cookie,\n        },\n      });\n    }\n  }\n} catch (err) {\n  // Não derruba o workflow se algo bizarro acontecer aqui\n  out.push({\n    json: {\n      _error: true,\n      _error_message: err?.message ?? String(err),\n      _categories: categories,\n    },\n  });\n}\n\nreturn out;"
+      },
+      "id": "52281b87-cd71-494d-a3e7-d956675eb680",
+      "name": "Montar Links ML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25584,
+        13168
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "ml_queries",
+              "stringValue": "{\n  \"settings\": {\n    \"min_discount\": 10,\n    \"min_rating\": 4.0,\n    \"free_shipping\": true,\n    \"pages\": 1,\n    \"sort\": \"discount_desc\",\n    \"exclude_categories\": [\n      \"MLB1051\"\n    ]\n  }\n}"
+            },
+            {
+              "name": "ml_affiliate_tag",
+              "stringValue": "__ML_AFFILIATE_TAG__"
+            },
+            {
+              "name": "ml_cookie",
+              "stringValue": "__ML_COOKIE__"
+            },
+            {
+              "name": "ml_csrf_token",
+              "stringValue": "__ML_CSRF_TOKEN__"
+            },
+            {
+              "name": "ml_affiliate_endpoint",
+              "stringValue": "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink"
+            },
+            {
+              "name": "ml_categories",
+              "stringValue": "[\n  {\n    \"nome\": \"cobre-leito\",\n    \"url\": \"https://lista.mercadolivre.com.br/cobre-leito-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cama\",\n    \"url\": \"https://lista.mercadolivre.com.br/jogo-de-cama-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"edredom\",\n    \"url\": \"https://lista.mercadolivre.com.br/edredom-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"travesseiro\",\n    \"url\": \"https://lista.mercadolivre.com.br/travesseiro_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cobertor\",\n    \"url\": \"https://lista.mercadolivre.com.br/cobertor-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"toalha\",\n    \"url\": \"https://lista.mercadolivre.com.br/jogo-de-toalha-de-banho_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"tapete\",\n    \"url\": \"https://lista.mercadolivre.com.br/tapete-para-sala_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cortina\",\n    \"url\": \"https://lista.mercadolivre.com.br/cortina-para-sala_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"potes\",\n    \"url\": \"https://lista.mercadolivre.com.br/kit-potes-hermeticos_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"organizador\",\n    \"url\": \"https://lista.mercadolivre.com.br/organizador-de-cozinha_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cafeteira\",\n    \"url\": \"https://lista.mercadolivre.com.br/cafeteira-eletrica_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"airfryer\",\n    \"url\": \"https://lista.mercadolivre.com.br/air-fryer_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"tv\",\n    \"url\": \"https://lista.mercadolivre.com.br/smart-tv_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  }\n]"
+            },
+            {
+              "name": "max_itens_categoria",
+              "stringValue": "10"
+            },
+            {
+              "name": "max_itens_name",
+              "stringValue": "3"
+            },
+            {
+              "name": "max_itens_linha",
+              "stringValue": "2"
+            },
+            {
+              "name": "max_itens_marca",
+              "stringValue": "10"
+            },
+            {
+              "name": "max_total",
+              "stringValue": "100"
+            },
+            {
+              "name": "similarity_threshold",
+              "stringValue": "0.9"
+            },
+            {
+              "name": "min_total",
+              "stringValue": "60"
+            },
+            {
+              "name": "min_commission_value",
+              "stringValue": "5"
+            },
+            {
+              "name": "commission_rate",
+              "stringValue": "5"
+            },
+            {
+              "name": "commission_rate_by_category",
+              "stringValue": "{\"eletronicos\": 6, \"moda\": 15, \"beleza\": 23, \"casa\": 12, \"eletrodomesticos\": 6, \"esporte\": 14, \"infantil\": 20, \"ferramentas\": 8, \"automotivo\": 6, \"games\": 5, \"livros\": 10, \"pet\": 10, \"geral\": 10, \"_default\": 10}"
+            },
+            {
+              "name": "max_total_final",
+              "stringValue": "80"
+            },
+            {
+              "name": "max_tentativas",
+              "stringValue": "8"
+            },
+            {
+              "name": "min_total_final",
+              "stringValue": "20"
+            },
+            {
+              "name": "ml_base_url",
+              "stringValue": "https://lista.mercadolivre.com.br/ofertas-do-dia_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True"
+            },
+            {
+              "name": "ml_category_name",
+              "stringValue": "casa"
+            },
+            {
+              "name": "final_pick",
+              "stringValue": "11"
+            },
+            {
+              "name": "max_price",
+              "stringValue": "1500"
+            },
+            {
+              "name": "w_sales",
+              "stringValue": "0.2"
+            },
+            {
+              "name": "w_rating",
+              "stringValue": "0.25"
+            },
+            {
+              "name": "w_discount",
+              "stringValue": "0.35"
+            },
+            {
+              "name": "w_commission",
+              "stringValue": "0.2"
+            },
+            {
+              "name": "similar_words_window_hours",
+              "stringValue": "6"
+            },
+            {
+              "name": "similar_words_min_len",
+              "stringValue": "4"
+            },
+            {
+              "name": "similar_words_strict",
+              "stringValue": "false"
+            },
+            {
+              "name": "similar_words_stoplist",
+              "stringValue": "kit,kits,combo,jogo,conjunto,original,novo,nova,com,sem,para,por,pcs,pecas,peca,unidades,unidade,und,un,ml,kg,litro,litros,grama,gramas,premium,profissional,promocao,oferta,desconto,frete,gratis"
+            },
+            {
+              "name": "commission_price_tiers",
+              "stringValue": "[{\"max\":50,\"rate\":16},{\"max\":120,\"rate\":14},{\"max\":250,\"rate\":12},{\"max\":100000,\"rate\":10}]"
+            },
+            {
+              "name": "min_sales_final",
+              "stringValue": "10"
+            },
+            {
+              "name": "min_rating_final",
+              "stringValue": "4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3fcac001-5f40-44d6-b619-ffffe29d9ff9",
+      "name": "CONFIG ML",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        25360,
+        13168
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 8
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        25296,
+        13024
+      ],
+      "id": "a6b20d85-ead7-4abb-a38b-6a0b7e78c9b2",
+      "name": "Wait",
+      "webhookId": "7b6f5fa6-a127-4fc2-bca0-1be92ca4bb47"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        27872,
+        13536
+      ],
+      "id": "7a175ccc-02b5-4776-8369-9a8438394d71",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// pega tudo que já existe na Data Table\nconst existingRows = $('Get Existing IDs').all();\n\n// cria Set com os link_compra já salvos\nconst existingLinks = new Set(\n  existingRows\n    .map(r => String(\n      r.json.link_compra || ''\n    ).trim())\n    .filter(Boolean)\n);\n\n// filtra os novos\nconst out = [];\n\nfor (const item of $input.all()) {\n  const j = item.json || {};\n\n  const currentLink = String(\n    j.link_compra || ''\n  ).trim();\n\n  // se já existir na tabela, ignora\n  if (existingLinks.has(currentLink)) {\n    continue;\n  }\n\n  out.push(item);\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27584,
+        13280
+      ],
+      "id": "edfef9cf-d95d-4195-a451-89e4c9bb3201",
+      "name": "Filter2"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const html = $json.data || '';\nconst categoriaInput = $json.categoria || '';\n\nconst vazio = {\n  'Nomes Produtos': [], 'Imagem Produtos (src)': [], 'preco': [],\n  'preco_antigo': [], 'desconto': [], 'link_compra': [],\n  'Imagem Produtos (data-src)': [], 'Imagem Produtos (srcset)': [],\n  'Imagem Produtos (data-srcset)': [], 'vendas_text': [],\n  'vendas_text_alt': [], 'rating_text': [], 'categoria': [],\n};\n\nconst m = html.match(/_n\\.ctx\\.s\\.q\\(\"0:([\\s\\S]*?)\\\\n\"\\);/);\nif (!m) return { json: { ...vazio, _erro: 'payload nordic nao encontrado (possivel bloqueio/captcha)' } };\n\nlet s;\ntry { s = JSON.parse('\"' + m[1] + '\"'); }\ncatch (e) { return { json: { ...vazio, _erro: 'falha ao decodificar payload' } }; }\n\nconst cards = [];\nlet idx = 0;\nwhile ((idx = s.indexOf('\"results\":[', idx)) !== -1) {\n  const j = s.indexOf('[', idx);\n  let depth = 0, k = j, inStr = false, esc = false;\n  while (k < s.length) {\n    const c = s[k];\n    if (inStr) {\n      if (esc) esc = false;\n      else if (c === '\\\\') esc = true;\n      else if (c === '\"') inStr = false;\n    } else {\n      if (c === '\"') inStr = true;\n      else if (c === '[') depth++;\n      else if (c === ']') { depth--; if (depth === 0) break; }\n    }\n    k++;\n  }\n  const arr = s.slice(j, k + 1).replace(/(?<=[:,\\[])u(?=[,}\\]])/g, 'null');\n  try {\n    for (const r of JSON.parse(arr)) {\n      if (r && r.id === 'POLYCARD' && r.polycard) cards.push(r.polycard);\n    }\n  } catch (e) { /* ignora bloco invalido */ }\n  idx = k;\n}\n\nif (!cards.length) {\n  // Marca a categoria como esgotada NESTA execucao quando a pagina > 1 nao existe.\n  // O node \"Montar Links ML\" pula categorias marcadas nas tentativas seguintes.\n  try {\n    const _sd = $getWorkflowStaticData('global');\n    let _pg = Number($json.page || 0);\n    let _cat = String(categoriaInput || '').trim();\n    if (!_pg || !_cat) {\n      try {\n        const _src = $('Montar Links ML').item.json || {};\n        if (!_pg) _pg = Number(_src.page || 0);\n        if (!_cat) _cat = String(_src.categoria || '').trim();\n      } catch (_) {}\n    }\n    if (_pg > 1 && _cat) {\n      if (!_sd.esgotadas || typeof _sd.esgotadas !== 'object') _sd.esgotadas = {};\n      _sd.esgotadas[_cat] = true;\n    }\n  } catch (_) {}\n  return { json: { ...vazio, _erro: 'nenhuma pagina com produtos' } };\n}\n\nconst qm = s.match(/\"query\":\"([^\"]*)\"/);\nconst query = qm ? qm[1] : '';\n\nconst out = { ...vazio };\n\nfor (const pc of cards) {\n  const meta = pc.metadata || {};\n\n  const isAd = meta.is_pad === 'true' || meta.is_pad === true;\n  let url = meta.url || '';\n  if (isAd || !url || url.startsWith('click1.')) continue;\n  if (!url.startsWith('http')) url = 'https://' + url;\n\n  const comps = {};\n  for (const c of (pc.components || [])) if (!comps[c.type]) comps[c.type] = c;\n\n  const titulo = comps.title?.title?.text || '';\n  const price = comps.price?.price || {};\n  const atual = price.current_price?.value ?? null;\n  // preco antigo: caminho conhecido + varredura profunda (o ML muda a posicao\n  // do previous_price entre layouts, e sem ele o robo mandava \"De X por X\").\n  function deepPrev(obj, depth) {\n    if (!obj || typeof obj !== 'object' || (depth || 0) > 6) return null;\n    if (Array.isArray(obj)) {\n      for (const it of obj) { const r = deepPrev(it, (depth || 0) + 1); if (r !== null) return r; }\n      return null;\n    }\n    const k = String(obj.key || obj.type || obj.id || '').toLowerCase();\n    if (/previous_price|original_price|price_before|old_price/.test(k)) {\n      const v = obj?.price?.value ?? obj?.value ?? null;\n      const n = Number(v);\n      if (Number.isFinite(n) && n > 0) return n;\n    }\n    for (const kk of Object.keys(obj)) {\n      if (/previous_price|original_price|old_price/.test(kk.toLowerCase())) {\n        const cand = obj[kk];\n        const n = Number(cand && typeof cand === 'object' ? (cand.value ?? cand?.price?.value) : cand);\n        if (Number.isFinite(n) && n > 0) return n;\n      }\n      const r = deepPrev(obj[kk], (depth || 0) + 1);\n      if (r !== null) return r;\n    }\n    return null;\n  }\n  let antigo = price.price_labels?.[0]?.values\n    ?.find(v => v.key === 'previous_price')?.price?.value ?? null;\n  if (antigo === null || !(Number(antigo) > 0)) antigo = deepPrev(price, 0);\n  // fallback final: reconstroi pelo % de desconto do card\n  if ((antigo === null || !(Number(antigo) > 0)) && atual !== null) {\n    const pctTxt = JSON.stringify(price.discount_polylabel || price.discount || '');\n    const pm = pctTxt.match(/(\\d{1,2})\\s*%/);\n    const pct = pm ? parseInt(pm[1], 10) : 0;\n    if (pct > 0 && pct < 90) antigo = Number((Number(atual) / (1 - pct / 100)).toFixed(2));\n  }\n  if (antigo !== null && atual !== null && Number(antigo) <= Number(atual)) antigo = null;\n  const pill = price.discount_polylabel?.values\n    ?.find(v => v.key === 'previous_label')?.pill?.text || '';\n\n  const alt = comps.review_compacted?.review_compacted?.alt_text || '';\n  const rMatch = alt.match(/Classificação ([\\d.,]+)/);\n  const vendasFrase = alt.includes('vendidos')\n    ? (alt.split('.').find(t => t.includes('vendidos')) || '').trim()\n    : '';\n\n  const picId = pc.pictures?.pictures?.[0]?.id || '';\n  const imgUrl = picId ? `https://http2.mlstatic.com/D_NQ_NP_${picId}-O.webp` : '';\n\n  out['Nomes Produtos'].push(titulo);\n  out['Imagem Produtos (src)'].push(imgUrl);\n  out['Imagem Produtos (data-src)'].push(imgUrl);\n  out['preco'].push(atual !== null ? String(atual) : '');\n  out['preco_antigo'].push(antigo !== null ? String(antigo) : '');\n  out['desconto'].push(pill);\n  out['link_compra'].push(url);\n  out['vendas_text'].push(vendasFrase);\n  out['vendas_text_alt'].push(vendasFrase);\n  out['rating_text'].push(rMatch ? rMatch[1] : '');\n  out['categoria'].push(categoriaInput || query);\n}\n\nif (!out['Nomes Produtos'].length) {\n  return { json: { ...vazio, _erro: 'apenas anuncios pagos nesta pagina' } };\n}\n\nreturn { json: out };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26160,
+        13040
+      ],
+      "id": "981a86ff-5c7f-44ad-b02e-0b5a7c875257",
+      "name": "Extrair HTML"
     }
-   },
-   "type": "n8n-nodes-base.dataTable",
-   "typeVersion": 1.1,
-   "position": [
-    25312,
-    13376
-   ],
-   "id": "3e5dc026-3713-49f1-83e9-fac07b4273c9",
-   "name": "Get Existing IDs",
-   "alwaysOutputData": true
-  },
-  {
-   "parameters": {
-    "jsCode": "// ============================================================\n//  Nó: \"Dedupe Precoce por ID\"   (n8n Code node)\n//  Modo: Run Once for All Items\n//  Posição: ANTES do HTTP Request2 (API de afiliado = caro/bot)\n//\n//  CHAVE = id MLB extraído do link_compra (existe ANTES do scrape),\n//  comparado contra a coluna \"ID\" da data table (mesmo id que o\n//  \"Filter Already Saved\" usa). O link de afiliado salvo NÃO tem\n//  o id, então a única chave confiável entre as duas fases é o id.\n//  Também remove duplicados dentro da própria rodada.\n// ============================================================\n\n// ---- extractId: MESMA lógica do \"Code in JavaScript2\" (formato precisa bater) ----\nfunction extractId(url) {\n  if (!url) return '';\n  const u = String(url);\n  const m =\n    u.match(/\\/p\\/([A-Z]+U?\\d+)/i) ||\n    u.match(/\\/up\\/([A-Z]+U?\\d+)/i) ||\n    u.match(/(MLB-?U?\\d+)/i);\n  return m ? m[1].replace('-', '').toUpperCase() : '';\n}\n\n// link cru do item nesta fase (Parse Preço grava em link_compra)\nfunction linkOf(j) {\n  return j.link_compra || j.link_produtos || j.link || j.url || '';\n}\n\n// id do item recém-encontrado (a partir do link cru)\nfunction incomingId(j) {\n  // se algum nó anterior já tiver setado um id, respeita; senão extrai do link\n  const direct = String(j.ID || j.id || '').trim().toUpperCase();\n  if (direct) return direct.replace('-', '');\n  return extractId(linkOf(j));\n}\n\n// ---- 1. Conjunto de ids JÁ SALVOS na planilha (coluna \"ID\") ----\nconst existing = new Set();\nlet existingRows = [];\ntry {\n  // Busca DIRETO na Data Table via API do n8n. O nó \"Get Existing IDs\" vinha\n  // voltando vazio, e por isso o dedupe não barrava nada (mesmos produtos voltando).\n  const _http = this.helpers.httpRequest;\n  const _BASE = \"https://n8n.gacompany.online/api/v1\";\n  const _KEY = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4ZTRiYThlOC01ZTg3LTRlY2EtYjg5NC0yNzgxNjA1Zjk3MzciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiNzllYTk2OGQtYTZhZC00NTI1LWE4YWYtNjRiODc2OTk1YzU0IiwiaWF0IjoxNzc5MjM4NDE5fQ.ohu4mPobwtuApSpWvuA-kReAEbU9zWIcxbT_6In5f4g\";\n  const _TABLE = \"HHVRHOgRDCza0NBQ\";\n  // PAGINACAO: pega TODAS as linhas em blocos (sem teto de 250). Dedup de ids no\n  // proprio loop torna eventuais sobreposicoes inofensivas; para quando uma pagina\n  // nao traz id novo (fim, ou caso o backend ignore o offset -> degrada com seguranca).\n  const _PAGE = 250;\n  const _rows = [];\n  const _seen = new Set();\n  let _cursor = '';\n  for (let _g = 0; _g < 500; _g++) {   // teto de seguranca: 500 * 200 = 100k linhas\n    let _resp;\n    try {\n      _resp = await _http({\n        method: \"GET\",\n        url: `${_BASE}/data-tables/${_TABLE}/rows`,\n        qs: _cursor ? { limit: _PAGE, cursor: _cursor } : { limit: _PAGE },\n        headers: { \"X-N8N-API-KEY\": _KEY },\n        json: true,\n      });\n    } catch (e) { break; }\n    const _batch = (_resp && _resp.data) ? _resp.data : (Array.isArray(_resp) ? _resp : []);\n    if (!_batch.length) break;\n    let _novos = 0;\n    for (const _r of _batch) {\n      const _idk = String((_r && _r.id) != null ? _r.id : \"\");\n      if (_idk && !_seen.has(_idk)) { _seen.add(_idk); _rows.push(_r); _novos++; }\n    }\n    if (_novos === 0) break;             // pagina sem id novo = acabou (ou offset ignorado)\n    if (_batch.length < _PAGE) break;    // ultima pagina\n    _cursor = (_resp && _resp.nextCursor) ? String(_resp.nextCursor) : '';\n    if (!_cursor) break;\n  }\n  existingRows = _rows.map(r => ({ json: r }));\n} catch (e) {\n  try { existingRows = $('Get Existing IDs').all(); } catch (_) { existingRows = []; }\n}\nfor (const r of existingRows) {\n  const row = r.json || {};\n  // A chave entre as duas fases é o id MLB, que fica DENTRO de link_compra.\n  let id = extractId(row.link_compra || row.link_produtos || row.link || row.url || '');\n  if (!id) id = String(row.id || row.ID || '').trim().toUpperCase().replace('-', '');\n  if (!id) id = extractId(row.offerlink || row.link_produtos_afiliado || '');\n  if (id) existing.add(id);\n}\n\n// ---- 2. Filtra os itens recém-encontrados ----\nconst seenThisRun = new Set();\nconst out = [];\nlet semId = 0, dropExisting = 0, dropDupRun = 0;\n\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  const id = incomingId(j);\n\n  if (!id) { semId++; out.push(it); continue; } // sem id não dá pra deduplicar: deixa passar\n\n  if (existing.has(id))    { dropExisting++; continue; } // já está na planilha\n  if (seenThisRun.has(id)) { dropDupRun++;   continue; } // repetido nesta rodada\n\n  seenThisRun.add(id);\n  out.push(it);\n}\n\nconsole.log(\n  `[Dedupe Precoce] entrada=${$input.all().length} | ` +\n  `na_planilha=${dropExisting} | dup_rodada=${dropDupRun} | ` +\n  `sem_id=${semId} | novos=${out.length} | base_existente=${existing.size}`\n);\n\nreturn out;\n"
-   },
-   "id": "5326e28f-3fdd-4e5d-98bf-bb9f14108d40",
-   "name": "Dedupe Precoce por ID",
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    26992,
-    13376
-   ]
-  },
-  {
-   "parameters": {
-    "conditions": {
-     "options": {
-      "caseSensitive": true,
-      "leftValue": "",
-      "typeValidation": "strict",
-      "version": 1
-     },
-     "conditions": [
-      {
-       "id": "cond-precisa-mais",
-       "leftValue": "={{ $json.precisaContinuar }}",
-       "rightValue": true,
-       "operator": {
-        "type": "boolean",
-        "operation": "true",
-        "singleValue": true
-       }
-      }
-     ],
-     "combinator": "and"
+  ],
+  "connections": {
+    "Dedupe Precoce por ID": {
+      "main": [
+        [
+          {
+            "node": "Dedupe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "options": {}
-   },
-   "id": "8c256273-d7c3-44ba-a8c3-2c7f2b3eccd8",
-   "name": "IF - Precisa Mais?",
-   "type": "n8n-nodes-base.if",
-   "typeVersion": 2,
-   "position": [
-    27520,
-    14048
-   ]
-  },
-  {
-   "parameters": {
-    "jsCode": "// ===== Seleciona os MELHORES produtos do pool acumulado e entrega só eles =====\n// Roda quando o loop de scraping termina. Ranqueia o pool por\n// desconto + vendas + avaliacao + valor de comissao (com teto de preco),\n// aplica o filtro de PALAVRAS PARECIDAS das ultimas execucoes e pega FINAL_PICK.\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\nconst staticData = $getWorkflowStaticData('global');\nconst acumulados = Array.isArray(staticData.acumulados) ? staticData.acumulados : [];\n\n// Limpa o estado pra proxima execucao agendada comecar do zero\nstaticData.acumulados = [];\nstaticData.tentativa = 0;\n\n// ---------- Knobs (ajustaveis no CONFIG ML) ----------\nconst FINAL_PICK   = Math.max(1, Number(cfg.final_pick ?? 3));        // quantos inserir por execucao\nconst MAX_PRICE    = Number(cfg.max_price ?? 0);                      // teto de preco (0 = sem teto) -> \"nada muito caro\"\nconst MIN_COMM_VAL = Number(cfg.min_commission_value ?? 0);          // comissao minima em R$ (estimada)\nconst W_SALES      = Number(cfg.w_sales ?? 0.35);\nconst W_RATING     = Number(cfg.w_rating ?? 0.20);\nconst W_DISCOUNT   = Number(cfg.w_discount ?? 0.25);\nconst W_COMMISSION = Number(cfg.w_commission ?? 0.20);\nconst WINDOW_H     = Number(cfg.similar_words_window_hours ?? 6);     // janela ~= 2 execucoes (3h cada)\nconst MIN_WORD_LEN = Number(cfg.similar_words_min_len ?? 4);\nconst STRICT_WORDS = String(cfg.similar_words_strict ?? 'false') === 'true'; // true = nunca completa com similar\nconst CATEGORIA    = String(cfg.ml_category_name ?? '').toLowerCase().trim();\nconst MIN_SALES    = Number(cfg.min_sales_final  ?? 10);   // vendas minimas: corta produto que \"ninguem sabe o que e\"\nconst MIN_RATING   = Number(cfg.min_rating_final ?? 4.0); // nota minima p/ \"bem avaliado\"\n\n// Taxa de comissao por categoria (mesma tabela do \"Code in JavaScript2\") -> p/ ESTIMAR o valor em R$\nfunction commissionRate(categoria) {\n  let table = {};\n  try {\n    const raw = cfg.commission_rate_by_category;\n    table = (raw && typeof raw === 'object') ? raw : JSON.parse(raw || '{}');\n  } catch (e) {}\n  const key = String(categoria || '').toLowerCase().trim();\n  const r = Number(table[key]);\n  return Number.isFinite(r) ? r : Number(cfg.commission_rate ?? table._default ?? 10);\n}\n\n// Comissao por FAIXA DE PRECO (mesma logica do \"Code in JavaScript2\"): item mais barato => % maior.\nfunction getCommissionPriceTiers(c) {\n  try {\n    const raw = c.commission_price_tiers;\n    const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw.trim() ? JSON.parse(raw) : null);\n    if (Array.isArray(arr) && arr.length) return arr.slice().sort((a, b) => (Number(a.max) || 0) - (Number(b.max) || 0));\n  } catch (e) {}\n  return null;\n}\nconst COMMISSION_TIERS = getCommissionPriceTiers(cfg);\nfunction rateByPrice(p) {\n  if (!COMMISSION_TIERS || !(p > 0)) return null;\n  for (const t of COMMISSION_TIERS) { if (p <= (Number(t.max) || 0)) return Number(t.rate); }\n  return Number(COMMISSION_TIERS[COMMISSION_TIERS.length - 1].rate);\n}\n\n// ---------- Helpers de texto / parsing ----------\nfunction norm(s) {\n  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, ' ').trim();\n}\nfunction titleOf(j) {\n  return j?._heuristica?.title_norm || norm(j?.['Nomes Produtos'] || j?.nome || j?.title || '');\n}\n// \"+5mil vendidos\", \"1,2 mil\", \"500 vendidos\", \"10 mil\" -> numero\nfunction parseSales(j) {\n  if (j.sales != null && j.sales !== '') { const n = Number(j.sales); if (Number.isFinite(n)) return n; }\n  const t = norm(String(j.vendas_text || '') + ' ' + String(j.vendas_text_alt || ''));\n  const m = t.match(/\\+?\\s*([\\d.,]+)\\s*(mil|k)?/);\n  if (!m) return 0;\n  let n = parseFloat(m[1].replace(/\\./g, '').replace(',', '.'));\n  if (!Number.isFinite(n)) return 0;\n  if (m[2]) n *= 1000;\n  return Math.round(n);\n}\n// \"4.8\", \"4,8\" -> nota 0..5\nfunction parseRating(j) {\n  if (j.rating != null && j.rating !== '') { const n = Number(j.rating); if (Number.isFinite(n) && n <= 5) return n; }\n  const t = String(j.rating_text || '').replace(',', '.');\n  const m = t.match(/([0-5](?:\\.\\d{1,2})?)/);\n  return m ? parseFloat(m[1]) : 0;\n}\n// Palavras \"significativas\" do titulo (ignora genericas/curtas/numeros)\nconst STOP = new Set(\n  String(cfg.similar_words_stoplist ??\n    'kit,kits,combo,jogo,conjunto,original,novo,nova,com,sem,para,por,pcs,pecas,peca,unidades,unidade,und,un,ml,kg,litro,litros,grama,gramas,premium,profissional,promocao,oferta,desconto,frete,gratis,the,and,uma,dos,das'\n  ).split(',').map(s => norm(s)).filter(Boolean)\n);\nfunction palavras(title) {\n  return norm(title).split(/[^a-z0-9]+/).filter(w => w.length >= MIN_WORD_LEN && !STOP.has(w) && !/^\\d+$/.test(w));\n}\n\n// ---------- 1) Normaliza candidatos ----------\nlet cands = acumulados.map(j => {\n  const price = Number(j.price) || 0;\n  const discount = Number(j.discount_pct ?? j.discount_pct_preview ?? 0) || 0;\n  const sales = parseSales(j);\n  const rating = parseRating(j);\n  const rate = rateByPrice(price) ?? commissionRate(j.categoria || j.categoria_origem || CATEGORIA);\n  const commVal = price > 0 ? Number((price * rate / 100).toFixed(2)) : 0;\n  return { j, price, discount, sales, rating, commVal };\n});\n\nconst totalPool = cands.length;\n\n// ---------- 2) Filtros duros: precisa de preco; teto de preco; comissao minima ----------\ncands = cands.filter(c => c.price > 0);\nif (MAX_PRICE > 0)    cands = cands.filter(c => c.price <= MAX_PRICE);\nif (MIN_COMM_VAL > 0) cands = cands.filter(c => c.commVal >= MIN_COMM_VAL);\n\n// ---------- 3) Score composto (cada sinal normalizado 0..100) ----------\nconst maxSales = Math.max(1, ...cands.map(c => c.sales));\nconst maxComm  = Math.max(1, ...cands.map(c => c.commVal));\nfor (const c of cands) {\n  const salesN  = (c.sales / maxSales) * 100;\n  const ratingN = (Math.min(c.rating, 5) / 5) * 100;\n  const discN   = Math.min(c.discount, 100);\n  const commN   = (c.commVal / maxComm) * 100;\n  c.scoreFinal = salesN * W_SALES + ratingN * W_RATING + discN * W_DISCOUNT + commN * W_COMMISSION;\n}\ncands.sort((a, b) => b.scoreFinal - a.scoreFinal);\n\n// ---------- 4) Palavras das ULTIMAS execucoes (janela WINDOW_H h), mesma categoria ----------\n// \"Get Existing IDs\" foi lido no inicio da execucao -> reflete o que foi inserido nas runs anteriores.\nlet recentes = [];\ntry { recentes = $('Get Existing IDs').all().map(r => r.json || {}); } catch (e) { recentes = []; }\nconst cutoff = Date.now() - WINDOW_H * 3600 * 1000;\nconst palavrasBloqueadas = new Set();\nfor (const r of recentes) {\n  const cat = String(r.categoria || '').toLowerCase().trim();\n  if (CATEGORIA && cat && cat !== CATEGORIA) continue;        // so a categoria deste scraper\n  const t = Date.parse(r.createdAt || r.sent_at || '') || 0;\n  if (t < cutoff) continue;                                   // fora da janela (>2 execucoes atras)\n  for (const w of palavras(r.productname || '')) palavrasBloqueadas.add(w);\n}\n\n// ---------- 5) Escolha com QUALIDADE (vendas + avaliacao) e sem palavra repetida ----------\n// Garante \"produtos tops\": exige vendas e nota minimas. Se faltar para fechar FINAL_PICK,\n// afrouxa em estagios — mas o ultimo estagio ainda exige vendas > 0 (nunca pega item\n// desconhecido que \"ninguem sabe o que e\"). cands ja vem ordenado por score desc.\nconst escolhidos = [];\nconst usadasNoLote = new Set();\nconst idsEscolhidos = new Set();\nfunction colide(ws) { for (const w of ws) if (palavrasBloqueadas.has(w) || usadasNoLote.has(w)) return true; return false; }\nfunction aceita(c) {\n  c.j.sales = c.sales;\n  c.j.rating = c.rating;\n  c.j.commission_value_estimado = c.commVal;\n  c.j._rank_final = Math.round(c.scoreFinal * 100) / 100;\n  escolhidos.push(c.j);\n  idsEscolhidos.add(String(c.j.link_compra || ''));\n  for (const w of palavras(titleOf(c.j))) usadasNoLote.add(w);\n}\n\n// Estagios de qualidade: (vendas_min, rating_min, aplica_dedup_de_palavra)\nconst estagiosQ = [\n  { vendas: MIN_SALES,                rating: MIN_RATING,                    dedupWords: true  }, // top + bem avaliado\n  { vendas: Math.ceil(MIN_SALES / 2), rating: Math.max(0, MIN_RATING - 0.3), dedupWords: true  }, // afrouxa um pouco\n  { vendas: 1,                        rating: 0,                             dedupWords: true  }, // ao menos teve venda\n  { vendas: 1,                        rating: 0,                             dedupWords: false }, // ultimo recurso (so se STRICT=false)\n];\nfor (const est of estagiosQ) {\n  if (escolhidos.length >= FINAL_PICK) break;\n  if (!est.dedupWords && STRICT_WORDS) continue; // respeita STRICT: nao fura palavra repetida\n  for (const c of cands) {\n    if (escolhidos.length >= FINAL_PICK) break;\n    if (idsEscolhidos.has(String(c.j.link_compra || ''))) continue; // ja escolhido em estagio anterior\n    if (c.sales < est.vendas) continue;                              // vendas minimas\n    if (est.rating > 0 && c.rating < est.rating) continue;           // nota minima (quando exigida)\n    if (est.dedupWords && colide(palavras(titleOf(c.j)))) continue;  // evita produto \"parecido\"\n    aceita(c);\n  }\n}\n\nconsole.log(`[Finalizar] pool=${totalPool} | apos_filtros=${cands.length} | bloqueadas_palavras=${palavrasBloqueadas.size} | escolhidos=${escolhidos.length}/${FINAL_PICK}`);\n\nreturn escolhidos.map(j => ({ json: j }));\n"
-   },
-   "id": "c1fbb651-6087-4dae-be12-8e40af45987b",
-   "name": "Finalizar Acumulado",
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    28144,
-    13888
-   ]
-  },
-  {
-   "parameters": {
-    "jsCode": "// ===== PARSE de URL e PREÇO (sem filtro de comissão aqui) =====\n// A taxa de comissão do Mercado Livre VARIA por produto/categoria/vendedor,\n// então não dá pra estimar com segurança antes de chamar a API de afiliado.\n// Por isso este node NÃO filtra mais por comissão — só limpa a URL e extrai o preço.\n// O corte de comissão mínima acontece depois, no \"Filter Already Saved\",\n// usando a comissão REAL (vinda da API/parse final em \"Code in JavaScript2\").\n\n// ===== 1. LIMPA URL =====\nfunction cleanMlUrl(u) {\n  if (!u) return '';\n\n  const urlParamMatch = u.match(/[?&]url=([^&]+)/i);\n  if (urlParamMatch) {\n    try { u = decodeURIComponent(urlParamMatch[1]); } catch(e) {}\n  }\n\n  const clickMatch = u.match(/click1\\.mercadolivre\\.com\\.br\\/mclics\\/[^\\/]+\\/(https?:\\/\\/[^\\s\"]+)/i);\n  if (clickMatch) {\n    try { u = decodeURIComponent(clickMatch[1]); } catch(e) {}\n  }\n\n  if (/click1\\.mercadolivre/i.test(u)) return '';\n\n  u = u.split('#')[0].split('?')[0];\n  return u;\n}\n\n// ===== 2. PARSE PREÇO =====\nfunction parseMlPrice(str) {\n  if (!str) return { price_old: null, price: null, discount_pct: null };\n\n  let s = str\n    .replace(/\\d+\\s*x\\s*R\\$\\s*[\\d\\.,]+/gi, ' ')\n    .replace(/no\\s+Pix|sem\\s+juros|\\bou\\b|\\bem\\b/gi, ' ');\n\n  const tryParse = (cleaned) => {\n    const matches = [...cleaned.matchAll(/R\\$\\s?([\\d\\.]+(?:,\\d{1,2})?)/g)];\n    return matches\n      .map(m => Number(parseFloat(m[1].replace(/\\./g, '').replace(',', '.')).toFixed(2)))\n      .filter(n => n >= 5)\n      .sort((a, b) => b - a);\n  };\n\n  const candidates = [];\n  for (const re of [/(\\d{2})\\s*%\\s*OFF/i, /(\\d)\\s*%\\s*OFF/i]) {\n    const m = s.match(re);\n    if (!m) continue;\n    const pct = parseInt(m[1]);\n    const precos = tryParse(s.replace(m[0], ' '));\n    if (precos.length >= 2) {\n      const realPct = Math.round((1 - precos[1] / precos[0]) * 100);\n      const diff = Math.abs(realPct - pct);\n      candidates.push({ price_old: precos[0], price: precos[1], discount_pct: pct, diff });\n    } else if (precos.length === 1) {\n      candidates.push({ price_old: (pct > 0 && pct < 100) ? Number((precos[0] / (1 - pct / 100)).toFixed(2)) : null, price: precos[0], discount_pct: pct, diff: 99 });\n    }\n  }\n\n  if (candidates.length) {\n    candidates.sort((a, b) => a.diff - b.diff);\n    const best = candidates[0];\n    return { price_old: best.price_old, price: best.price, discount_pct: best.discount_pct };\n  }\n\n  const precos = tryParse(s);\n  const _po = (precos.length >= 2 ? precos[0] : null), _pr = precos[1] ?? precos[0] ?? null;\n  const _dp = (_po && _pr && _po > _pr) ? Math.round((1 - _pr / _po) * 100) : null;\n  return { price_old: _po, price: _pr, discount_pct: _dp };\n}\n\n// ===== 3. PREÇOS NA ORDEM DA STRING (mesma logica do parser final) =====\nfunction pricesInOrder(str) {\n  if (!str) return [];\n  const main = String(str).split(/\\d+x\\s*R\\$/i)[0];\n  const re = /R\\$\\s*(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{1,2})?)/g;\n  const out = [];\n  let m;\n  while ((m = re.exec(main)) !== null) {\n    const v = parseFloat(m[1].replace(/\\./g, '').replace(',', '.'));\n    if (!isNaN(v) && v > 0) out.push(v);\n  }\n  return out;\n}\n\n// ===== 3.5 NORMALIZA PRECO NUMERICO (novo parser nordic) =====\n// O node \"Extrair HTML\" agora entrega preco/preco_antigo como numero em string\n// (ex.: \"39.69\"). Aqui reconstruimos a string \"R$ antigoR$ atual\" que as\n// funcoes acima esperam, sem mudar nenhuma outra regra.\nfunction brlStr(v) {\n  const n = Number(v);\n  if (!isFinite(n) || n <= 0) return '';\n  const [i, dd] = n.toFixed(2).split('.');\n  return 'R$ ' + i.replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.') + ',' + dd;\n}\nfunction normalizaPreco(j) {\n  const bruto = String(j.preco ?? j.preco_produtos ?? '');\n  if (/R\\$/.test(bruto)) return bruto;\n  const atual = brlStr(bruto.replace(',', '.'));\n  if (!atual) return bruto;\n  const antigo = brlStr(String(j.preco_antigo ?? '').replace(',', '.'));\n  return antigo ? antigo + atual : atual;\n}\n\n// ===== APLICA =====\nconst results = [];\n\nfor (const item of $input.all()) {\n  const j = item.json;\n  const link = cleanMlUrl(j.link_compra || j.link_produtos || '');\n\n  if (!link) continue; // sem link não tem como gerar link de afiliado, descarta\n\n  // descarta preço quebrado do ML: atual (2º R$) maior que o original (1º R$)\n  const precoStr = normalizaPreco(j);\n  const ord = pricesInOrder(precoStr);\n  if (ord.length >= 2 && ord[1] > ord[0]) continue;\n\n  const prices = parseMlPrice(precoStr);\n  if (!prices.price) continue; // sem preço não dá pra seguir, descarta\n\n  results.push({\n    json: {\n      ...j,\n      link_compra: link,\n      price_old: prices.price_old,\n      price: prices.price,\n      discount_pct: prices.discount_pct,\n    }\n  });\n}\n\nreturn results;\n"
-   },
-   "id": "06ffd405-6d23-4487-9990-9732be15b66a",
-   "name": "Parse Preço",
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    26992,
-    13536
-   ]
-  },
-  {
-   "parameters": {
-    "jsCode": "// Parse de sales/rating a partir de texto do ML (adicionado pelo builder Lovable)\nfunction parseSalesText(t) {\n  if (!t) return 0;\n  const s = String(t).replace(/\\./g, '').replace(',', '.');\n  const m = s.match(/(\\d[\\d.]*)/);\n  if (!m) return 0;\n  const n = parseFloat(m[1]);\n  if (/mil/i.test(s)) return Math.round(n * 1000);\n  return Math.round(n) || 0;\n}\nfunction parseRatingText(t) {\n  if (!t) return 0;\n  const s = String(t).replace(',', '.');\n  const m = s.match(/(\\d(?:\\.\\d)?)/);\n  const n = parseFloat(m && m[1]);\n  return (Number.isFinite(n) && n > 0 && n <= 5) ? n : 0;\n}\n\nfunction numOrNull(v) {\n  if (v === null || v === undefined || v === '') return null;\n  const n = Number(String(v).replace(/\\s/g, '').replace(',', '.'));\n  return (Number.isFinite(n) && n > 0) ? n : null;\n}\nfunction parsePreco(str) {\n  if (!str) return { price: null, priceOriginal: null, discount: null };\n  const s = String(str);\n  // Se vier numero puro (ex.: \"39.69\" do parser nordic), usa direto.\n  if (!/R\\$/i.test(s)) {\n    const direct = numOrNull(s);\n    if (direct !== null) return { price: direct, priceOriginal: null, discount: null };\n  }\n  const main = s.split(/\\d+x\\s*R\\$/i)[0];\n  const priceRe = /R\\$\\s*(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{1,2})?)/g;\n  const prices = [];\n  let lastEnd = 0;\n  let m;\n  while ((m = priceRe.exec(main)) !== null) {\n    const v = parseFloat(m[1].replace(/\\./g, '').replace(',', '.'));\n    if (!isNaN(v) && v > 0) prices.push(v);\n    lastEnd = m.index + m[0].length;\n  }\n  const tail = main.slice(lastEnd);\n  const discM = tail.match(/^\\s*(\\d{1,2})\\s*%\\s*OFF/i);\n  const discount = discM ? parseInt(discM[1], 10) : null;\n  let price = null, priceOriginal = null;\n  if (prices.length >= 2) { priceOriginal = prices[0]; price = prices[1]; }\n  else if (prices.length === 1) {\n    price = prices[0];\n    if (discount && discount > 0 && discount < 100) priceOriginal = Number((price / (1 - discount / 100)).toFixed(2));\n  }\n  let finalDiscount = discount;\n  if (!finalDiscount && price && priceOriginal && priceOriginal > price) finalDiscount = Math.round((1 - price / priceOriginal) * 100);\n  return { price, priceOriginal, discount: finalDiscount };\n}\n\nfunction extractId(url) {\n  if (!url) return '';\n  const m = String(url).match(/\\/p\\/([A-Z]+U?\\d+)/i) || String(url).match(/\\/up\\/([A-Z]+U?\\d+)/i) || String(url).match(/(MLB-?U?\\d+)/i);\n  return m ? m[1].replace('-', '').toUpperCase() : '';\n}\n\n// ===== Helpers de dedupe multi-campo =====\nfunction normText(s) {\n  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n}\nfunction normUrl(u) {\n  if (!u) return '';\n  let s = String(u).trim().toLowerCase();\n  s = s.split('#')[0].split('?')[0];\n  s = s.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').replace(/\\/+$/, '');\n  return s;\n}\nfunction shortCode(u) {\n  if (!u) return '';\n  const m = String(u).match(/meli\\.la\\/([A-Za-z0-9]+)/i) || String(u).match(/mercadolivre\\.com[^\\s]*\\/social\\/[^\\/]+\\?[^\\s]*[?&]word=([A-Za-z0-9]+)/i);\n  return m ? m[1].toLowerCase() : '';\n}\nfunction addKeys(set, keys) { for (const k of keys) if (k) set.add(k); }\nfunction keysFor(row) {\n  const id = String(row.ID || row.id || '').toUpperCase().replace('-', '') || extractId(row.link_compra) || extractId(row.link_compra_original) || extractId(row.link_produtos) || extractId(row.offerlink) || extractId(row.link_produtos_afiliado);\n  const lc = normUrl(row.link_compra || row.link_compra_original || row.link_produtos || '');\n  const of = normUrl(row.offerlink || row.link_produtos_afiliado || '');\n  const sc = shortCode(row.offerlink || row.link_produtos_afiliado || '');\n  const pn = normText(row.productname || row.nome_produtos || '');\n  return {\n    id: id ? `id:${id}` : '',\n    lc: lc ? `lc:${lc}` : '',\n    of: of ? `of:${of}` : '',\n    sc: sc ? `sc:${sc}` : '',\n    pn: pn && pn.length > 6 ? `pn:${pn}` : '',\n  };\n}\n\nfunction extractCommissionRateFromApi(urlObj) {\n  if (!urlObj) return null;\n  const candidatos = [urlObj.commission_rate, urlObj.commission_percentage, urlObj.commission, urlObj.percentage, urlObj?.commission_info?.percentage, urlObj?.commission_info?.rate];\n  for (const c of candidatos) { const n = Number(c); if (Number.isFinite(n) && n > 0) return n; }\n  return null;\n}\nfunction getCommissionRateTable(cfg) {\n  const raw = cfg.commission_rate_by_category;\n  try { if (raw && typeof raw === 'object') return raw; if (typeof raw === 'string' && raw.trim()) return JSON.parse(raw); } catch (e) {}\n  return {};\n}\n\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\nconst COMMISSION_TABLE = getCommissionRateTable(cfg);\nconst DEFAULT_RATE = Number(cfg.commission_rate ?? COMMISSION_TABLE._default ?? 10);\nfunction getCommissionPriceTiers(c) {\n  try { const raw = c.commission_price_tiers; const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' && raw.trim() ? JSON.parse(raw) : null); if (Array.isArray(arr) && arr.length) return arr.slice().sort((a, b) => (Number(a.max) || 0) - (Number(b.max) || 0)); } catch (e) {}\n  return null;\n}\nconst COMMISSION_TIERS = getCommissionPriceTiers(cfg);\nfunction rateByPrice(p) {\n  if (!COMMISSION_TIERS || !(p > 0)) return null;\n  for (const t of COMMISSION_TIERS) if (p <= (Number(t.max) || 0)) return Number(t.rate);\n  return Number(COMMISSION_TIERS[COMMISSION_TIERS.length - 1].rate);\n}\nfunction getCommissionRateByCategory(categoria) {\n  const key = String(categoria || '').toLowerCase().trim();\n  const rate = COMMISSION_TABLE[key];\n  return Number.isFinite(Number(rate)) ? Number(rate) : DEFAULT_RATE;\n}\n\n// ===== 1) Carrega TODAS as linhas da Data Table e monta o set de chaves =====\nconst existingKeys = new Set();\nconst existingRowByKey = new Map();\nconst _BASE_API = 'https://n8n.gacompany.online/api/v1';\nconst _API_KEY = '__N8N_API_KEY__';\nconst _TABLE_ID = '__DATA_TABLE_ID__';\ntry {\n  const _http = this.helpers.httpRequest;\n  const _BASE = _BASE_API;\n  const _KEY = _API_KEY;\n  const _TABLE = _TABLE_ID;\n  const _PAGE = 250;\n  let _cursor = '';\n  const _seenRow = new Set();\n  for (let _g = 0; _g < 500; _g++) {\n    let _resp;\n    try {\n      _resp = await _http({ method: 'GET', url: `${_BASE}/data-tables/${_TABLE}/rows`, qs: _cursor ? { limit: _PAGE, cursor: _cursor } : { limit: _PAGE }, headers: { 'X-N8N-API-KEY': _KEY }, json: true });\n    } catch (e) { break; }\n    const _batch = (_resp && _resp.data) ? _resp.data : (Array.isArray(_resp) ? _resp : []);\n    if (!_batch.length) break;\n    let _novos = 0;\n    for (const _r of _batch) {\n      const _idk = String(_r?.id ?? '');\n      if (_idk && _seenRow.has(_idk)) continue;\n      if (_idk) _seenRow.add(_idk);\n      const k = keysFor(_r);\n      const _strong = [k.id, k.lc, k.of, k.sc].filter(Boolean);\n      addKeys(existingKeys, _strong);\n      for (const _x of _strong) if (!existingRowByKey.has(_x)) existingRowByKey.set(_x, _r);\n      _novos++;\n    }\n    if (_novos === 0) break;\n    _cursor = (_resp && _resp.nextCursor) ? String(_resp.nextCursor) : '';\n    if (!_cursor) break;\n  }\n} catch (e) { console.log('[CJS2] falha ao carregar planilha:', e && e.message); }\nconsole.log(`[CJS2] chaves_existentes=${existingKeys.size}`);\n\n// ===== 2) Monta os itens e aplica dedupe multi-campo (planilha + intra-lote) =====\nconst batchKeys = new Set();\nconst now = new Date().toISOString();\nconst out = [];\nlet dropExisting = 0, dropBatch = 0, dropSemPreco = 0, refreshed = 0;\n\nfor (const item of $input.all()) {\n  const d = item.json || item;\n  const _p = parsePreco(d.preco_produtos);\n  // Prioriza os numeros ja calculados no no \"Parse Preco\"; string e apenas fallback.\n  // O preco exato vem da string do scrape (preco_produtos). d.price vem\n  // arredondado do \"Parse Preco\", entao serve apenas como fallback.\n  const price = _p.price ?? numOrNull(d.price);\n  let priceOriginal = _p.priceOriginal ?? numOrNull(d.price_old) ?? numOrNull(d.priceoriginal);\n  if (priceOriginal !== null && price !== null && priceOriginal <= price) priceOriginal = null;\n  let discount = numOrNull(d.discount_pct) ?? _p.discount;\n  if (price !== null && priceOriginal !== null) discount = Math.round((1 - price / priceOriginal) * 100) || null;\n  else if (priceOriginal === null) discount = null;\n  const id = extractId(d.urls?.[0]?.origin_url) || extractId(d.link_compra_original);\n  const offerlink = d.urls?.[0]?.short_url || d.link_produtos_afiliado || '';\n  const commissionRate = extractCommissionRateFromApi(d.urls?.[0]) ?? rateByPrice(price) ?? getCommissionRateByCategory(d.categoria_origem);\n  const commissionValue = price ? Number((price * commissionRate / 100).toFixed(2)) : 0;\n\n  const row = {\n    ...d,\n    ID: id,\n    productname: d.nome_produtos || '',\n    price, pricediscountrate: discount,\n    shopname: 'Mercado Livre',\n    offerlink,\n    imageUrl: d.imagem_produtos || '',\n    sending: '',\n    commission_rate: commissionRate,\n    commission_value: commissionValue,\n    sales: parseSalesText(d.vendas_text || d.vendas_text_alt || d.sales_text || ''),\n    rating: parseRatingText(d.rating_text || d.avaliacoes_text || ''),\n    sent_at: '',\n    priceoriginal: priceOriginal,\n    createdAt: now, updatedAt: now,\n    categoria: d.categoria_origem || d.categoria || '',\n    link_compra: d.link_compra_original || d.link_compra || ''\n  };\n\n  if (!(Number(price) > 0)) { dropSemPreco++; continue; }\n  const k = keysFor(row);\n  const strongKeys = [k.id, k.lc, k.of, k.sc].filter(Boolean);\n  const allKeys = [...strongKeys, k.pn].filter(Boolean);\n\n  // intra-lote: bloqueia por qualquer chave (inclui nome) para nao inserir 2x no mesmo run\n  if (allKeys.some(x => batchKeys.has(x))) { dropBatch++; continue; }\n\n  // planilha: bloqueia SOMENTE por identidade forte (ID / link / shortlink).\n  // O nome do produto nao bloqueia mais, porque variacoes legitimas compartilham titulo.\n  const hitKey = strongKeys.find(x => existingKeys.has(x));\n  if (hitKey) {\n    dropExisting++;\n    // mantem a planilha com preco atualizado (sem criar linha nova)\n    const _r = existingRowByKey.get(hitKey);\n    if (_r && _r.id) {\n      try {\n        await this.helpers.httpRequest({\n          method: 'PATCH',\n          url: `${_BASE_API}/data-tables/${_TABLE_ID}/rows`,\n          headers: { 'X-N8N-API-KEY': _API_KEY },\n          body: {\n            filter: { type: 'and', filters: [{ columnName: 'id', condition: 'eq', value: Number(_r.id) }] },\n            data: {\n              price: price,\n              priceoriginal: priceOriginal,\n              pricediscountrate: discount,\n              offerlink: row.offerlink || _r.offerlink || '',\n              imageUrl: row.imageUrl || _r.imageUrl || '',\n            },\n          },\n          json: true,\n        });\n        refreshed++;\n      } catch (e) { /* atualizacao de preco e best-effort */ }\n    }\n    continue;\n  }\n\n  for (const x of allKeys) batchKeys.add(x);\n  out.push({ json: row });\n}\n\nconsole.log(`[CJS2] entrada=${$input.all().length} | drop_planilha=${dropExisting} | drop_lote=${dropBatch} | drop_sem_preco=${dropSemPreco} | precos_atualizados=${refreshed} | saida=${out.length}`);\nreturn out;"
-   },
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    28320,
-    13648
-   ],
-   "id": "e034eeb6-d6aa-4678-8361-ae73f5dc05f5",
-   "name": "Code in JavaScript2"
-  },
-  {
-   "parameters": {
-    "jsCode": "const results = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const j = item.json;\n  if (!j.link_compra) continue;\n\n  results.push({\n    json: {\n      ...j,\n      link_compra: j.link_compra,\n      price_old: j.price_old ?? null,\n      price: j.price ?? null,\n      discount_pct: j.discount_pct ?? null,\n    },\n    pairedItem: { item: i }  // <-- isso resolve o erro\n  });\n}\n\n// Ordena por maior desconto antes de limitar\nresults.sort((a, b) => (b.json.discount_pct ?? 0) - (a.json.discount_pct ?? 0));\n\n// Antes filtrava aqui pra 10 candidatos, o que estrangulava o Filter2.\n// Agora passamos TODOS os candidatos ranqueados pro Filter2; o piso/teto\n// final de itens NOVOS e controlado em 'Acumular Resultados' (min/max_total_final).\nreturn results;"
-   },
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    27328,
-    13280
-   ],
-   "id": "c36370ba-15b6-49fa-97f1-376f92a49d6d",
-   "name": "Code in JavaScript"
-  },
-  {
-   "parameters": {
-    "rule": {
-     "interval": [
-      {
-       "field": "cronExpression",
-       "expression": "0 0 9,12,15,18,21 * * *"
-      }
-     ]
+    "Acumular Resultados": {
+      "main": [
+        [
+          {
+            "node": "IF - Precisa Mais?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Precisa Mais?": {
+      "main": [
+        [
+          {
+            "node": "Montar Links ML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finalizar Acumulado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalizar Acumulado": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Parse Preço": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Precoce por ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Upsert row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Filter2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger 12h": {
+      "main": [
+        [
+          {
+            "node": "Get Existing IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subcategorização": {
+      "main": [
+        [
+          {
+            "node": "Parse Preço",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Subcategorização",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair HTML1": {
+      "main": [
+        [
+          {
+            "node": "Extrair HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing IDs": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Links ML": {
+      "main": [
+        [
+          {
+            "node": "Extrair HTML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG ML": {
+      "main": [
+        [
+          {
+            "node": "Montar Links ML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "CONFIG ML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter2": {
+      "main": [
+        [
+          {
+            "node": "Acumular Resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair HTML": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
-   },
-   "type": "n8n-nodes-base.scheduleTrigger",
-   "typeVersion": 1.2,
-   "position": [
-    25168,
-    13136
-   ],
-   "id": "09884a19-509e-4d3c-b0bf-6bed6c65f34c",
-   "name": "Schedule Trigger 12h"
   },
-  {
-   "parameters": {
-    "jsCode": "const CONFIG_NODE = \"CONFIG ML\";\nconst cfg = ($items(CONFIG_NODE)?.[0]?.json) ?? {};\n\nconst MIN_TOTAL          = Number(cfg.min_total          ?? 30);\nconst MAX_TOTAL          = Number(cfg.max_total          ?? 40);\nconst MAX_ITENS_CATEGORIA = Number(cfg.max_itens_categoria ?? 10);\nconst MAX_ITENS_MARCA    = Number(cfg.max_itens_marca    ?? 5);\nconst MIN_COMMISSION_VALUE = Number(cfg.min_commission_value ?? 8);\n\n// Pesos do ranking (ajustáveis no CONFIG ML)\nconst W_SALES      = Number(cfg.w_sales      ?? 0.5);  // peso de vendas\nconst W_COMMISSION = Number(cfg.w_commission ?? 0.4);  // peso de comissão\nconst W_DISCOUNT   = Number(cfg.w_discount   ?? 0.1);  // peso de desconto\n\n// ---------- Helpers ----------\nfunction normText(s) {\n  return String(s ?? \"\")\n    .toLowerCase()\n    .normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\nfunction getTitle(j) { return j.nome || j.title || j.name || j[\"Nomes Produtos\"] || j[\"['Nomes Produtos']\"] || \"\"; }\nfunction getLink(j)  { return j.link_compra || j.link || j.url || \"\"; }\nfunction num(v, def = 0) { const n = Number(v); return Number.isFinite(n) ? n : def; }\n\n// Extrai vendas do título ou de campo dedicado (\"+1mil vendidos\", \"500 vendidos\", etc)\nfunction getSales(j) {\n  if (j.sales != null) return num(j.sales);\n  if (j.vendas != null) return num(j.vendas);\n  const t = normText(getTitle(j) + \" \" + (j.preco || \"\"));\n  const m = t.match(/\\+?\\s*(\\d+(?:\\.\\d+)?)\\s*(mil|k)?\\s*vendid/i);\n  if (m) {\n    let n = parseFloat(m[1].replace(\",\", \".\"));\n    if (m[2]) n *= 1000;\n    return Math.round(n);\n  }\n  return 0;\n}\n\nfunction getCommission(j) {\n  // commission_rate em % (ex: 7 = 7%) | commission_value em R$\n  return num(j.commission_rate ?? j.comissao_pct ?? 0);\n}\n\nfunction getCommissionValue(j) {\n  // Nesse ponto do pipeline a comissão real ainda não existe (só depois da API de afiliado).\n  // Mantido apenas para fins informativos no campo _dedupe (debug), retorna 0 se não houver dado.\n  if (j.commission_value_estimado != null) return num(j.commission_value_estimado);\n  if (j.commission_value != null) return num(j.commission_value);\n  return 0;\n}\n\nfunction getDiscountPct(j) {\n  return num(j.discount_pct ?? j.discount_pct_preview ?? 0);\n}\n\nfunction getCategoria(j) { return normText(j.categoria || j.category || \"geral\"); }\nfunction getMarca(j)     { return normText(j.marca || j.brand || \"sem_marca\"); }\n\nfunction getExactKey(j) {\n  const title = normText(getTitle(j));\n  const link  = normText(getLink(j)).split(\"?\")[0].split(\"#\")[0];\n  return `${title}||${link}`;\n}\n\n// ---------- Score composto (normaliza vendas/comissão/desconto pra 0-100) ----------\nfunction rankScore(j, maxSales, maxCommission) {\n  const sales      = getSales(j);\n  const commission = getCommission(j);\n  const discount   = getDiscountPct(j);\n\n  const salesNorm      = maxSales      > 0 ? (sales      / maxSales)      * 100 : 0;\n  const commissionNorm = maxCommission > 0 ? (commission / maxCommission) * 100 : 0;\n  const discountNorm   = Math.min(discount, 100);\n\n  return (\n    salesNorm      * W_SALES +\n    commissionNorm * W_COMMISSION +\n    discountNorm   * W_DISCOUNT\n  );\n}\n\n// ---------- 1) Dedupe exato ----------\nconst inputItems = $input.all();\nconst bestByExact = new Map();\n\nfor (const it of inputItems) {\n  const j = it.json ?? {};\n  if (!getLink(j)) continue;\n  const k = getExactKey(j);\n  const prev = bestByExact.get(k);\n  // Mantém o de maior venda em caso de duplicata\n  if (!prev || getSales(j) > getSales(prev.json ?? {})) {\n    bestByExact.set(k, it);\n  }\n}\n\nconst deduped = Array.from(bestByExact.values()).map(it => it.json ?? {});\n\n// ---------- 2) Calcula máximos pra normalização ----------\n// OBS: a comissão REAL só fica disponível depois da chamada de API de afiliado\n// (mais adiante no pipeline). Aqui ainda não dá pra filtrar por comissão com segurança,\n// já que a taxa varia por produto/vendedor. O corte de comissão mínima acontece\n// no final do pipeline, no node \"Filter Already Saved\", com o valor real.\nconst maxSales      = Math.max(1, ...deduped.map(getSales));\nconst maxCommission = Math.max(1, ...deduped.map(getCommission));\n\n// ---------- 3) Ordena por score composto desc ----------\nconst ranked = deduped\n  .map(j => ({ j, _rank_score: rankScore(j, maxSales, maxCommission) }))\n  .sort((a, b) => b._rank_score - a._rank_score);\n\n// ---------- 4) Monta filas por categoria + round-robin, com limites de marca/categoria ----------\n// Função reaproveitável: dado um limite de categoria e de marca, monta as filas e\n// intercala (round-robin) entre as categorias, respeitando MAX_TOTAL.\nfunction montarRoundRobin(maxItensCategoria, maxItensMarca) {\n  const marcaCount = new Map();\n  const filaPorCategoria = new Map(); // categoria -> array de items prontos (na ordem de score)\n\n  for (const { j, _rank_score } of ranked) {\n    const cat   = getCategoria(j);\n    const marca = getMarca(j);\n\n    const fila = filaPorCategoria.get(cat) ?? [];\n    if (fila.length >= maxItensCategoria) continue;\n\n    const mCount = marcaCount.get(marca) ?? 0;\n    if (marca !== \"sem_marca\" && mCount >= maxItensMarca) continue;\n\n    fila.push({\n      json: {\n        ...j,\n        _rank_score: Math.round(_rank_score * 100) / 100,\n        _dedupe: {\n          sales:           getSales(j),\n          commission_rate: getCommission(j),\n          commission_value: getCommissionValue(j),\n          discount_pct:    getDiscountPct(j),\n          min_total:       MIN_TOTAL,\n          max_total:       MAX_TOTAL,\n          max_categoria:   maxItensCategoria,\n          max_marca:       maxItensMarca,\n          exact_key:       getExactKey(j),\n        }\n      }\n    });\n\n    filaPorCategoria.set(cat, fila);\n    marcaCount.set(marca, mCount + 1);\n  }\n\n  // Round-robin: mantém a ordem de categorias como apareceram primeiro no ranking\n  // (segue o round-robin de scraping definido em \"Montar Links ML\").\n  const categoriasOrdenadas = Array.from(filaPorCategoria.keys());\n  const out = [];\n  let algumaFilaTemItem = true;\n\n  while (algumaFilaTemItem && out.length < MAX_TOTAL) {\n    algumaFilaTemItem = false;\n    for (const cat of categoriasOrdenadas) {\n      if (out.length >= MAX_TOTAL) break;\n      const fila = filaPorCategoria.get(cat);\n      if (fila && fila.length > 0) {\n        out.push(fila.shift());\n        algumaFilaTemItem = true;\n      }\n    }\n  }\n\n  return out;\n}\n\n// ---------- 5) Afrouxa os limites progressivamente até atingir MIN_TOTAL ----------\n// Tenta primeiro com os limites normais (max_itens_categoria / max_itens_marca).\n// Se não atingir o piso de MIN_TOTAL produtos, vai abrindo os limites em estágios,\n// até atingir o piso ou esgotar todos os candidatos disponíveis (sempre respeitando MAX_TOTAL).\nconst estagios = [\n  { categoria: MAX_ITENS_CATEGORIA,     marca: MAX_ITENS_MARCA     },\n  { categoria: MAX_ITENS_CATEGORIA + 4, marca: MAX_ITENS_MARCA + 2 },\n  { categoria: MAX_ITENS_CATEGORIA + 8, marca: MAX_ITENS_MARCA + 4 },\n  { categoria: MAX_TOTAL,               marca: MAX_TOTAL           }, // sem limite efetivo\n];\n\nlet out = [];\nfor (const estagio of estagios) {\n  out = montarRoundRobin(estagio.categoria, estagio.marca);\n  if (out.length >= MIN_TOTAL) break;\n}\n\nreturn out;\n"
-   },
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    27136,
-    13232
-   ],
-   "id": "1ea8f3a5-0699-443e-aed4-d26f0f49710b",
-   "name": "Dedupe"
-  },
-  {
-   "parameters": {
-    "jsCode": "const CONFIG_NODE = \"CONFIG ML\";\nconst cfg = ($items(CONFIG_NODE)?.[0]?.json) ?? {};\n\nconst SCORE_BASE          = Number(cfg.score_base           ?? 50);\nconst BONUS_HAS_IMAGE     = Number(cfg.bonus_has_image      ?? 10);\nconst BONUS_HAS_PRICE     = Number(cfg.bonus_has_price      ?? 10);\nconst BONUS_HAS_LINK      = Number(cfg.bonus_has_link       ?? 10);\nconst BONUS_HAS_BRAND     = Number(cfg.bonus_has_brand      ?? 8);\nconst BONUS_HAS_CATEGORY  = Number(cfg.bonus_has_category   ?? 6);\nconst BONUS_HAS_DISCOUNT  = Number(cfg.bonus_has_discount   ?? 8);\nconst PENALTY_CLICK_TRACK = Number(cfg.penalty_click_track  ?? 5);\n\n// ---------- Helpers ----------\nfunction normText(s) {\n  return String(s ?? \"\")\n    .toLowerCase()\n    .normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n}\nfunction getTitle(j) { return j.nome || j.title || j.name || j[\"Nomes Produtos\"] || j[\"['Nomes Produtos']\"] || \"\"; }\nfunction getImg(j)   { return j.imagem || j.image || j.img || j[\"Imagem Produtos (src)\"] || j[\"['Imagem Produtos (src)']\"] || \"\"; }\nfunction getPriceText(j) { return j.preco || j.price || j.valor || \"\"; }\nfunction getLink(j)  { return j.link_compra || j.link || j.url || \"\"; }\nfunction includesAny(text, arr) { for (const k of arr) if (text.includes(k)) return true; return false; }\n\n// ---------- Categorização genérica ----------\nconst CATEGORY_RULES = [\n  { key: \"eletronicos\",  label: \"Eletrônicos\",       words: [\"notebook\", \"laptop\", \"tablet\", \"celular\", \"smartphone\", \"iphone\", \"samsung\", \"xiaomi\", \"fone\", \"headphone\", \"earbud\", \"bluetooth\", \"smartwatch\", \"smart tv\", \"tv \", \"monitor\", \"teclado\", \"mouse\", \"webcam\", \"alexa\", \"echo\", \"kindle\"] },\n  { key: \"moda\",         label: \"Moda & Calçados\",   words: [\"tenis\", \"tênis\", \"sapato\", \"sandalia\", \"sandália\", \"bota\", \"chinelo\", \"camisa\", \"camiseta\", \"blusa\", \"calca\", \"calça\", \"vestido\", \"jaqueta\", \"casaco\", \"bolsa\", \"mochila\", \"carteira\", \"oculos\", \"óculos\"] },\n  { key: \"beleza\",       label: \"Beleza & Perfumaria\", words: [\"perfume\", \"eau de parfum\", \"eau de toilette\", \"edp\", \"edt\", \"colonia\", \"fragrancia\", \"batom\", \"maquiagem\", \"base \", \"rimel\", \"shampoo\", \"condicionador\", \"creme\", \"hidratante\", \"protetor solar\", \"sabonete\"] },\n  { key: \"casa\",         label: \"Casa & Decoração\",  words: [\"sofa\", \"sofá\", \"cadeira\", \"mesa\", \"cama\", \"colchao\", \"colchão\", \"guarda-roupa\", \"estante\", \"cortina\", \"tapete\", \"luminaria\", \"luminária\", \"panela\", \"frigideira\", \"talher\", \"prato\"] },\n  { key: \"eletrodomesticos\", label: \"Eletrodomésticos\", words: [\"geladeira\", \"fogao\", \"fogão\", \"microondas\", \"lavadora\", \"secadora\", \"ar condicionado\", \"ventilador\", \"aspirador\", \"liquidificador\", \"batedeira\", \"cafeteira\", \"air fryer\", \"fritadeira\"] },\n  { key: \"esporte\",      label: \"Esporte & Fitness\", words: [\"bicicleta\", \"bike\", \"esteira\", \"halter\", \"haltere\", \"anilha\", \"yoga\", \"academia\", \"suplemento\", \"whey\", \"creatina\", \"proteina\", \"patins\", \"skate\"] },\n  { key: \"infantil\",     label: \"Bebês & Infantil\",  words: [\"bebe\", \"bebê\", \"fralda\", \"carrinho de bebe\", \"berço\", \"berco\", \"mamadeira\", \"brinquedo\", \"lego\", \"boneca\", \"carrinho hot wheels\"] },\n  { key: \"ferramentas\",  label: \"Ferramentas\",       words: [\"furadeira\", \"parafusadeira\", \"serra\", \"lixadeira\", \"esmerilhadeira\", \"kit ferramenta\", \"chave de fenda\", \"martelo\"] },\n  { key: \"automotivo\",   label: \"Automotivo\",        words: [\"pneu\", \"oleo motor\", \"óleo motor\", \"bateria automotiva\", \"som automotivo\", \"tapete carro\", \"capa banco\"] },\n  { key: \"games\",        label: \"Games\",             words: [\"playstation\", \"ps5\", \"ps4\", \"xbox\", \"nintendo\", \"switch\", \"controle ps\", \"joystick\", \"jogo ps\"] },\n  { key: \"livros\",       label: \"Livros & Papelaria\", words: [\"livro\", \"caderno\", \"caneta\", \"lapis\", \"lápis\", \"agenda\", \"estojo\"] },\n  { key: \"pet\",          label: \"Pet Shop\",          words: [\"racao\", \"ração\", \"petisco\", \"coleira\", \"guia pet\", \"aquario\", \"aquário\", \"areia gato\"] }\n];\n\nconst BRAND_RULES = [\n  { key: \"samsung\",   label: \"Samsung\",      words: [\"samsung\", \"galaxy\"] },\n  { key: \"apple\",     label: \"Apple\",        words: [\"apple\", \"iphone\", \"ipad\", \"macbook\", \"airpods\"] },\n  { key: \"xiaomi\",    label: \"Xiaomi\",       words: [\"xiaomi\", \"redmi\", \"poco\"] },\n  { key: \"motorola\",  label: \"Motorola\",     words: [\"motorola\", \"moto g\", \"moto e\"] },\n  { key: \"lenovo\",    label: \"Lenovo\",       words: [\"lenovo\", \"ideapad\", \"thinkpad\"] },\n  { key: \"dell\",      label: \"Dell\",         words: [\"dell\", \"inspiron\", \"vostro\"] },\n  { key: \"lg\",        label: \"LG\",           words: [\"lg \"] },\n  { key: \"sony\",      label: \"Sony\",         words: [\"sony\", \"playstation\", \"bravia\"] },\n  { key: \"philips\",   label: \"Philips\",      words: [\"philips\", \"walita\"] },\n  { key: \"electrolux\",label: \"Electrolux\",   words: [\"electrolux\"] },\n  { key: \"brastemp\",  label: \"Brastemp\",     words: [\"brastemp\"] },\n  { key: \"consul\",    label: \"Consul\",       words: [\"consul\", \"consul \"] },\n  { key: \"jbl\",       label: \"JBL\",          words: [\"jbl\"] },\n  { key: \"anker\",     label: \"Anker\",        words: [\"anker\", \"soundcore\"] },\n  { key: \"nike\",      label: \"Nike\",         words: [\"nike\", \"air force\", \"air max\"] },\n  { key: \"adidas\",    label: \"Adidas\",       words: [\"adidas\"] },\n  { key: \"lacoste\",   label: \"Lacoste\",      words: [\"lacoste\"] },\n  { key: \"puma\",      label: \"Puma\",         words: [\"puma\"] },\n  { key: \"natura\",    label: \"Natura\",       words: [\"natura\"] },\n  { key: \"boticario\", label: \"O Boticário\",  words: [\"boticario\", \"boticário\"] },\n  { key: \"lattafa\",   label: \"Lattafa\",      words: [\"lattafa\"] }\n];\n\nconst EXCLUDE_KEYWORDS = [\n  \"adulto\", \"sex\", \"erotico\", \"erótico\",\n  \"cigarro eletronico\", \"vape\", \"pod \",\n  \"replica\", \"réplica\", \"falsificad\"\n];\n\nfunction pick(rules, title) {\n  for (const r of rules) if (includesAny(title, r.words)) return { key: r.key, label: r.label };\n  return null;\n}\n\nfunction extractDiscountPct(priceText) {\n  const m = String(priceText).match(/(\\d{1,2})\\s*%\\s*OFF/i);\n  return m ? Number(m[1]) : null;\n}\n\nfunction scoreItem(j, title, category, brand, discount_pct) {\n  let score = SCORE_BASE;\n  if (title.length >= 20) score += 5;\n  if (title.length >= 40) score += 5;\n  if (getImg(j))      score += BONUS_HAS_IMAGE;\n  if (getPriceText(j))score += BONUS_HAS_PRICE;\n  if (getLink(j))     score += BONUS_HAS_LINK;\n  if (category)       score += BONUS_HAS_CATEGORY;\n  if (brand)          score += BONUS_HAS_BRAND;\n  if (discount_pct && discount_pct >= 20) score += BONUS_HAS_DISCOUNT;\n  if (discount_pct && discount_pct >= 40) score += 5;\n  if (discount_pct && discount_pct >= 60) score += 5;\n  if (normText(getLink(j)).includes(\"click1.mercadolivre.com.br/mclics\")) score -= PENALTY_CLICK_TRACK;\n  const valueWords = [\"oferta\", \"promo\", \"desconto\", \"off\", \"original\", \"lacrado\", \"novo\", \"lançamento\", \"lancamento\", \"kit\", \"combo\", \"frete gratis\"];\n  for (const w of valueWords) if (title.includes(w)) score += 1;\n  return score;\n}\n\n// ---------- Execução ----------\nconst items = $input.all();\nconst out = [];\n\nfor (const it of items) {\n  try {\n    const j = it.json ?? {};\n    const titleRaw = getTitle(j);\n    const title    = normText(titleRaw);\n    if (!title) continue;\n    if (includesAny(title, EXCLUDE_KEYWORDS)) continue;\n\n    // Filtro seguro: 0 = sem dados extraidos, nao bloqueia.\n    const MIN_SALES_FINAL  = Number(cfg.min_sales_final  ?? 0);\n    const MIN_RATING_FINAL = Number(cfg.min_rating_final ?? 0);\n    if (MIN_RATING_FINAL > 0 && j.rating > 0 && j.rating < MIN_RATING_FINAL) continue;\n    if (MIN_SALES_FINAL  > 0 && j.sales  > 0 && j.sales  < MIN_SALES_FINAL ) continue;\n\n    const category = pick(CATEGORY_RULES, title) || { key: \"geral\", label: \"Geral\" };\n    const brand    = pick(BRAND_RULES, title);\n    const discount_pct = extractDiscountPct(getPriceText(j));\n    const score    = scoreItem(j, title, category, brand, discount_pct);\n\n    // categoria_origem = categoria definida na URL/CONFIG ML (round-robin das 5 categorias).\n    // categoria_detectada = classificação automática por palavra-chave no título (eletrônicos, moda, etc).\n    // \"categoria\" segue sendo a categoria de ORIGEM, pra não quebrar o round-robin e os limites por categoria no Dedupe.\n    const categoriaOrigem = j.categoria || cfg.ml_category_name || category.key;\n\n    out.push({\n      json: {\n        ...j,\n        categoria:           categoriaOrigem,\n        categoria_origem:    categoriaOrigem,\n        categoria_detectada: category.key,\n        categoria_label:     category.label,\n        name_key:        category.key,\n        marca:           brand?.key ?? null,\n        marca_label:     brand?.label ?? null,\n        discount_pct_preview: discount_pct,\n        score,\n        _heuristica: { title_raw: titleRaw, title_norm: title }\n      }\n    });\n  } catch (err) {\n    out.push({ json: { _error: true, _error_message: err?.message ?? String(err), _original: it.json ?? null } });\n  }\n}\n\nreturn out;\n"
-   },
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    26848,
-    13456
-   ],
-   "id": "86a2df39-2aa9-4148-a183-cf650756b54b",
-   "name": "Subcategorização"
-  },
-  {
-   "parameters": {
-    "fields": {
-     "values": [
-      {
-       "name": "nome_produtos",
-       "stringValue": "={{ $json['[\\'Nomes Produtos\\']'] }}"
-      },
-      {
-       "name": "imagem_produtos",
-       "stringValue": "={{ $json['[\\'Imagem Produtos (src)\\']'] }}"
-      },
-      {
-       "name": "preco_produtos",
-       "stringValue": "={{ $json.preco }}"
-      },
-      {
-       "name": "link_produtos_afiliado",
-       "stringValue": "={{ $json.urls[0].short_url }}"
-      },
-      {
-       "name": "categoria_origem",
-       "stringValue": "={{ $json.categoria_origem || $json.categoria }}"
-      },
-      {
-       "name": "link_compra_original",
-       "stringValue": "={{ $json.link_compra }}"
-      },
-      {
-       "name": "link_compra",
-       "stringValue": "={{ $json.link_compra }}"
-      },
-      {
-       "name": "sales",
-       "stringValue": "={{ $json.sales }}"
-      },
-      {
-       "name": "rating",
-       "stringValue": "={{ $json.rating }}"
-      },
-      {
-       "name": "price",
-       "stringValue": "={{ $json.price }}"
-      },
-      {
-       "name": "price_old",
-       "stringValue": "={{ $json.price_old }}"
-      },
-      {
-       "name": "discount_pct",
-       "stringValue": "={{ $json.discount_pct }}"
-      }
-     ]
-    },
-    "options": {
-     "includeOtherFields": true
-    }
-   },
-   "id": "a7192d06-b8c0-45fa-b332-c8a71381a1ee",
-   "name": "Edit Fields",
-   "type": "n8n-nodes-base.set",
-   "typeVersion": 3,
-   "position": [
-    28064,
-    13520
-   ]
-  },
-  {
-   "parameters": {
-    "method": "POST",
-    "url": "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink",
-    "sendHeaders": true,
-    "headerParameters": {
-     "parameters": [
-      {
-       "name": "cookie",
-       "value": "={{ $('CONFIG ML').first().json.ml_cookie }}"
-      },
-      {
-       "name": "x-csrf-token",
-       "value": "={{ $('CONFIG ML').first().json.ml_csrf_token }}"
-      },
-      {
-       "name": "content-type",
-       "value": "application/json"
-      },
-      {
-       "name": "origin",
-       "value": "https://www.mercadolivre.com.br"
-      },
-      {
-       "name": "referer",
-       "value": "https://www.mercadolivre.com.br/afiliados/linkbuilder"
-      },
-      {
-       "name": "user-agent",
-       "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
-      }
-     ]
-    },
-    "sendBody": true,
-    "specifyBody": "json",
-    "jsonBody": "={\n  \"urls\": [\"{{ $json.link_compra }}\"],\n  \"tag\": \"{{ $('CONFIG ML').first().json.ml_affiliate_tag }}\"\n}",
-    "options": {
-     "batching": {
-      "batch": {
-       "batchSize": 1,
-       "batchInterval": 700
-      }
-     }
-    }
-   },
-   "id": "acf6b200-2672-4f96-90b8-bbd9385c1826",
-   "name": "HTTP Request2",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4,
-   "position": [
-    27488,
-    13520
-   ]
-  },
-  {
-   "parameters": {
-    "conditions": {
-     "options": {
-      "caseSensitive": true,
-      "leftValue": "",
-      "typeValidation": "strict",
-      "version": 1
-     },
-     "conditions": [
-      {
-       "id": "filter-1",
-       "leftValue": "={{ $json['[\\'Nomes Produtos\\']'] }}",
-       "rightValue": "",
-       "operator": {
-        "type": "string",
-        "operation": "notEmpty"
-       }
-      },
-      {
-       "id": "filter-2",
-       "leftValue": "={{ $json['[\\'Imagem Produtos (src)\\']'] }}",
-       "rightValue": "",
-       "operator": {
-        "type": "string",
-        "operation": "notEmpty"
-       }
-      },
-      {
-       "id": "fde1e5c0-b585-43de-9bf4-1e66912a6c24",
-       "leftValue": "={{ $json.preco }}",
-       "rightValue": "",
-       "operator": {
-        "type": "string",
-        "operation": "notEmpty",
-        "singleValue": true
-       }
-      },
-      {
-       "id": "de6056f8-5d60-4477-b940-2f52df81dab8",
-       "leftValue": "={{ $json.link_compra }}",
-       "rightValue": "",
-       "operator": {
-        "type": "string",
-        "operation": "notEmpty",
-        "singleValue": true
-       }
-      }
-     ],
-     "combinator": "and"
-    },
-    "options": {}
-   },
-   "id": "24667b03-5552-4876-a524-3ae8c43ee298",
-   "name": "Filter",
-   "type": "n8n-nodes-base.filter",
-   "typeVersion": 2,
-   "position": [
-    26704,
-    13280
-   ]
-  },
-  {
-   "parameters": {
-    "fieldToSplitOut": "['Nomes Produtos'], ['Imagem Produtos (src)'], preco, preco_antigo, desconto, link_compra, ['Imagem Produtos (data-src)'], ['Imagem Produtos (srcset)'], ['Imagem Produtos (data-srcset)'], vendas_text, rating_text, categoria",
-    "options": {}
-   },
-   "id": "45331d64-75a5-4742-8c89-76c2bbf9785f",
-   "name": "Split Out",
-   "type": "n8n-nodes-base.splitOut",
-   "typeVersion": 1,
-   "position": [
-    26480,
-    13280
-   ]
-  },
-  {
-   "parameters": {
-    "url": "={{ $json.link }}",
-    "sendHeaders": true,
-    "headerParameters": {
-     "parameters": [
-      {
-       "name": "User-Agent",
-       "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-      },
-      {
-       "name": "Cookie",
-       "value": "={{ $json.ml_cookie }}"
-      },
-      {
-       "name": "Accept",
-       "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-      },
-      {
-       "name": "Accept-Language",
-       "value": "pt-BR,pt;q=0.9,en;q=0.8"
-      }
-     ]
-    },
-    "options": {
-     "timeout": 12000,
-     "batching": {
-      "batch": {
-       "batchSize": 5,
-       "batchInterval": 800
-      }
-     },
-     "response": {
-      "response": {
-       "neverError": true
-      }
-     }
-    }
-   },
-   "id": "84a804f5-ee75-49ff-b4ba-35171fa29fc4",
-   "name": "Extrair HTML1",
-   "type": "n8n-nodes-base.httpRequest",
-   "typeVersion": 4,
-   "position": [
-    26000,
-    13040
-   ],
-   "continueOnFail": true,
-   "retryOnFail": true,
-   "maxTries": 2,
-   "waitBetweenTries": 1500
-  },
-  {
-   "parameters": {
-    "jsCode": "// ===== Helpers =====\nfunction buildPaginatedUrl(baseUrl, page) {\n  // Remove fragmento (#...) e espacos: o que vem depois de # nao vai pro servidor\n  // e fazia o page=N/_Desde_N cair dentro do fragmento, quebrando a paginacao.\n  baseUrl = String(baseUrl).trim().split(\"#\")[0];\n  // /lista.mercadolivre.com.br usa offset (_Desde_N), 48 items por página\n  if (baseUrl.includes('lista.mercadolivre.com.br')) {\n    if (page <= 1) return baseUrl;\n    const offset = (page - 1) * 48 + 1;\n    const seg = `_Desde_${offset}`;\n    // ML tem ordem canonica fixa: ..._CustoFrete_Gratis _Desde_N _DiscountRange_30-100 _NoIndex_True\n    // Inserir o _Desde_N FORA dessa ordem faz o ML responder 200 com aviso de redirect\n    // no corpo (sem produtos). Entao inserimos logo ANTES do _DiscountRange (ou _NoIndex).\n    if (baseUrl.includes('_DiscountRange')) {\n      return baseUrl.replace('_DiscountRange', `${seg}_DiscountRange`);\n    }\n    if (baseUrl.includes('_NoIndex')) {\n      return baseUrl.replace('_NoIndex', `${seg}_NoIndex`);\n    }\n    if (baseUrl.includes('_')) {\n      return baseUrl.replace(/_([A-Z])/, `${seg}_$1`);\n    }\n    return `${baseUrl}${seg}`;\n  }\n\n  // /ofertas, /c/, busca normal — paginação via ?page=N\n  if (page <= 1) return baseUrl;\n  const sep = baseUrl.includes('?') ? '&' : '?';\n  return `${baseUrl}${sep}page=${page}`;\n}\n\n// ===== Estado do LOOP de tentativas (retry pra atingir o piso de produtos) =====\n// Cada vez que o workflow volta aqui (porque não atingiu o piso na tentativa anterior),\n// avança um bloco de páginas novo, pra não repetir o que já foi varrido antes.\nconst staticData = $getWorkflowStaticData('global'); // 'global' = compartilhado entre TODOS os nodes (precisa ser visto pelo 'Acumular Resultados')\n\n// ===== Reset de estado a cada EXECUCAO nova (agendada/manual) =====\n// O Static Data sobrevive entre execucoes. Sem zerar, 'tentativa' e 'acumulados'\n// vazariam de um dia pro outro, fazendo o pageOffset crescer pra paginas inexistentes.\n// So zera quando a execucao mudou; dentro do mesmo run (retry) mantem o acumulado.\nconst _execId = $execution?.id ?? null;\nif (staticData._execId !== _execId) {\n  staticData._execId = _execId;\n  staticData.tentativa = 0;\n  staticData.acumulados = [];\n}\nconst tentativa = Number(staticData.tentativa || 0);\nconst pagesPerAttempt = Number((($items('CONFIG ML')?.[0]?.json?.ml_queries)\n  ? (() => { try {\n        const raw = $items('CONFIG ML')[0].json.ml_queries;\n        return (typeof raw === 'string' ? JSON.parse(raw) : raw).settings?.pages;\n      } catch(e) { return null; } })()\n  : null) || 5);\nconst pageOffset = tentativa * pagesPerAttempt;\n\n// ===== Config =====\n// Lê SEMPRE do node CONFIG ML (não do input direto), pois este node também é\n// alimentado pelo \"IF - Precisa Mais?\" nas voltas do loop, cujo input não traz a config.\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\n\nconst settings = (() => {\n  const s = cfg.ml_queries;\n  if (s !== null && typeof s === 'object' && !Array.isArray(s)) return s.settings || s;\n  if (typeof s === 'string') {\n    try { const p = JSON.parse(s); return p.settings || p; } catch (e) {}\n  }\n  return {};\n})();\n\nconst pages = Math.max(1, Number(settings.pages || 5));\n\nconst excludeCategories = Array.isArray(settings.exclude_categories)\n  ? settings.exclude_categories\n  : [];\n\n// ===== Categorias (múltiplas URLs) =====\n// ml_categories é um array de objetos { nome, url }, configurado no node CONFIG ML.\n// Mantém compatibilidade: se não houver ml_categories, cai de volta no ml_base_url antigo (1 categoria só).\nlet categories = [];\ntry {\n  const raw = cfg.ml_categories;\n  if (Array.isArray(raw)) {\n    categories = raw;\n  } else if (typeof raw === 'string' && raw.trim()) {\n    categories = JSON.parse(raw);\n  }\n} catch (e) {\n  categories = [];\n}\n\nif (!Array.isArray(categories) || categories.length === 0) {\n  // Fallback ROBUSTO: nichos embutidos no proprio node.\n  // Garante o round-robin mesmo se o campo ml_categories do CONFIG vier\n  // vazio ou quebrado (era isso que derrubava tudo pro feed generico 'casa').\n  categories = [\n    { nome: \"airfryer\", url: \"https://lista.mercadolivre.com.br/air-fryer_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"cama\", url: \"https://lista.mercadolivre.com.br/jogo-de-cama-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"organizador\", url: \"https://lista.mercadolivre.com.br/organizador-de-cozinha_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"vestido\", url: \"https://lista.mercadolivre.com.br/vestido-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"conjunto\", url: \"https://lista.mercadolivre.com.br/conjunto-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"bolsa\", url: \"https://lista.mercadolivre.com.br/bolsa-feminina_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"oculos\", url: \"https://lista.mercadolivre.com.br/oculos-de-sol-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"perfume\", url: \"https://lista.mercadolivre.com.br/perfume-importado_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"creme\", url: \"https://lista.mercadolivre.com.br/creme-hidratante-corporal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"legging\", url: \"https://lista.mercadolivre.com.br/legging-fitness_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"fitness\", url: \"https://lista.mercadolivre.com.br/conjunto-fitness-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" }\n  ];\n}\n\n// Filtra categorias sem URL válida (ex: placeholders não preenchidos)\ncategories = categories.filter(c => c && c.url && !/^COLE_AQUI/i.test(String(c.url).trim()));\n\n// ===== Geração dos links em ROUND-ROBIN por categoria =====\n// Ordem de saída: cat1_p1, cat2_p1, cat3_p1, ..., catN_p1, cat1_p2, cat2_p2, ...\n// Assim o scraping já visita as categorias intercaladas, página por página.\nconst out = [];\n\ntry {\n  for (let page = 1; page <= pages; page++) {\n    const pageReal = page + pageOffset; // avança o bloco de páginas a cada tentativa do loop\n    for (const cat of categories) {\n      const baseUrl = String(cat.url).trim();\n      const categoryName = String(cat.nome || 'categoria').trim();\n      const link = buildPaginatedUrl(baseUrl, pageReal);\n\n      out.push({\n        json: {\n          marketplace: 'mercadolivre',\n          name: `${categoryName}_p${pageReal}`,\n          categoria: categoryName,\n          page: pageReal,\n          tentativa,\n          link,\n          min_discount:        Number(settings.min_discount ?? 10),\n          min_rating:          Number(settings.min_rating   ?? 4.0),\n          free_shipping:       settings.free_shipping ?? true,\n          sort:                settings.sort || 'discount_desc',\n          exclude_categories:  excludeCategories,\n          ml_affiliate_endpoint: cfg.ml_affiliate_endpoint,\n          ml_affiliate_tag:      cfg.ml_affiliate_tag,\n          ml_csrf_token:         cfg.ml_csrf_token,\n          ml_cookie:             cfg.ml_cookie,\n        },\n      });\n    }\n  }\n} catch (err) {\n  // Não derruba o workflow se algo bizarro acontecer aqui\n  out.push({\n    json: {\n      _error: true,\n      _error_message: err?.message ?? String(err),\n      _categories: categories,\n    },\n  });\n}\n\nreturn out;"
-   },
-   "id": "52281b87-cd71-494d-a3e7-d956675eb680",
-   "name": "Montar Links ML",
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    25584,
-    13168
-   ]
-  },
-  {
-   "parameters": {
-    "fields": {
-     "values": [
-      {
-       "name": "ml_queries",
-       "stringValue": "{\n  \"settings\": {\n    \"min_discount\": 10,\n    \"min_rating\": 4.0,\n    \"free_shipping\": true,\n    \"pages\": 1,\n    \"sort\": \"discount_desc\",\n    \"exclude_categories\": [\n      \"MLB1051\"\n    ]\n  }\n}"
-      },
-      {
-       "name": "ml_affiliate_tag",
-       "stringValue": "__ML_AFFILIATE_TAG__"
-      },
-      {
-       "name": "ml_cookie",
-       "stringValue": "__ML_COOKIE__"
-      },
-      {
-       "name": "ml_csrf_token",
-       "stringValue": "__ML_CSRF_TOKEN__"
-      },
-      {
-       "name": "ml_affiliate_endpoint",
-       "stringValue": "https://www.mercadolivre.com.br/affiliate-program/api/v2/affiliates/createLink"
-      },
-      {
-       "name": "ml_categories",
-       "stringValue": "[\n  {\n    \"nome\": \"cobre-leito\",\n    \"url\": \"https://lista.mercadolivre.com.br/cobre-leito-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cama\",\n    \"url\": \"https://lista.mercadolivre.com.br/jogo-de-cama-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"edredom\",\n    \"url\": \"https://lista.mercadolivre.com.br/edredom-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"travesseiro\",\n    \"url\": \"https://lista.mercadolivre.com.br/travesseiro_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cobertor\",\n    \"url\": \"https://lista.mercadolivre.com.br/cobertor-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"toalha\",\n    \"url\": \"https://lista.mercadolivre.com.br/jogo-de-toalha-de-banho_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"tapete\",\n    \"url\": \"https://lista.mercadolivre.com.br/tapete-para-sala_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cortina\",\n    \"url\": \"https://lista.mercadolivre.com.br/cortina-para-sala_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"potes\",\n    \"url\": \"https://lista.mercadolivre.com.br/kit-potes-hermeticos_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"organizador\",\n    \"url\": \"https://lista.mercadolivre.com.br/organizador-de-cozinha_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"cafeteira\",\n    \"url\": \"https://lista.mercadolivre.com.br/cafeteira-eletrica_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"airfryer\",\n    \"url\": \"https://lista.mercadolivre.com.br/air-fryer_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  },\n  {\n    \"nome\": \"tv\",\n    \"url\": \"https://lista.mercadolivre.com.br/smart-tv_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\"\n  }\n]"
-      },
-      {
-       "name": "max_itens_categoria",
-       "stringValue": "10"
-      },
-      {
-       "name": "max_itens_name",
-       "stringValue": "3"
-      },
-      {
-       "name": "max_itens_linha",
-       "stringValue": "2"
-      },
-      {
-       "name": "max_itens_marca",
-       "stringValue": "10"
-      },
-      {
-       "name": "max_total",
-       "stringValue": "100"
-      },
-      {
-       "name": "similarity_threshold",
-       "stringValue": "0.9"
-      },
-      {
-       "name": "min_total",
-       "stringValue": "60"
-      },
-      {
-       "name": "min_commission_value",
-       "stringValue": "5"
-      },
-      {
-       "name": "commission_rate",
-       "stringValue": "5"
-      },
-      {
-       "name": "commission_rate_by_category",
-       "stringValue": "{\"eletronicos\": 6, \"moda\": 15, \"beleza\": 23, \"casa\": 12, \"eletrodomesticos\": 6, \"esporte\": 14, \"infantil\": 20, \"ferramentas\": 8, \"automotivo\": 6, \"games\": 5, \"livros\": 10, \"pet\": 10, \"geral\": 10, \"_default\": 10}"
-      },
-      {
-       "name": "max_total_final",
-       "stringValue": "80"
-      },
-      {
-       "name": "max_tentativas",
-       "stringValue": "3"
-      },
-      {
-       "name": "min_total_final",
-       "stringValue": "20"
-      },
-      {
-       "name": "ml_base_url",
-       "stringValue": "https://lista.mercadolivre.com.br/ofertas-do-dia_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True"
-      },
-      {
-       "name": "ml_category_name",
-       "stringValue": "casa"
-      },
-      {
-       "name": "final_pick",
-       "stringValue": "11"
-      },
-      {
-       "name": "max_price",
-       "stringValue": "1500"
-      },
-      {
-       "name": "w_sales",
-       "stringValue": "0.2"
-      },
-      {
-       "name": "w_rating",
-       "stringValue": "0.25"
-      },
-      {
-       "name": "w_discount",
-       "stringValue": "0.35"
-      },
-      {
-       "name": "w_commission",
-       "stringValue": "0.2"
-      },
-      {
-       "name": "similar_words_window_hours",
-       "stringValue": "6"
-      },
-      {
-       "name": "similar_words_min_len",
-       "stringValue": "4"
-      },
-      {
-       "name": "similar_words_strict",
-       "stringValue": "false"
-      },
-      {
-       "name": "similar_words_stoplist",
-       "stringValue": "kit,kits,combo,jogo,conjunto,original,novo,nova,com,sem,para,por,pcs,pecas,peca,unidades,unidade,und,un,ml,kg,litro,litros,grama,gramas,premium,profissional,promocao,oferta,desconto,frete,gratis"
-      },
-      {
-       "name": "commission_price_tiers",
-       "stringValue": "[{\"max\":50,\"rate\":16},{\"max\":120,\"rate\":14},{\"max\":250,\"rate\":12},{\"max\":100000,\"rate\":10}]"
-      },
-      {
-       "name": "min_sales_final",
-       "stringValue": "10"
-      },
-      {
-       "name": "min_rating_final",
-       "stringValue": "4"
-      }
-     ]
-    },
-    "options": {}
-   },
-   "id": "3fcac001-5f40-44d6-b619-ffffe29d9ff9",
-   "name": "CONFIG ML",
-   "type": "n8n-nodes-base.set",
-   "typeVersion": 3,
-   "position": [
-    25360,
-    13168
-   ]
-  },
-  {
-   "parameters": {
-    "amount": 8
-   },
-   "type": "n8n-nodes-base.wait",
-   "typeVersion": 1.1,
-   "position": [
-    25296,
-    13024
-   ],
-   "id": "a6b20d85-ead7-4abb-a38b-6a0b7e78c9b2",
-   "name": "Wait",
-   "webhookId": "7b6f5fa6-a127-4fc2-bca0-1be92ca4bb47"
-  },
-  {
-   "parameters": {
-    "mode": "combine",
-    "combineBy": "combineByPosition",
-    "options": {}
-   },
-   "type": "n8n-nodes-base.merge",
-   "typeVersion": 3.2,
-   "position": [
-    27872,
-    13536
-   ],
-   "id": "7a175ccc-02b5-4776-8369-9a8438394d71",
-   "name": "Merge"
-  },
-  {
-   "parameters": {
-    "jsCode": "// pega tudo que já existe na Data Table\nconst existingRows = $('Get Existing IDs').all();\n\n// cria Set com os link_compra já salvos\nconst existingLinks = new Set(\n  existingRows\n    .map(r => String(\n      r.json.link_compra || ''\n    ).trim())\n    .filter(Boolean)\n);\n\n// filtra os novos\nconst out = [];\n\nfor (const item of $input.all()) {\n  const j = item.json || {};\n\n  const currentLink = String(\n    j.link_compra || ''\n  ).trim();\n\n  // se já existir na tabela, ignora\n  if (existingLinks.has(currentLink)) {\n    continue;\n  }\n\n  out.push(item);\n}\n\nreturn out;"
-   },
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    27584,
-    13280
-   ],
-   "id": "edfef9cf-d95d-4195-a451-89e4c9bb3201",
-   "name": "Filter2"
-  },
-  {
-   "parameters": {
-    "mode": "runOnceForEachItem",
-    "jsCode": "const html = $json.data || '';\nconst categoriaInput = $json.categoria || '';\n\nconst vazio = {\n  'Nomes Produtos': [], 'Imagem Produtos (src)': [], 'preco': [],\n  'preco_antigo': [], 'desconto': [], 'link_compra': [],\n  'Imagem Produtos (data-src)': [], 'Imagem Produtos (srcset)': [],\n  'Imagem Produtos (data-srcset)': [], 'vendas_text': [],\n  'vendas_text_alt': [], 'rating_text': [], 'categoria': [],\n};\n\nconst m = html.match(/_n\\.ctx\\.s\\.q\\(\"0:([\\s\\S]*?)\\\\n\"\\);/);\nif (!m) return { json: { ...vazio, _erro: 'payload nordic nao encontrado (possivel bloqueio/captcha)' } };\n\nlet s;\ntry { s = JSON.parse('\"' + m[1] + '\"'); }\ncatch (e) { return { json: { ...vazio, _erro: 'falha ao decodificar payload' } }; }\n\nconst cards = [];\nlet idx = 0;\nwhile ((idx = s.indexOf('\"results\":[', idx)) !== -1) {\n  const j = s.indexOf('[', idx);\n  let depth = 0, k = j, inStr = false, esc = false;\n  while (k < s.length) {\n    const c = s[k];\n    if (inStr) {\n      if (esc) esc = false;\n      else if (c === '\\\\') esc = true;\n      else if (c === '\"') inStr = false;\n    } else {\n      if (c === '\"') inStr = true;\n      else if (c === '[') depth++;\n      else if (c === ']') { depth--; if (depth === 0) break; }\n    }\n    k++;\n  }\n  const arr = s.slice(j, k + 1).replace(/(?<=[:,\\[])u(?=[,}\\]])/g, 'null');\n  try {\n    for (const r of JSON.parse(arr)) {\n      if (r && r.id === 'POLYCARD' && r.polycard) cards.push(r.polycard);\n    }\n  } catch (e) { /* ignora bloco invalido */ }\n  idx = k;\n}\n\nif (!cards.length) return { json: { ...vazio, _erro: 'nenhuma pagina com produtos' } };\n\nconst qm = s.match(/\"query\":\"([^\"]*)\"/);\nconst query = qm ? qm[1] : '';\n\nconst out = { ...vazio };\n\nfor (const pc of cards) {\n  const meta = pc.metadata || {};\n\n  const isAd = meta.is_pad === 'true' || meta.is_pad === true;\n  let url = meta.url || '';\n  if (isAd || !url || url.startsWith('click1.')) continue;\n  if (!url.startsWith('http')) url = 'https://' + url;\n\n  const comps = {};\n  for (const c of (pc.components || [])) if (!comps[c.type]) comps[c.type] = c;\n\n  const titulo = comps.title?.title?.text || '';\n  const price = comps.price?.price || {};\n  const atual = price.current_price?.value ?? null;\n  // preco antigo: caminho conhecido + varredura profunda (o ML muda a posicao\n  // do previous_price entre layouts, e sem ele o robo mandava \"De X por X\").\n  function deepPrev(obj, depth) {\n    if (!obj || typeof obj !== 'object' || (depth || 0) > 6) return null;\n    if (Array.isArray(obj)) {\n      for (const it of obj) { const r = deepPrev(it, (depth || 0) + 1); if (r !== null) return r; }\n      return null;\n    }\n    const k = String(obj.key || obj.type || obj.id || '').toLowerCase();\n    if (/previous_price|original_price|price_before|old_price/.test(k)) {\n      const v = obj?.price?.value ?? obj?.value ?? null;\n      const n = Number(v);\n      if (Number.isFinite(n) && n > 0) return n;\n    }\n    for (const kk of Object.keys(obj)) {\n      if (/previous_price|original_price|old_price/.test(kk.toLowerCase())) {\n        const cand = obj[kk];\n        const n = Number(cand && typeof cand === 'object' ? (cand.value ?? cand?.price?.value) : cand);\n        if (Number.isFinite(n) && n > 0) return n;\n      }\n      const r = deepPrev(obj[kk], (depth || 0) + 1);\n      if (r !== null) return r;\n    }\n    return null;\n  }\n  let antigo = price.price_labels?.[0]?.values\n    ?.find(v => v.key === 'previous_price')?.price?.value ?? null;\n  if (antigo === null || !(Number(antigo) > 0)) antigo = deepPrev(price, 0);\n  // fallback final: reconstroi pelo % de desconto do card\n  if ((antigo === null || !(Number(antigo) > 0)) && atual !== null) {\n    const pctTxt = JSON.stringify(price.discount_polylabel || price.discount || '');\n    const pm = pctTxt.match(/(\\d{1,2})\\s*%/);\n    const pct = pm ? parseInt(pm[1], 10) : 0;\n    if (pct > 0 && pct < 90) antigo = Number((Number(atual) / (1 - pct / 100)).toFixed(2));\n  }\n  if (antigo !== null && atual !== null && Number(antigo) <= Number(atual)) antigo = null;\n  const pill = price.discount_polylabel?.values\n    ?.find(v => v.key === 'previous_label')?.pill?.text || '';\n\n  const alt = comps.review_compacted?.review_compacted?.alt_text || '';\n  const rMatch = alt.match(/Classificação ([\\d.,]+)/);\n  const vendasFrase = alt.includes('vendidos')\n    ? (alt.split('.').find(t => t.includes('vendidos')) || '').trim()\n    : '';\n\n  const picId = pc.pictures?.pictures?.[0]?.id || '';\n  const imgUrl = picId ? `https://http2.mlstatic.com/D_NQ_NP_${picId}-O.webp` : '';\n\n  out['Nomes Produtos'].push(titulo);\n  out['Imagem Produtos (src)'].push(imgUrl);\n  out['Imagem Produtos (data-src)'].push(imgUrl);\n  out['preco'].push(atual !== null ? String(atual) : '');\n  out['preco_antigo'].push(antigo !== null ? String(antigo) : '');\n  out['desconto'].push(pill);\n  out['link_compra'].push(url);\n  out['vendas_text'].push(vendasFrase);\n  out['vendas_text_alt'].push(vendasFrase);\n  out['rating_text'].push(rMatch ? rMatch[1] : '');\n  out['categoria'].push(categoriaInput || query);\n}\n\nif (!out['Nomes Produtos'].length) {\n  return { json: { ...vazio, _erro: 'apenas anuncios pagos nesta pagina' } };\n}\n\nreturn { json: out };\n"
-   },
-   "type": "n8n-nodes-base.code",
-   "typeVersion": 2,
-   "position": [
-    26160,
-    13040
-   ],
-   "id": "981a86ff-5c7f-44ad-b02e-0b5a7c875257",
-   "name": "Extrair HTML"
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
   }
- ],
- "connections": {
-  "Dedupe Precoce por ID": {
-   "main": [
-    [
-     {
-      "node": "Dedupe",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Acumular Resultados": {
-   "main": [
-    [
-     {
-      "node": "IF - Precisa Mais?",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "IF - Precisa Mais?": {
-   "main": [
-    [
-     {
-      "node": "Montar Links ML",
-      "type": "main",
-      "index": 0
-     }
-    ],
-    [
-     {
-      "node": "Finalizar Acumulado",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Finalizar Acumulado": {
-   "main": [
-    [
-     {
-      "node": "HTTP Request2",
-      "type": "main",
-      "index": 0
-     },
-     {
-      "node": "Merge",
-      "type": "main",
-      "index": 1
-     }
-    ]
-   ]
-  },
-  "Parse Preço": {
-   "main": [
-    [
-     {
-      "node": "Dedupe Precoce por ID",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Code in JavaScript2": {
-   "main": [
-    [
-     {
-      "node": "Upsert row(s)",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Code in JavaScript": {
-   "main": [
-    [
-     {
-      "node": "Filter2",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Schedule Trigger 12h": {
-   "main": [
-    [
-     {
-      "node": "Get Existing IDs",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Dedupe": {
-   "main": [
-    [
-     {
-      "node": "Code in JavaScript",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Subcategorização": {
-   "main": [
-    [
-     {
-      "node": "Parse Preço",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Edit Fields": {
-   "main": [
-    [
-     {
-      "node": "Code in JavaScript2",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "HTTP Request2": {
-   "main": [
-    [
-     {
-      "node": "Merge",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Filter": {
-   "main": [
-    [
-     {
-      "node": "Subcategorização",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Split Out": {
-   "main": [
-    [
-     {
-      "node": "Filter",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Extrair HTML1": {
-   "main": [
-    [
-     {
-      "node": "Extrair HTML",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Get Existing IDs": {
-   "main": [
-    [
-     {
-      "node": "Wait",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Montar Links ML": {
-   "main": [
-    [
-     {
-      "node": "Extrair HTML1",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "CONFIG ML": {
-   "main": [
-    [
-     {
-      "node": "Montar Links ML",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Wait": {
-   "main": [
-    [
-     {
-      "node": "CONFIG ML",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Merge": {
-   "main": [
-    [
-     {
-      "node": "Edit Fields",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Filter2": {
-   "main": [
-    [
-     {
-      "node": "Acumular Resultados",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Extrair HTML": {
-   "main": [
-    [
-     {
-      "node": "Split Out",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  }
- },
- "settings": {
-  "executionOrder": "v1",
-  "timezone": "America/Sao_Paulo"
- }
 }
