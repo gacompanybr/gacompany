@@ -250,13 +250,16 @@ async function burnRowsAsAlreadyHandled(rows, reason) {
   if (!_BASE || !_KEY || !_TABLE || !Array.isArray(rows) || !rows.length) return { burned: 0, errors: 0 };
   const http = this.helpers.httpRequest;
   const now = new Date().toISOString();
+  // Linha queimada por DUPLICIDADE nunca foi enviada de verdade: marca com prefixo
+  // __DEDUPE__ pra nao entrar no historico de 45 dias do robo como envio real.
+  const burnStamp = '__DEDUPE__:' + now;
   let burned = 0, errors = 0;
   for (const row of rows) {
     const id = row?._row_id ?? row?.id;
     if (id == null || id === '') continue;
     const attempts = [
-      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/update', body: { filter: { type: 'and', filters: [{ columnName: 'id', condition: 'eq', value: id }] }, data: { sending: true, sent_at: now, updatedAt: now } } },
-      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/' + id, body: { data: { sending: true, sent_at: now, updatedAt: now } } },
+      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/update', body: { filter: { type: 'and', filters: [{ columnName: 'id', condition: 'eq', value: id }] }, data: { sending: true, sent_at: burnStamp, updatedAt: now } } },
+      { method: 'PATCH', url: _BASE + '/data-tables/' + _TABLE + '/rows/' + id, body: { data: { sending: true, sent_at: burnStamp, updatedAt: now } } },
     ];
     let ok = false;
     for (const attempt of attempts) {
