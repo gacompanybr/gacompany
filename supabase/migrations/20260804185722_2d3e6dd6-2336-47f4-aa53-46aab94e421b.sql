@@ -1,0 +1,2 @@
+UPDATE public.robo_campanhas SET n8n_datatable_id = 'E4sytrISzRpFPclT' WHERE n8n_datatable_id = 'hj9r6CfIATcBlX91';
+UPDATE public.scrapper_jobs SET n8n_datatable_id = 'E4sytrISzRpFPclT' WHERE n8n_datatable_id = 'hj9r6CfIATcBlX91';
