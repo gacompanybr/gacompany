@@ -517,11 +517,12 @@ try {
     await this.helpers.httpRequest({
       method: 'POST',
       url: ${JSON.stringify(scrapperApi)},
-      headers: { 'Content-Type': 'application/json', 'x-scrapper-secret': ${JSON.stringify(scrapperSecret)} },
+      headers: { 'Authorization': 'Bearer ' + ${JSON.stringify(scrapperSecret)}, 'Content-Type': 'application/json' },
       body: {
         action: 'update_job',
-        job_id: ${JSON.stringify(jobId)},
+        id: ${JSON.stringify(jobId)},
         ultimo_erro: 'affiliate_cookie_expired: ' + dropSemAfiliado + ' produto(s) descartado(s) sem link de afiliado. Atualize o ML_COOKIE / ML_CSRF.',
+        ultima_affiliate_errors: dropSemAfiliado,
       },
       json: true,
     });
