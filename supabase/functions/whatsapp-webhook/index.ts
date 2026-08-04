@@ -937,10 +937,10 @@ async function handleOutgoingMessage(payload: any, msg: any) {
       .eq("portfolio_id", portfolioId)
       .gte("created_at", since)
       .limit(50);
-    const suffixes = phoneSuffixes(phoneFromJid);
+    const suffixes = phoneSuffixes([phoneFromJid]);
     if ((recentes ?? []).some((r: any) => matchesPhone(r.phone, suffixes))) return;
 
-    const phone = normalizePhoneDigits(remoteJid.split("@")[0]) || remoteJid.split("@")[0];
+    const phone = phoneFromJid;
     const pausedUntil = new Date(Date.now() + HUMAN_PAUSE_HOURS * 60 * 60 * 1000).toISOString();
     await admin.from("whatsapp_paused_contacts").upsert({
       portfolio_id: portfolioId,
