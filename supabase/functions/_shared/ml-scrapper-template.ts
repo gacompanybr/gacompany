@@ -361,20 +361,33 @@ async function fetchExistingRows() {
   return rows;
 }
 
-const existingRows = await fetchExistingRows.call(this);
-const existingKeys = new Set();
-const duplicateAlreadyPendingRows = [];
-for (const row of existingRows) {
-  const flat = flatRow(row);
-  const keys = productKeys(flat);
-  const isAlreadySent = flat?.sending === true || String(flat?.sending).toLowerCase() === 'true' || !!String(flat?.sent_at ?? '').trim();
-  const duplicated = keys.some((key) => existingKeys.has(key));
-  if (duplicated && !isAlreadySent) duplicateAlreadyPendingRows.push(flat);
-  for (const key of keys) {
-    existingKeys.add(key);
+// A tabela e baixada UMA vez por execucao. Nas voltas do loop de tentativas o
+// conjunto de chaves vem do cache no static data (as chaves novas da rodada ja
+// sao cobertas pelo seenThisRun), evitando refazer o download completo.
+const _sdDedupe = $getWorkflowStaticData('global');
+const _execIdDedupe = $execution?.id ?? null;
+let existingKeys;
+let burnResult = { burned: 0, errors: 0 };
+if (_sdDedupe._dedupeCacheExecId === _execIdDedupe && Array.isArray(_sdDedupe._dedupeCacheKeys)) {
+  existingKeys = new Set(_sdDedupe._dedupeCacheKeys);
+} else {
+  const existingRows = await fetchExistingRows.call(this);
+  existingKeys = new Set();
+  const duplicateAlreadyPendingRows = [];
+  for (const row of existingRows) {
+    const flat = flatRow(row);
+    const keys = productKeys(flat);
+    const isAlreadySent = flat?.sending === true || String(flat?.sending).toLowerCase() === 'true' || !!String(flat?.sent_at ?? '').trim();
+    const duplicated = keys.some((key) => existingKeys.has(key));
+    if (duplicated && !isAlreadySent) duplicateAlreadyPendingRows.push(flat);
+    for (const key of keys) {
+      existingKeys.add(key);
+    }
   }
+  burnResult = await burnRowsAsAlreadyHandled.call(this, duplicateAlreadyPendingRows, 'duplicate_existing_pending');
+  _sdDedupe._dedupeCacheExecId = _execIdDedupe;
+  _sdDedupe._dedupeCacheKeys = [...existingKeys];
 }
-const burnResult = await burnRowsAsAlreadyHandled.call(this, duplicateAlreadyPendingRows, 'duplicate_existing_pending');
 
 const seenThisRun = new Set();
 const out = [];
