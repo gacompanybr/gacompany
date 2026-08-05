@@ -336,6 +336,10 @@ function buildSystemPrompt(agent: any): string {
     `- Nunca invente preço/prazo/condição que não esteja nas instruções — se não souber, diga que vai confirmar com o time.`,
     `- NUNCA escreva mensagem no formato de relatório interno ("Nome: X | Empresa: Y | ..."). Isso é reservado ao grupo interno. Você fala SEMPRE com o cliente em linguagem natural de WhatsApp.`,
     `- NUNCA use placeholders entre [colchetes] ou {chaves}.`,
+    `- Respostas CURTAS, como um humano digitando no WhatsApp: em geral até ~300 caracteres por turno. Só ultrapasse quando o cliente pedir detalhes (ex.: lista de preços).`,
+    `- PROIBIDO markdown: nunca use **, *, listas com asterisco ou títulos #. Para listar, use no máximo uma linha por item começando com hífen.`,
+    `- NUNCA repita informação que você já enviou no histórico (preços, endereço, horários, boas-vindas). Se o cliente voltar ao assunto, faça referência curta em uma linha (ex.: "como te falei, o plano livre é R$ 90").`,
+    `- Responda SOMENTE a última mensagem do cliente, uma ideia por mensagem. Nunca reenvie sua resposta anterior.`,
   ].filter(Boolean).join("\n");
 }
 
@@ -724,6 +728,36 @@ async function recoverNameFromConversation(
 
 
 
+// Remove markdown e normaliza formatação antes de quebrar a mensagem.
+function sanitizeReplyFormatting(text: string): string {
+  let out = (text ?? "");
+  out = out.replace(/\*\*(.*?)\*\*/gs, "$1").replace(/__(.*?)__/gs, "$1");
+  out = out.replace(/\*\*/g, "").replace(/__/g, "");
+  out = out.replace(/^[ \t]*[*-][ \t]+/gm, "- ");
+  out = out.replace(/^[ \t]*#{1,6}[ \t]*/gm, "");
+  out = out.replace(/\n{3,}/g, "\n\n");
+  return out.trim();
+}
+
+// Normalização usada para detectar repetição de conteúdo já enviado.
+function normalizeForRepeat(text: string): string {
+  return (text ?? "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenSimilarity(a: string, b: string): number {
+  const ta = new Set(normalizeForRepeat(a).split(" ").filter(Boolean));
+  const tb = new Set(normalizeForRepeat(b).split(" ").filter(Boolean));
+  if (!ta.size || !tb.size) return 0;
+  let inter = 0;
+  for (const t of ta) if (tb.has(t)) inter++;
+  return inter / Math.max(ta.size, tb.size);
+}
+
 function splitMessage(text: string): string[] {
   let raw = (text ?? "").trim();
   if (!raw) return [];
@@ -734,11 +768,11 @@ function splitMessage(text: string): string[] {
     .trim();
   // Separador explícito do modelo
   if (raw.includes("|||")) {
-    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 2);
+    return raw.split("|||").map((s) => s.trim()).filter(Boolean).slice(0, 3);
   }
   // Quebra por parágrafo duplo
   const byParagraph = raw.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
-  if (byParagraph.length > 1) return byParagraph;
+  if (byParagraph.length > 1) return byParagraph.slice(0, 3);
   // Curta o suficiente — manda em uma única mensagem
   const lineCount = raw.split(/\n/).length;
   if (raw.length <= 250 && lineCount <= 3) return [raw];
@@ -755,7 +789,7 @@ function splitMessage(text: string): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-  return chunks.filter(Boolean).slice(0, 2);
+  return chunks.filter(Boolean).slice(0, 3);
 }
 
 type SendCtx = { portfolioId?: string | null; phone?: string | null };
@@ -867,8 +901,10 @@ function randomSplitDelayMs(): number {
   return 800 + Math.floor(Math.random() * 700);
 }
 
-async function sendText(instance: string, targets: string[], text: string, ctx?: SendCtx): Promise<{ sent: string[]; failed: string[] }> {
-  const parts = splitMessage(text);
+async function sendText(instance: string, targets: string[], text: string | string[], ctx?: SendCtx): Promise<{ sent: string[]; failed: string[] }> {
+  const parts = Array.isArray(text)
+    ? text.map((p) => (p ?? "").trim()).filter(Boolean).slice(0, 3)
+    : splitMessage(text);
   const sent: string[] = [];
   const failed: string[] = [];
   for (let i = 0; i < parts.length; i++) {
@@ -1223,15 +1259,15 @@ async function processPayload(payload: any) {
     // === DEBOUNCE ANTI-BURST ===
     // Se o cliente manda várias mensagens seguidas ("oi", "opa", "call?"),
     // cada webhook chamava a IA e respondia 3x cada = enxurrada de bolhas.
-    // Aqui esperamos 7s: se chegou outra mensagem do mesmo contato nesse
+    // Aqui esperamos 6s: se chegou outra mensagem do mesmo contato nesse
     // intervalo, ESTA execução para e deixa a próxima responder por todas.
-    const DEBOUNCE_MS = 1500;
+    const DEBOUNCE_MS = 6000;
     await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
+    const phonesForCheck = Array.from(new Set([
+      storagePhone,
+      ...phoneCandidates,
+    ].filter(Boolean))).slice(0, 20);
     {
-      const phonesForCheck = Array.from(new Set([
-        storagePhone,
-        ...phoneCandidates,
-      ].filter(Boolean))).slice(0, 20);
       const cutoff = insertedUserMsg?.created_at ?? new Date(Date.now() - DEBOUNCE_MS).toISOString();
       if (phonesForCheck.length) {
         const { data: newer } = await admin
@@ -1462,7 +1498,67 @@ async function processPayload(payload: any) {
       reply = "Perfeito! Já anotei aqui suas informações. Vou passar pro nosso especialista e ele te chama em instantes pra alinhar os próximos passos. Enquanto isso, tem algum horário que funciona melhor pra você hoje ou amanhã?";
     }
 
-    const { sent, failed } = await sendText(instance, sendTargets, reply, { portfolioId, phone: storagePhone });
+    // Remove markdown / normaliza formatação antes de quebrar em blocos.
+    reply = sanitizeReplyFormatting(reply);
+    if (!reply) continue;
+
+    // === ANTI-CONCORRÊNCIA (evita resposta obsoleta e duplicada) ===
+    const raceCutoff = insertedUserMsg?.created_at ?? null;
+    if (raceCutoff && phonesForCheck.length) {
+      const { data: newerUser } = await admin
+        .from("whatsapp_conversas")
+        .select("id")
+        .eq("portfolio_id", portfolioId)
+        .eq("role", "user")
+        .in("contato_telefone", phonesForCheck)
+        .gt("created_at", raceCutoff)
+        .limit(1);
+      if (newerUser && newerUser.length > 0) {
+        console.log("[RACE] abortando envio — mensagem mais nova do cliente", { portfolioId, storagePhone });
+        continue;
+      }
+      const { data: newerAssistant } = await admin
+        .from("whatsapp_conversas")
+        .select("id")
+        .eq("portfolio_id", portfolioId)
+        .eq("role", "assistant")
+        .in("contato_telefone", phonesForCheck)
+        .gt("created_at", raceCutoff)
+        .limit(1);
+      if (newerAssistant && newerAssistant.length > 0) {
+        console.log("[RACE] abortando envio — outra execução já respondeu", { portfolioId, storagePhone });
+        continue;
+      }
+    }
+
+    // === ANTI-REPETIÇÃO DE CONTEÚDO ===
+    let partsToSend = splitMessage(reply);
+    if (phonesForCheck.length) {
+      const repeatCutoff = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+      const { data: lastAssistant } = await admin
+        .from("whatsapp_conversas")
+        .select("mensagem")
+        .eq("portfolio_id", portfolioId)
+        .eq("role", "assistant")
+        .in("contato_telefone", phonesForCheck)
+        .gte("created_at", repeatCutoff)
+        .order("created_at", { ascending: false })
+        .limit(6);
+      const previous = (lastAssistant ?? []).map((m: any) => String(m.mensagem ?? "")).filter(Boolean);
+      if (previous.length) {
+        partsToSend = partsToSend.filter((part) => {
+          const repeated = previous.some((prev) => tokenSimilarity(part, prev) >= 0.9);
+          if (repeated) console.log("[REPEAT] bloco repetido descartado", { preview: part.slice(0, 80) });
+          return !repeated;
+        });
+      }
+    }
+    if (!partsToSend.length) {
+      console.log("[REPEAT] nada novo a enviar — execução encerrada", { portfolioId, storagePhone });
+      continue;
+    }
+
+    const { sent, failed } = await sendText(instance, sendTargets, partsToSend, { portfolioId, phone: storagePhone });
     // Só persistimos no histórico o que foi REALMENTE entregue. Mensagens
     // falhadas poluíam o contexto da próxima resposta (a IA "lia" como se
     // já tivesse falado aquilo). Falhas viram só log.
@@ -1474,15 +1570,21 @@ async function processPayload(payload: any) {
       }));
     }
     if (sent.length) {
-      await admin.from("whatsapp_conversas").insert(sent.map((m) => ({
-        portfolio_id: portfolioId,
-        instance_name: instance,
-        contato_telefone: storagePhone,
-        contato_nome: pushName,
-        role: "assistant" as const,
-        mensagem: m,
-        sdr_lead_id: sdrLead?.id ?? null,
-      })));
+      // Insere um a um com created_at explícito (+1s por parte) para que a
+      // leitura do histórico preserve a ordem real de envio.
+      const baseTs = Date.now();
+      for (let i = 0; i < sent.length; i++) {
+        await admin.from("whatsapp_conversas").insert({
+          portfolio_id: portfolioId,
+          instance_name: instance,
+          contato_telefone: storagePhone,
+          contato_nome: pushName,
+          role: "assistant" as const,
+          mensagem: sent[i],
+          sdr_lead_id: sdrLead?.id ?? null,
+          created_at: new Date(baseTs + i * 1000).toISOString(),
+        });
+      }
     }
 
     // === Detecção de gatilhos (funciona para SDR e conversas RECEPTIVAS) ===
