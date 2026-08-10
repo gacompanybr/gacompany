@@ -20,6 +20,7 @@ type ConversaRow = {
 };
 
 export function ConversasTab({ portfolioId }: { portfolioId: string }) {
+  const [sel, setSel] = useState<{ telefone: string; nome: string | null } | null>(null);
   const { data: mensagens, isLoading } = useQuery({
     queryKey: ["whatsapp-conversas", portfolioId],
     queryFn: async () => {
@@ -109,6 +110,7 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
   }
 
   return (
+    <>
     <Card className="overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
         <h3 className="font-semibold">Conversas</h3>
@@ -119,6 +121,7 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
           {grupos.map((g) => (
             <div
               key={g.telefone}
+              onClick={() => setSel({ telefone: g.telefone, nome: g.nome })}
               className="flex items-center gap-3 p-3 hover:bg-muted/40 transition-colors cursor-pointer"
             >
               <div className="shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
@@ -152,5 +155,15 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
         </div>
       </ScrollArea>
     </Card>
+
+    <ConversaDetailDialog
+      portfolioId={portfolioId}
+      telefone={sel?.telefone ?? null}
+      nome={sel?.nome ?? null}
+      open={!!sel}
+      onOpenChange={(v) => { if (!v) setSel(null); }}
+    />
+    </>
   );
 }
+
