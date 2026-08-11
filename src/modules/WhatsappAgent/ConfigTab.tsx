@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Info } from "lucide-react";
 import { TOM_OPTIONS, DIAS, type WhatsappAgent } from "./types";
@@ -148,6 +149,22 @@ export function ConfigTab({
           </p>
         </div>
 
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-semibold">Follow-up automático</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-md">
+              Envia até 2 mensagens de retomada quando o contato para de responder.
+              Ative só para clientes que querem isso no número deles.
+            </p>
+          </div>
+          <Switch
+            checked={!!agent.followup_enabled}
+            onCheckedChange={(v) => onChange({ followup_enabled: v })}
+          />
+        </div>
       </Card>
 
       <ReportGroupCard agent={agent} onChange={onChange} />
