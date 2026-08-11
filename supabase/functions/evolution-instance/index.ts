@@ -100,6 +100,33 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Contatos de uma instância arbitrária (usado pela seção Cobrança no cadastro do cliente).
+    if (action === "contacts_by_instance") {
+      const inst = String(body.instanceName ?? "").trim();
+      if (!inst) return json({ error: "instanceName obrigatório" }, 400);
+      const r = await evo(`/chat/findContacts/${inst}`, {
+        method: "POST",
+        body: JSON.stringify({ where: {} }),
+      });
+      const arr = Array.isArray(r.body) ? r.body : (r.body?.contacts ?? r.body?.data ?? []);
+      const contacts = (arr as any[])
+        .map((x: any) => {
+          const jid = String(x.remoteJid ?? x.id ?? x.jid ?? "");
+          if (!jid || jid.includes("@g.us") || jid.includes("@broadcast") || jid.includes("@lid")) return null;
+          const phone = jid.split("@")[0].replace(/\D/g, "");
+          if (phone.length < 8) return null;
+          const nome = String(x.pushName ?? x.name ?? x.notify ?? x.verifiedName ?? "").trim();
+          return { jid, phone, nome };
+        })
+        .filter((x: any) => x && x.phone)
+        .reduce((acc: any[], cur: any) => {
+          if (!acc.find((a) => a.phone === cur.phone)) acc.push(cur);
+          return acc;
+        }, [])
+        .sort((a: any, b: any) => (a.nome || a.phone).localeCompare(b.nome || b.phone));
+      return json({ contacts });
+    }
+
     if (!agentId) return json({ error: "agentId obrigatório" }, 400);
 
     // Buscar agente + checar acesso
