@@ -1790,6 +1790,47 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_agent_followups: {
+        Row: {
+          created_at: string
+          followups_sent: number
+          id: string
+          last_agent_message_at: string | null
+          last_followup_at: string | null
+          phone: string
+          portfolio_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          followups_sent?: number
+          id?: string
+          last_agent_message_at?: string | null
+          last_followup_at?: string | null
+          phone: string
+          portfolio_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          followups_sent?: number
+          id?: string
+          last_agent_message_at?: string | null
+          last_followup_at?: string | null
+          phone?: string
+          portfolio_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_agent_followups_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_agents: {
         Row: {
           created_at: string
