@@ -14,6 +14,7 @@ import {
 import { ALL_SERVICES, SERVICE_LABELS } from "./ServiceBadge";
 import { ResponsaveisMultiSelect } from "./ResponsaveisMultiSelect";
 import { Loader2, Trash2 } from "lucide-react";
+import { CobrancaSection, emptyCobranca, saveCobranca, type CobrancaState } from "./CobrancaSection";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -44,6 +45,7 @@ export function EditarClienteDialog({
   const [servicos, setServicos] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [cobranca, setCobranca] = useState<CobrancaState>(emptyCobranca());
 
   useEffect(() => {
     if (!open || !cliente) return;
@@ -61,6 +63,25 @@ export function EditarClienteDialog({
           ids.push(cliente.responsavel_id);
         }
         setResponsaveis(ids);
+      });
+    supabase.from("cobranca_config")
+      .select("*")
+      .eq("portfolio_id", cliente.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return setCobranca(emptyCobranca());
+        setCobranca({
+          id: data.id,
+          valor: String(data.valor ?? ""),
+          dia_vencimento: String(data.dia_vencimento ?? ""),
+          sender_instance: data.sender_instance ?? "",
+          sender_portfolio_id: data.sender_portfolio_id ?? null,
+          contato_jid: data.contato_jid ?? "",
+          contato_telefone: data.contato_telefone ?? "",
+          contato_nome: data.contato_nome ?? "",
+          mensagem_template: data.mensagem_template ?? "",
+          ativo: !!data.ativo,
+        });
       });
   }, [open, cliente]);
 
@@ -104,7 +125,9 @@ export function EditarClienteDialog({
       );
     }
 
+    const okCobranca = await saveCobranca(cliente.id, cobranca);
     setBusy(false);
+    if (!okCobranca) return;
     toast.success("Cliente atualizado!");
     onOpenChange(false);
     onSaved();
@@ -129,7 +152,7 @@ export function EditarClienteDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
 
           <div className="space-y-4">
@@ -183,6 +206,10 @@ export function EditarClienteDialog({
                 ))}
               </div>
             </div>
+            <CobrancaSection
+              value={cobranca}
+              onChange={(patch) => setCobranca((c) => ({ ...c, ...patch }))}
+            />
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">

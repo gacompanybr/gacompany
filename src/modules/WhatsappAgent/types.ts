@@ -21,6 +21,7 @@ export type WhatsappAgent = {
   report_group_id: string | null;
   report_group_name: string | null;
   report_number: string | null;
+  followup_enabled: boolean;
 };
 
 export type Faq = { pergunta: string; resposta: string };
@@ -91,5 +92,6 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     report_group_id: null,
     report_group_name: null,
     report_number: null,
+    followup_enabled: false,
   };
 }

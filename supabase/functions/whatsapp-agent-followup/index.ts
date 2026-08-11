@@ -95,8 +95,9 @@ async function run() {
   // 1) agentes ativos
   const { data: agents, error: aerr } = await admin
     .from("whatsapp_agents")
-    .select("portfolio_id, nome_atendente, tom_de_voz, status")
-    .eq("status", "active");
+    .select("portfolio_id, nome_atendente, tom_de_voz, status, followup_enabled")
+    .eq("status", "active")
+    .eq("followup_enabled", true);
   if (aerr) throw new Error(aerr.message);
   const agentByPortfolio = new Map<string, any>();
   for (const a of agents ?? []) agentByPortfolio.set(String(a.portfolio_id), a);
