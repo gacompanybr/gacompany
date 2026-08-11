@@ -49,3 +49,6 @@ verify_jwt = false
 
 
 
+
+[functions.cobranca-send]
+verify_jwt = false

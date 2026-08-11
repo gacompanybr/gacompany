@@ -14,6 +14,7 @@ import {
 import { ALL_SERVICES, SERVICE_LABELS } from "./ServiceBadge";
 import { ResponsaveisMultiSelect } from "./ResponsaveisMultiSelect";
 import { Loader2 } from "lucide-react";
+import { CobrancaSection, emptyCobranca, saveCobranca, type CobrancaState } from "./CobrancaSection";
 
 export function NovoClienteDialog({
   open, onOpenChange, onCreated,
@@ -28,10 +29,11 @@ export function NovoClienteDialog({
   const [responsaveis, setResponsaveis] = useState<string[]>([]);
   const [servicos, setServicos] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [cobranca, setCobranca] = useState<CobrancaState>(emptyCobranca());
 
   function reset() {
     setName(""); setCnpj(""); setStatus("active");
-    setResponsaveis([]); setServicos([]);
+    setResponsaveis([]); setServicos([]); setCobranca(emptyCobranca());
   }
 
   async function handleSave() {
@@ -60,6 +62,8 @@ export function NovoClienteDialog({
       );
     }
 
+    await saveCobranca(created.id, cobranca);
+
     setBusy(false);
     toast.success("Cliente criado!");
     reset();
@@ -69,7 +73,7 @@ export function NovoClienteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Novo Cliente</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div>
@@ -112,6 +116,10 @@ export function NovoClienteDialog({
               ))}
             </div>
           </div>
+          <CobrancaSection
+            value={cobranca}
+            onChange={(patch) => setCobranca((c) => ({ ...c, ...patch }))}
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
