@@ -298,6 +298,119 @@ export type Database = {
           },
         ]
       }
+      cobranca_config: {
+        Row: {
+          ativo: boolean
+          contato_jid: string
+          contato_nome: string | null
+          contato_telefone: string
+          created_at: string
+          dia_vencimento: number
+          id: string
+          last_sent_on: string | null
+          mensagem_template: string
+          portfolio_id: string
+          sender_instance: string
+          sender_portfolio_id: string | null
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          ativo?: boolean
+          contato_jid: string
+          contato_nome?: string | null
+          contato_telefone: string
+          created_at?: string
+          dia_vencimento: number
+          id?: string
+          last_sent_on?: string | null
+          mensagem_template: string
+          portfolio_id: string
+          sender_instance: string
+          sender_portfolio_id?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          ativo?: boolean
+          contato_jid?: string
+          contato_nome?: string | null
+          contato_telefone?: string
+          created_at?: string
+          dia_vencimento?: number
+          id?: string
+          last_sent_on?: string | null
+          mensagem_template?: string
+          portfolio_id?: string
+          sender_instance?: string
+          sender_portfolio_id?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_config_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: true
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobranca_config_sender_portfolio_id_fkey"
+            columns: ["sender_portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cobranca_envios: {
+        Row: {
+          config_id: string | null
+          contato_telefone: string | null
+          created_at: string
+          erro: string | null
+          id: string
+          mensagem: string | null
+          origem: string | null
+          portfolio_id: string | null
+          status: string | null
+          valor: number | null
+        }
+        Insert: {
+          config_id?: string | null
+          contato_telefone?: string | null
+          created_at?: string
+          erro?: string | null
+          id?: string
+          mensagem?: string | null
+          origem?: string | null
+          portfolio_id?: string | null
+          status?: string | null
+          valor?: number | null
+        }
+        Update: {
+          config_id?: string | null
+          contato_telefone?: string | null
+          created_at?: string
+          erro?: string | null
+          id?: string
+          mensagem?: string | null
+          origem?: string | null
+          portfolio_id?: string | null
+          status?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobranca_envios_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "cobranca_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_interacoes: {
         Row: {
           created_at: string
@@ -1836,6 +1949,7 @@ export type Database = {
           created_at: string
           dias_semana: Json
           faqs: Json
+          followup_enabled: boolean
           fora_horario_msg: string | null
           horario_fim: string | null
           horario_inicio: string | null
@@ -1865,6 +1979,7 @@ export type Database = {
           created_at?: string
           dias_semana?: Json
           faqs?: Json
+          followup_enabled?: boolean
           fora_horario_msg?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
@@ -1894,6 +2009,7 @@ export type Database = {
           created_at?: string
           dias_semana?: Json
           faqs?: Json
+          followup_enabled?: boolean
           fora_horario_msg?: string | null
           horario_fim?: string | null
           horario_inicio?: string | null
