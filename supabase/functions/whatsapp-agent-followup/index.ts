@@ -270,7 +270,7 @@ async function run() {
         portfolio_id: convo.portfolioId,
         instance_name: instance,
         contato_telefone: convo.phone,
-        contato_nome: last.contato_nome ?? nomeRaw || null,
+        contato_nome: last.contato_nome ?? (nomeRaw || null),
         role: "assistant",
         mensagem: text,
       });
