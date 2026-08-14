@@ -13,8 +13,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Sparkles, Loader2, Upload, X } from "lucide-react";
-import { PLATAFORMAS, type Plataforma, type PostTipo, type SocialPost } from "./types";
+import { Sparkles, Loader2, Upload, X, GripVertical, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  PLATAFORMAS, ASPECT_RATIOS, MAX_CARROSSEL,
+  type AspectRatio, type Plataforma, type PostTipo, type SocialPost,
+} from "./types";
 
 interface Props {
   portfolioId: string;
@@ -29,6 +32,8 @@ const TIPO_PRECISA_LEGENDA: Record<PostTipo, boolean> = {
   post: true, reels: true, carrossel: true, story: false,
 };
 
+const isVideo = (url: string) => /\.(mp4|mov|m4v)(\?|$)/i.test(url);
+
 export function PostDialog({ portfolioId, open, onOpenChange, initialDate, editing }: Props) {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,14 +43,21 @@ export function PostDialog({ portfolioId, open, onOpenChange, initialDate, editi
   const [plataformas, setPlataformas] = useState<Plataforma[]>([]);
   const [tipo, setTipo] = useState<PostTipo>("post");
   const [data, setData] = useState("");
-  const [imagem, setImagem] = useState("");
+  const [imagens, setImagens] = useState<string[]>([]);
+  const [aspect, setAspect] = useState<AspectRatio>("1:1");
   const [aiLoading, setAiLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   const precisaLegenda = TIPO_PRECISA_LEGENDA[tipo];
+  const isCarrossel = tipo === "carrossel";
+  const maxFiles = isCarrossel ? MAX_CARROSSEL : 1;
+  const aspectCss = ASPECT_RATIOS.find((a) => a.key === aspect)?.css ?? "1 / 1";
 
   useEffect(() => {
     if (!open) return;
+    setPreviewIndex(0);
     if (editing) {
       setTitulo(editing.titulo);
       setLegenda(editing.legenda ?? editing.conteudo ?? "");
@@ -53,33 +65,71 @@ export function PostDialog({ portfolioId, open, onOpenChange, initialDate, editi
       setPlataformas(editing.plataformas ?? []);
       setTipo(editing.tipo);
       setData(editing.data_agendada ? new Date(editing.data_agendada).toISOString().slice(0, 16) : "");
-      setImagem(editing.imagem_url ?? "");
+      const lista = Array.isArray(editing.imagens_urls) ? editing.imagens_urls.filter(Boolean) : [];
+      setImagens(lista.length ? lista : editing.imagem_url ? [editing.imagem_url] : []);
+      setAspect((editing.aspect_ratio as AspectRatio) ?? "1:1");
     } else {
-      setTitulo(""); setLegenda(""); setHashtags(""); setPlataformas([]); setTipo("post"); setImagem("");
+      setTitulo(""); setLegenda(""); setHashtags(""); setPlataformas([]); setTipo("post");
+      setImagens([]); setAspect("1:1");
       setData(initialDate ? new Date(initialDate.getTime() - initialDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "");
     }
   }, [open, editing, initialDate]);
 
+  // Ao trocar de tipo, mantém só a primeira mídia se não for carrossel
+  useEffect(() => {
+    if (!isCarrossel) setImagens((prev) => prev.slice(0, 1));
+    setPreviewIndex(0);
+  }, [isCarrossel]);
+
   const togglePlat = (p: Plataforma) =>
     setPlataformas((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
 
-  const handleUpload = async (file: File) => {
+  const uploadOne = async (file: File) => {
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${portfolioId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("social-media").upload(path, file, {
+      cacheControl: "3600", upsert: false,
+    });
+    if (upErr) throw upErr;
+    const { data: pub } = supabase.storage.from("social-media").getPublicUrl(path);
+    return pub.publicUrl;
+  };
+
+  const handleUpload = async (files: File[]) => {
+    const livres = maxFiles - imagens.length;
+    if (livres <= 0) {
+      toast.error(isCarrossel ? `Máximo de ${MAX_CARROSSEL} imagens` : "Remova a mídia atual antes");
+      return;
+    }
+    const alvo = files.slice(0, livres);
+    if (files.length > livres) toast.warning(`Só ${livres} arquivo(s) foram aceitos (limite ${maxFiles}).`);
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${portfolioId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("social-media").upload(path, file, {
-        cacheControl: "3600", upsert: false,
-      });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("social-media").getPublicUrl(path);
-      setImagem(pub.publicUrl);
-      toast.success("Imagem enviada");
+      const urls: string[] = [];
+      for (const f of alvo) urls.push(await uploadOne(f));
+      setImagens((prev) => [...prev, ...urls].slice(0, maxFiles));
+      toast.success(urls.length > 1 ? `${urls.length} imagens enviadas` : "Mídia enviada");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha no upload");
     } finally {
       setUploading(false);
     }
+  };
+
+  const removerImagem = (idx: number) => {
+    setImagens((prev) => prev.filter((_, i) => i !== idx));
+    setPreviewIndex(0);
+  };
+
+  const moverImagem = (from: number, to: number) => {
+    if (to < 0 || to >= imagens.length || from === to) return;
+    setImagens((prev) => {
+      const arr = [...prev];
+      const [item] = arr.splice(from, 1);
+      arr.splice(to, 0, item);
+      return arr;
+    });
+    setPreviewIndex(to);
   };
 
   const gerarIA = async () => {
@@ -124,7 +174,10 @@ Responda EXATAMENTE neste formato JSON:
     mutationFn: async (status: "rascunho" | "agendado") => {
       if (!titulo.trim()) throw new Error("Título obrigatório");
       if (status === "agendado" && !data) throw new Error("Data de agendamento obrigatória");
-      if (status === "agendado" && !imagem.trim()) throw new Error("Imagem obrigatória para agendar");
+      if (status === "agendado" && imagens.length === 0) throw new Error("Mídia obrigatória para agendar");
+      if (status === "agendado" && isCarrossel && imagens.length < 2) {
+        throw new Error("Carrossel precisa de pelo menos 2 imagens");
+      }
       let dataAgendadaIso: string | null = null;
       if (data) {
         const parsed = new Date(data);
@@ -141,7 +194,9 @@ Responda EXATAMENTE neste formato JSON:
         tipo,
         status,
         data_agendada: dataAgendadaIso,
-        imagem_url: imagem.trim() || null,
+        imagem_url: imagens[0] ?? null,
+        imagens_urls: imagens as any,
+        aspect_ratio: aspect,
       };
       if (editing) {
         const { error } = await supabase.from("social_posts").update(payload).eq("id", editing.id);
@@ -158,6 +213,8 @@ Responda EXATAMENTE neste formato JSON:
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const previewUrl = imagens[Math.min(previewIndex, Math.max(imagens.length - 1, 0))];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -226,21 +283,41 @@ Responda EXATAMENTE neste formato JSON:
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Formato da pré-visualização</Label>
+              <Select value={aspect} onValueChange={(v) => setAspect(v as AspectRatio)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ASPECT_RATIOS.map((a) => (
+                    <SelectItem key={a.key} value={a.key}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div>
-            <Label>{tipo === "reels" ? "Vídeo *" : tipo === "story" ? "Imagem ou vídeo *" : "Imagem *"}</Label>
+            <Label>
+              {tipo === "reels" ? "Vídeo *"
+                : tipo === "story" ? "Imagem ou vídeo *"
+                : isCarrossel ? `Imagens do carrossel * (${imagens.length}/${MAX_CARROSSEL})`
+                : "Imagem *"}
+            </Label>
             <input
               ref={fileInputRef}
               type="file"
+              multiple={isCarrossel}
               accept={tipo === "reels" ? "video/mp4,video/quicktime" : tipo === "story" ? "image/*,video/mp4,video/quicktime" : "image/*"}
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleUpload(f);
+                const files = Array.from(e.target.files ?? []);
+                if (files.length) handleUpload(files);
                 e.target.value = "";
               }}
             />
 
-            {!imagem ? (
+            {imagens.length < maxFiles && (
               <Button
                 type="button"
                 variant="outline"
@@ -249,34 +326,93 @@ Responda EXATAMENTE neste formato JSON:
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                {uploading ? "Enviando..." : tipo === "reels" ? "Enviar vídeo" : "Enviar arquivo"}
+                {uploading ? "Enviando..."
+                  : isCarrossel ? "Adicionar imagens (até 10)"
+                  : tipo === "reels" ? "Enviar vídeo" : "Enviar arquivo"}
               </Button>
-            ) : (
-              <div className="relative border rounded-md overflow-hidden">
-                {/\.(mp4|mov|m4v)(\?|$)/i.test(imagem) ? (
-                  <video src={imagem} controls className="max-h-60 w-full object-contain bg-muted" />
-                ) : (
-                  <img src={imagem} alt="" className="max-h-60 w-full object-contain bg-muted" />
-                )}
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="destructive"
-                  className="absolute top-2 right-2 h-7 w-7"
-                  onClick={() => setImagem("")}
-                >
-                  <X size={14} />
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="absolute bottom-2 right-2"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  Trocar
-                </Button>
+            )}
+
+            {isCarrossel && imagens.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Arraste as imagens para mudar a ordem da postagem.
+                </p>
+                <div className="grid grid-cols-5 gap-2">
+                  {imagens.map((url, idx) => (
+                    <div
+                      key={`${url}-${idx}`}
+                      draggable
+                      onDragStart={() => setDragIndex(idx)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragIndex !== null) moverImagem(dragIndex, idx);
+                        setDragIndex(null);
+                      }}
+                      onDragEnd={() => setDragIndex(null)}
+                      onClick={() => setPreviewIndex(idx)}
+                      className={`relative rounded-md overflow-hidden border cursor-grab bg-muted ${
+                        previewIndex === idx ? "ring-2 ring-primary" : ""
+                      } ${dragIndex === idx ? "opacity-50" : ""}`}
+                      style={{ aspectRatio: aspectCss }}
+                    >
+                      <img src={url} alt={`Imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                      <span className="absolute top-1 left-1 text-[10px] px-1 rounded bg-background/80">
+                        {idx + 1}
+                      </span>
+                      <GripVertical size={12} className="absolute bottom-1 left-1 text-background drop-shadow" />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removerImagem(idx); }}
+                        className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {imagens.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-1">
+                  Pré-visualização {isCarrossel ? `(${previewIndex + 1}/${imagens.length})` : ""} — como aparece no Instagram
+                </p>
+                <div className="relative mx-auto max-w-sm border rounded-md overflow-hidden bg-muted" style={{ aspectRatio: aspectCss }}>
+                  {isVideo(previewUrl) ? (
+                    <video src={previewUrl} controls className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={previewUrl} alt="Pré-visualização" className="w-full h-full object-cover" />
+                  )}
+                  {isCarrossel && imagens.length > 1 && (
+                    <>
+                      <Button
+                        type="button" size="icon" variant="secondary"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                        onClick={() => setPreviewIndex((i) => (i - 1 + imagens.length) % imagens.length)}
+                      >
+                        <ChevronLeft size={14} />
+                      </Button>
+                      <Button
+                        type="button" size="icon" variant="secondary"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                        onClick={() => setPreviewIndex((i) => (i + 1) % imagens.length)}
+                      >
+                        <ChevronRight size={14} />
+                      </Button>
+                    </>
+                  )}
+                  {!isCarrossel && (
+                    <Button
+                      type="button" size="icon" variant="destructive"
+                      className="absolute top-2 right-2 h-7 w-7"
+                      onClick={() => removerImagem(0)}
+                    >
+                      <X size={14} />
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </div>
