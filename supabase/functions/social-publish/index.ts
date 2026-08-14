@@ -202,21 +202,42 @@ Deno.serve(async (req) => {
         fbRes = await fetch(`${META_API}/${integ.fb_page_id}/photo_stories`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: image_url, access_token: token }),
+          body: JSON.stringify({ url: primeira, access_token: token }),
+        });
+      } else if (tipo === "carrossel") {
+        // Sobe cada foto sem publicar e anexa todas em um único post na ordem
+        const attached: Record<string, string>[] = [];
+        for (const url of carrossel) {
+          const upRes = await fetch(`${META_API}/${integ.fb_page_id}/photos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, published: false, access_token: token }),
+          });
+          const upJson = await upRes.json();
+          if (!upRes.ok) {
+            throw new Error(`FB carrossel foto: ${upJson?.error?.message ?? JSON.stringify(upJson)}`);
+          }
+          attached.push({ media_fbid: upJson.id });
+        }
+        fbRes = await fetch(`${META_API}/${integ.fb_page_id}/feed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: caption, attached_media: attached, access_token: token }),
         });
       } else if (video || tipo === "reels") {
         fbRes = await fetch(`${META_API}/${integ.fb_page_id}/videos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_url: image_url, description: caption, access_token: token }),
+          body: JSON.stringify({ file_url: primeira, description: caption, access_token: token }),
         });
       } else {
         fbRes = await fetch(`${META_API}/${integ.fb_page_id}/photos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: image_url, caption, access_token: token }),
+          body: JSON.stringify({ url: primeira, caption, access_token: token }),
         });
       }
+
       fbJson = await fbRes.json();
       if (!fbRes.ok) {
         throw new Error(`FB publish (${tipo}): ${fbJson?.error?.message ?? JSON.stringify(fbJson)}`);
