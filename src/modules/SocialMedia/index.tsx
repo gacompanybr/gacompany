@@ -40,7 +40,13 @@ export default function SocialMediaModule({ portfolioId }: { portfolioId: string
         .maybeSingle();
       if (integErr) throw integErr;
       if (!integ) throw new Error("Nenhuma integração Meta ativa para este portfólio");
-      if (!post.imagem_url) throw new Error("Post sem imagem");
+      const midias = (Array.isArray(post.imagens_urls) ? post.imagens_urls.filter(Boolean) : [])
+        .concat(!post.imagens_urls?.length && post.imagem_url ? [post.imagem_url] : [])
+        .slice(0, 10);
+      if (!midias.length) throw new Error("Post sem imagem");
+      if (post.tipo === "carrossel" && midias.length < 2) {
+        throw new Error("Carrossel precisa de pelo menos 2 imagens");
+      }
 
       const plats = post.plataformas ?? [];
       const targets: string[] = [];
@@ -55,11 +61,13 @@ export default function SocialMediaModule({ portfolioId }: { portfolioId: string
         body: {
           integration_id: integ.id,
           caption,
-          image_url: post.imagem_url,
+          image_url: midias[0],
+          image_urls: midias,
           tipo: post.tipo,
           targets,
         },
       });
+
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error((data as any).error);
 
