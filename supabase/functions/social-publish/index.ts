@@ -40,15 +40,28 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
-    const { integration_id, caption = "", image_url, tipo = "post", targets = ["instagram"] } =
-      await req.json();
+    const {
+      integration_id, caption = "", image_url, image_urls, tipo = "post", targets = ["instagram"],
+    } = await req.json();
 
-    if (!integration_id || !image_url) {
+    const midias: string[] = Array.isArray(image_urls) && image_urls.length
+      ? image_urls.filter((u: unknown) => typeof u === "string" && u)
+      : image_url ? [image_url] : [];
+    const primeira = midias[0];
+
+    if (!integration_id || !primeira) {
       return new Response(
         JSON.stringify({ error: "integration_id e image_url são obrigatórios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    if (tipo === "carrossel" && midias.length < 2) {
+      return new Response(
+        JSON.stringify({ error: "Carrossel exige entre 2 e 10 imagens" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const carrossel = midias.slice(0, 10);
 
     const { data: integ, error } = await admin
       .from("social_media_integrations")
@@ -59,61 +72,113 @@ Deno.serve(async (req) => {
 
     const token = integ.access_token;
     const results: Record<string, unknown> = {};
-    const video = isVideo(image_url);
+    const video = isVideo(primeira);
+
 
     if (targets.includes("instagram")) {
       if (!integ.ig_business_id) {
         throw new Error("Esta página não tem conta Instagram Business vinculada");
       }
 
-      // Determine media_type
-      let mediaPayload: Record<string, unknown> = { access_token: token };
-      if (tipo === "story") {
-        mediaPayload.media_type = "STORIES";
-        if (video) mediaPayload.video_url = image_url;
-        else mediaPayload.image_url = image_url;
-      } else if (tipo === "reels") {
-        if (!video) throw new Error("Reels exige arquivo de vídeo (.mp4)");
-        mediaPayload.media_type = "REELS";
-        mediaPayload.video_url = image_url;
-        mediaPayload.caption = caption;
-      } else if (tipo === "carrossel") {
-        throw new Error("Carrossel ainda não é suportado pela publicação automática");
-      } else {
-        // feed post
-        if (video) {
-          mediaPayload.media_type = "VIDEO";
-          mediaPayload.video_url = image_url;
-        } else {
-          mediaPayload.image_url = image_url;
+      let creationId: string;
+
+      if (tipo === "carrossel") {
+        // 1) cria um container por item
+        const childIds: string[] = [];
+        for (const url of carrossel) {
+          const itemPayload: Record<string, unknown> = {
+            access_token: token,
+            is_carousel_item: true,
+          };
+          if (isVideo(url)) {
+            itemPayload.media_type = "VIDEO";
+            itemPayload.video_url = url;
+          } else {
+            itemPayload.image_url = url;
+          }
+          const itemRes = await fetch(`${META_API}/${integ.ig_business_id}/media`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(itemPayload),
+          });
+          const itemJson = await itemRes.json();
+          if (!itemRes.ok) {
+            throw new Error(`IG carrossel item: ${itemJson?.error?.message ?? JSON.stringify(itemJson)}`);
+          }
+          if (isVideo(url)) await waitContainerReady(itemJson.id, token);
+          childIds.push(itemJson.id);
         }
-        mediaPayload.caption = caption;
-      }
 
-      const createRes = await fetch(`${META_API}/${integ.ig_business_id}/media`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mediaPayload),
-      });
-      const createJson = await createRes.json();
-      if (!createRes.ok) {
-        throw new Error(`IG create (${tipo}): ${createJson?.error?.message ?? JSON.stringify(createJson)}`);
-      }
-
-      // Vídeos/reels/stories de vídeo precisam aguardar processamento
-      if (video || tipo === "reels" || tipo === "story") {
+        // 2) cria o container do carrossel na ordem definida
+        const carRes = await fetch(`${META_API}/${integ.ig_business_id}/media`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            media_type: "CAROUSEL",
+            children: childIds,
+            caption,
+            access_token: token,
+          }),
+        });
+        const carJson = await carRes.json();
+        if (!carRes.ok) {
+          throw new Error(`IG carrossel: ${carJson?.error?.message ?? JSON.stringify(carJson)}`);
+        }
         try {
-          await waitContainerReady(createJson.id, token);
-        } catch (e) {
-          // Para foto de story, normalmente fica pronto imediato; ignore se falhar
-          if (video || tipo === "reels") throw e;
+          await waitContainerReady(carJson.id, token);
+        } catch {
+          // segue para o publish mesmo assim
         }
+        creationId = carJson.id;
+      } else {
+        // Determine media_type
+        const mediaPayload: Record<string, unknown> = { access_token: token };
+        if (tipo === "story") {
+          mediaPayload.media_type = "STORIES";
+          if (video) mediaPayload.video_url = primeira;
+          else mediaPayload.image_url = primeira;
+        } else if (tipo === "reels") {
+          if (!video) throw new Error("Reels exige arquivo de vídeo (.mp4)");
+          mediaPayload.media_type = "REELS";
+          mediaPayload.video_url = primeira;
+          mediaPayload.caption = caption;
+        } else {
+          // feed post
+          if (video) {
+            mediaPayload.media_type = "VIDEO";
+            mediaPayload.video_url = primeira;
+          } else {
+            mediaPayload.image_url = primeira;
+          }
+          mediaPayload.caption = caption;
+        }
+
+        const createRes = await fetch(`${META_API}/${integ.ig_business_id}/media`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mediaPayload),
+        });
+        const createJson = await createRes.json();
+        if (!createRes.ok) {
+          throw new Error(`IG create (${tipo}): ${createJson?.error?.message ?? JSON.stringify(createJson)}`);
+        }
+
+        // Vídeos/reels/stories de vídeo precisam aguardar processamento
+        if (video || tipo === "reels" || tipo === "story") {
+          try {
+            await waitContainerReady(createJson.id, token);
+          } catch (e) {
+            // Para foto de story, normalmente fica pronto imediato; ignore se falhar
+            if (video || tipo === "reels") throw e;
+          }
+        }
+        creationId = createJson.id;
       }
 
       const pubRes = await fetch(`${META_API}/${integ.ig_business_id}/media_publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creation_id: createJson.id, access_token: token }),
+        body: JSON.stringify({ creation_id: creationId, access_token: token }),
       });
       const pubJson = await pubRes.json();
       if (!pubRes.ok) {
@@ -121,6 +186,7 @@ Deno.serve(async (req) => {
       }
       results.instagram = pubJson;
     }
+
 
     if (targets.includes("facebook")) {
       if (!integ.fb_page_id) throw new Error("Integração sem fb_page_id");
@@ -136,21 +202,42 @@ Deno.serve(async (req) => {
         fbRes = await fetch(`${META_API}/${integ.fb_page_id}/photo_stories`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: image_url, access_token: token }),
+          body: JSON.stringify({ url: primeira, access_token: token }),
+        });
+      } else if (tipo === "carrossel") {
+        // Sobe cada foto sem publicar e anexa todas em um único post na ordem
+        const attached: Record<string, string>[] = [];
+        for (const url of carrossel) {
+          const upRes = await fetch(`${META_API}/${integ.fb_page_id}/photos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, published: false, access_token: token }),
+          });
+          const upJson = await upRes.json();
+          if (!upRes.ok) {
+            throw new Error(`FB carrossel foto: ${upJson?.error?.message ?? JSON.stringify(upJson)}`);
+          }
+          attached.push({ media_fbid: upJson.id });
+        }
+        fbRes = await fetch(`${META_API}/${integ.fb_page_id}/feed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: caption, attached_media: attached, access_token: token }),
         });
       } else if (video || tipo === "reels") {
         fbRes = await fetch(`${META_API}/${integ.fb_page_id}/videos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_url: image_url, description: caption, access_token: token }),
+          body: JSON.stringify({ file_url: primeira, description: caption, access_token: token }),
         });
       } else {
         fbRes = await fetch(`${META_API}/${integ.fb_page_id}/photos`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: image_url, caption, access_token: token }),
+          body: JSON.stringify({ url: primeira, caption, access_token: token }),
         });
       }
+
       fbJson = await fbRes.json();
       if (!fbRes.ok) {
         throw new Error(`FB publish (${tipo}): ${fbJson?.error?.message ?? JSON.stringify(fbJson)}`);

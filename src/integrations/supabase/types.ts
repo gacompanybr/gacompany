@@ -1675,6 +1675,7 @@ export type Database = {
       }
       social_posts: {
         Row: {
+          aspect_ratio: string
           conteudo: string
           created_at: string
           data_agendada: string | null
@@ -1682,6 +1683,7 @@ export type Database = {
           hashtags: string | null
           id: string
           imagem_url: string | null
+          imagens_urls: Json
           legenda: string | null
           plataformas: Json
           portfolio_id: string
@@ -1692,6 +1694,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aspect_ratio?: string
           conteudo?: string
           created_at?: string
           data_agendada?: string | null
@@ -1699,6 +1702,7 @@ export type Database = {
           hashtags?: string | null
           id?: string
           imagem_url?: string | null
+          imagens_urls?: Json
           legenda?: string | null
           plataformas?: Json
           portfolio_id: string
@@ -1709,6 +1713,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aspect_ratio?: string
           conteudo?: string
           created_at?: string
           data_agendada?: string | null
@@ -1716,6 +1721,7 @@ export type Database = {
           hashtags?: string | null
           id?: string
           imagem_url?: string | null
+          imagens_urls?: Json
           legenda?: string | null
           plataformas?: Json
           portfolio_id?: string
