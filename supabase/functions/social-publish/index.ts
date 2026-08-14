@@ -40,15 +40,28 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
-    const { integration_id, caption = "", image_url, tipo = "post", targets = ["instagram"] } =
-      await req.json();
+    const {
+      integration_id, caption = "", image_url, image_urls, tipo = "post", targets = ["instagram"],
+    } = await req.json();
 
-    if (!integration_id || !image_url) {
+    const midias: string[] = Array.isArray(image_urls) && image_urls.length
+      ? image_urls.filter((u: unknown) => typeof u === "string" && u)
+      : image_url ? [image_url] : [];
+    const primeira = midias[0];
+
+    if (!integration_id || !primeira) {
       return new Response(
         JSON.stringify({ error: "integration_id e image_url são obrigatórios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    if (tipo === "carrossel" && midias.length < 2) {
+      return new Response(
+        JSON.stringify({ error: "Carrossel exige entre 2 e 10 imagens" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const carrossel = midias.slice(0, 10);
 
     const { data: integ, error } = await admin
       .from("social_media_integrations")
@@ -59,7 +72,8 @@ Deno.serve(async (req) => {
 
     const token = integ.access_token;
     const results: Record<string, unknown> = {};
-    const video = isVideo(image_url);
+    const video = isVideo(primeira);
+
 
     if (targets.includes("instagram")) {
       if (!integ.ig_business_id) {
