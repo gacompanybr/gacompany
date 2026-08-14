@@ -39,8 +39,14 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      if (!integ) throw new Error("Nenhuma integração Meta ativa para este portfólio");
-      if (!post.imagem_url) throw new Error("Post sem imagem");
+      const midias: string[] = Array.isArray(post.imagens_urls)
+        ? (post.imagens_urls as unknown[]).filter((u): u is string => typeof u === "string" && !!u)
+        : [];
+      if (!midias.length && post.imagem_url) midias.push(post.imagem_url);
+      if (!midias.length) throw new Error("Post sem imagem");
+      if (post.tipo === "carrossel" && midias.length < 2) {
+        throw new Error("Carrossel precisa de pelo menos 2 imagens");
+      }
 
       const plats = Array.isArray(post.plataformas) ? post.plataformas : [];
       const targets: string[] = [];
@@ -60,11 +66,13 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           integration_id: integ.id,
           caption,
-          image_url: post.imagem_url,
+          image_url: midias[0],
+          image_urls: midias.slice(0, 10),
           tipo: post.tipo,
           targets,
         }),
       });
+
       const pubJson = await pubRes.json();
       if (!pubRes.ok) throw new Error(pubJson?.error ?? "Falha ao publicar");
 
