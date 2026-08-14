@@ -39,7 +39,10 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
+      if (!integ) throw new Error("Nenhuma integração Meta ativa para este portfólio");
+
       const midias: string[] = Array.isArray(post.imagens_urls)
+
         ? (post.imagens_urls as unknown[]).filter((u): u is string => typeof u === "string" && !!u)
         : [];
       if (!midias.length && post.imagem_url) midias.push(post.imagem_url);
