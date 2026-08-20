@@ -89,9 +89,12 @@ async function checkAndRevive(instanceName: string) {
   if (s === "open") {
     const settings = await ensureSettings(instanceName);
     const webhook = await ensureWebhook(instanceName);
+    // Só grava se o status realmente mudou (evita UPDATE a cada 5 min por instância)
     await admin.from("whatsapp_connections")
       .update({ status: "connected", updated_at: new Date().toISOString() })
-      .eq("instance_name", instanceName);
+      .eq("instance_name", instanceName)
+      .neq("status", "connected");
+
     return { instanceName, state: s, action: "ensure_settings_webhook", settings, webhook };
   }
 
@@ -105,12 +108,12 @@ async function checkAndRevive(instanceName: string) {
   const settings = sAfter === "open" ? await ensureSettings(instanceName) : null;
   const webhook = sAfter === "open" ? await ensureWebhook(instanceName) : null;
 
+  const nextStatus = sAfter === "open" ? "connected" : (sAfter === "connecting" ? "connecting" : "disconnected");
   await admin.from("whatsapp_connections")
-    .update({
-      status: sAfter === "open" ? "connected" : (sAfter === "connecting" ? "connecting" : "disconnected"),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("instance_name", instanceName);
+    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .eq("instance_name", instanceName)
+    .neq("status", nextStatus);
+
 
   return {
     instanceName,
