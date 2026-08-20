@@ -332,14 +332,21 @@ Deno.serve(async (req) => {
         if (disconnectionReasonCode === 401 && /device_removed|conflict/i.test(discStr)) {
           deviceRemoved = true;
         }
+        const nextStatus = deviceRemoved ? "device_removed" : "connected";
+        // Só grava quando algo mudou de fato: evita milhares de UPDATEs iguais
+        // (cada UPDATE gera escrita em disco/WAL).
         await admin.from("whatsapp_connections")
-          .update({ status: deviceRemoved ? "device_removed" : "connected", phone })
-          .eq("portfolio_id", portfolioId);
+          .update({ status: nextStatus, phone })
+          .eq("portfolio_id", portfolioId)
+          .or(`status.neq.${nextStatus},phone.is.null,phone.neq.${phone ?? ""}`);
       } else {
+        const nextStatus = state === "close" ? "disconnected" : state;
         await admin.from("whatsapp_connections")
-          .update({ status: state === "close" ? "disconnected" : state })
-          .eq("portfolio_id", portfolioId);
+          .update({ status: nextStatus })
+          .eq("portfolio_id", portfolioId)
+          .neq("status", nextStatus);
       }
+
       return json({ state, deviceRemoved, disconnectionAt, disconnectionReasonCode });
     }
 
