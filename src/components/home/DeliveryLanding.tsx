@@ -18,10 +18,14 @@ import {
   Star,
   ShieldCheck,
   Clock,
+  ChevronDown,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import heroPortrait from "@/assets/hero-portrait.png";
 import EcossistemaSection from "@/components/EcossistemaSection";
 import ClientesSection from "@/components/ClientesSection";
+import SobreSection from "@/components/SobreSection";
+
 
 // ==== CONFIG ====
 const WHATSAPP = "5512988334006"; // usado em wa.me/{WHATSAPP}
@@ -249,79 +253,141 @@ function Hero() {
       />
 
       <div className="container mx-auto px-4 lg:px-8 relative z-10">
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={stagger}
-          className="max-w-4xl mx-auto text-center"
-        >
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <motion.div
-            variants={fadeUp}
-            className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary rounded-full px-4 py-1.5 mb-6 text-xs md:text-sm font-semibold"
+            initial="hidden"
+            animate="show"
+            variants={stagger}
+            className="text-center lg:text-left"
           >
-            <Flame size={14} /> Marketing e crescimento para negócios locais
+            <motion.div
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary rounded-full px-4 py-1.5 mb-6 text-xs md:text-sm font-semibold"
+            >
+              <Flame size={14} /> Marketing e crescimento para negócios locais
+            </motion.div>
+
+            <motion.h1
+              variants={fadeUp}
+              className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
+            >
+              <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
+                Seu negócio bombando de clientes
+              </span>
+              <span className="block text-4xl sm:text-5xl md:text-6xl lg:text-6xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
+                <TypewriterWords
+                  words={[
+                    "TODOS OS DIAS",
+                    "COM PREVISIBILIDADE",
+                    "SEM DEPENDER DE SORTE",
+                    "COM MARCA FORTE",
+                    "FATURANDO MAIS",
+                    "NO AUTOMÁTICO",
+                  ]}
+                />
+              </span>
+              <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
+                Sem depender de sorte, sem depender de indicação.
+              </span>
+            </motion.h1>
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-10 flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3 sm:gap-4"
+            >
+              <PrimaryCTA>Quero aumentar meu faturamento</PrimaryCTA>
+              <WhatsCTA />
+            </motion.div>
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <ShieldCheck size={16} className="text-primary" /> Análise gratuita
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock size={16} className="text-primary" /> Resposta em minutos no WhatsApp
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Star size={16} className="text-primary fill-primary" /> +200 negócios atendidos
+              </span>
+            </motion.div>
+
+            <motion.p
+              variants={fadeUp}
+              className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto lg:mx-0"
+            >
+              Método completo para empresas, clínicas, comércios e deliveries venderem com
+              previsibilidade, escalarem faturamento e pararem de depender só do boca a boca.
+            </motion.p>
           </motion.div>
 
-          <motion.h1
-            variants={fadeUp}
-            className="font-heading font-semibold tracking-tight text-foreground leading-[1.1]"
+          {/* Visual: retrato + cards flutuantes */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="relative mx-auto w-full max-w-[520px]"
           >
-            <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
-              Seu negócio bombando de clientes
-            </span>
-            <span className="block text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
-              <TypewriterWords
-                words={[
-                  "TODOS OS DIAS",
-                  "COM PREVISIBILIDADE",
-                  "SEM DEPENDER DE SORTE",
-                  "COM MARCA FORTE",
-                  "FATURANDO MAIS",
-                  "NO AUTOMÁTICO",
-                ]}
+            <div
+              className="absolute inset-0 rounded-[2rem] opacity-70"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, hsl(37 99% 53% / 0.22), transparent 65%)",
+              }}
+            />
+            <div className="relative rounded-[2rem] overflow-hidden border border-border bg-background">
+              <img
+                src={heroPortrait}
+                alt="Especialista da GA Company"
+                className="w-full h-auto object-cover object-top"
+                loading="eager"
               />
-            </span>
-            <span className="block text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium mt-4">
-              Sem depender de sorte, sem depender de indicação.
-            </span>
-          </motion.h1>
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
+            </div>
 
-          <motion.div
-            variants={fadeUp}
-            className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4"
-          >
-            <PrimaryCTA>Quero aumentar meu faturamento</PrimaryCTA>
-            <WhatsCTA />
+            {/* Card flutuante — novo lead */}
+            <div className="absolute -left-3 sm:-left-8 top-8 animate-float bg-card/95 backdrop-blur-sm border border-border rounded-xl px-4 py-3 shadow-2xl">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Novo lead
+              </p>
+              <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> WhatsApp
+                recebido
+              </p>
+            </div>
+
+            {/* Card flutuante — faturamento */}
+            <div
+              className="absolute -right-3 sm:-right-6 top-1/3 animate-float bg-card/95 backdrop-blur-sm border border-primary/40 rounded-xl px-4 py-3 shadow-[var(--shadow-gold)]"
+              style={{ animationDelay: "0.8s" }}
+            >
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Faturamento
+              </p>
+              <p className="font-heading text-lg font-extrabold text-gradient-gold">+167%</p>
+            </div>
+
+            {/* Card flutuante — campanhas */}
+            <div
+              className="absolute -left-2 sm:-left-6 bottom-10 animate-float bg-card/95 backdrop-blur-sm border border-border rounded-xl px-4 py-3 shadow-2xl"
+              style={{ animationDelay: "1.4s" }}
+            >
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Campanhas ativas
+              </p>
+              <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
+                <TrendingUp size={14} className="text-primary" /> ROI médio 12x
+              </p>
+            </div>
           </motion.div>
-
-          <motion.div
-            variants={fadeUp}
-            className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck size={16} className="text-primary" /> Análise gratuita
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Clock size={16} className="text-primary" /> Resposta em minutos no WhatsApp
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Star size={16} className="text-primary fill-primary" /> +200 negócios atendidos
-            </span>
-          </motion.div>
-
-          <motion.p
-            variants={fadeUp}
-            className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
-          >
-            Método completo para empresas, clínicas, comércios e deliveries venderem com
-            previsibilidade, escalarem faturamento e pararem de depender só do boca a boca.
-          </motion.p>
-
-        </motion.div>
+        </div>
       </div>
     </section>
   );
 }
+
 
 // ==== METRICS BAR ====
 function MetricsBar() {
@@ -500,19 +566,43 @@ function MecanismoSection() {
 // ==== ENTREGAS ====
 function EntregasSection() {
   const items = [
-    { icon: Megaphone, title: "Tráfego Pago", desc: "Google Ads, Meta Ads e campanhas de conversão" },
-    { icon: ShoppingBag, title: "Gestão de canais de venda", desc: "iFood, marketplace, site próprio — otimizados" },
-    { icon: Utensils, title: "Site & Cardápio Digital", desc: "Sua loja/site próprio com pagamento — fuja da taxa" },
-    { icon: MapPin, title: "Google Meu Negócio", desc: "Apareça no topo do Google Maps da sua região" },
-    { icon: Repeat, title: "CRM e fidelização", desc: "Campanhas pra fazer o cliente voltar a comprar" },
-    { icon: Bot, title: "Automações & IA", desc: "Atendimento no WhatsApp e recuperação de venda" },
+    {
+      icon: Megaphone,
+      title: "Tráfego Pago",
+      bullets: ["Google Ads", "Meta Ads", "Campanhas de conversão"],
+    },
+    {
+      icon: ShoppingBag,
+      title: "Gestão de canais de venda",
+      bullets: ["iFood e marketplaces", "Site próprio otimizado", "Menos dependência de taxa"],
+    },
+    {
+      icon: Utensils,
+      title: "Site & Cardápio Digital",
+      bullets: ["Loja/site próprio", "Pagamento integrado", "Foco em conversão"],
+    },
+    {
+      icon: MapPin,
+      title: "Google Meu Negócio",
+      bullets: ["Topo do Google Maps", "Perfil otimizado", "Clientes da sua região"],
+    },
+    {
+      icon: Repeat,
+      title: "CRM e fidelização",
+      bullets: ["Funil organizado", "Campanhas de recompra", "Cliente voltando mais vezes"],
+    },
+    {
+      icon: Bot,
+      title: "Automações & IA",
+      bullets: ["Atendimento no WhatsApp", "Recuperação de venda", "Follow-up automático"],
+    },
   ];
   return (
-    <Section id="entregas" className="py-20 md:py-28 bg-background">
+    <Section id="servicos" className="py-20 md:py-28 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            O que entregamos
+            O que fazemos
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
             Tudo o que seu negócio precisa,{" "}
@@ -521,27 +611,269 @@ function EntregasSection() {
         </motion.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
-          {items.map(({ icon: Icon, title, desc }) => (
+          {items.map(({ icon: Icon, title, bullets }) => (
             <motion.div
               key={title}
               variants={fadeUp}
-              whileHover={{ scale: 1.02 }}
-              className="flex gap-4 bg-card border border-border rounded-xl p-5 hover:border-primary/40 transition-all"
+              whileHover={{ y: -4 }}
+              className="bg-card border border-border rounded-2xl p-6 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all"
             >
-              <div className="w-11 h-11 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                 <Icon className="text-primary" size={20} />
               </div>
-              <div>
-                <h3 className="font-heading font-bold text-foreground">{title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{desc}</p>
-              </div>
+              <h3 className="font-heading font-bold text-foreground text-lg">{title}</h3>
+              <ul className="mt-3 space-y-2">
+                {bullets.map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Check size={15} className="text-primary mt-0.5 shrink-0" /> {b}
+                  </li>
+                ))}
+              </ul>
             </motion.div>
           ))}
+        </div>
+
+        <motion.div variants={fadeUp} className="mt-12 text-center">
+          <PrimaryCTA>Quero esses serviços no meu negócio</PrimaryCTA>
+        </motion.div>
+      </div>
+    </Section>
+  );
+}
+
+// ==== DEPOIMENTOS (carrossel) ====
+const depoimentos = [
+  {
+    nome: "Tadeu Miabara",
+    empresa: "Vila GYM",
+    texto:
+      "A GA Company entendeu exatamente o que precisávamos. Em 3 meses, triplicamos os leads qualificados.",
+  },
+  {
+    nome: "Bruno Lopes",
+    empresa: "Lopes Odontologia",
+    texto:
+      "Profissionalismo e resultado. A equipe é extremamente dedicada e os relatórios são impecáveis.",
+  },
+  {
+    nome: "Adriana Bueno",
+    empresa: "GarimpaAí",
+    texto:
+      "Melhor investimento que fiz para minha empresa. O ROI das campanhas superou todas as expectativas.",
+  },
+];
+
+const initials = (n: string) =>
+  n
+    .split(" ")
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase();
+
+function Carousel({
+  count,
+  children,
+  label,
+}: {
+  count: number;
+  children: (index: number) => React.ReactNode;
+  label: string;
+}) {
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
+
+  const go = (dir: number) => {
+    setDirection(dir);
+    setIndex((p) => (p + dir + count) % count);
+  };
+
+  return (
+    <div className="relative max-w-xl mx-auto">
+      <div className="overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={index}
+            initial={{ x: direction > 0 ? 60 : -60, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: direction > 0 ? -60 : 60, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -60) go(1);
+              else if (info.offset.x > 60) go(-1);
+            }}
+            className="cursor-grab active:cursor-grabbing"
+          >
+            {children(index)}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <button
+        onClick={() => go(-1)}
+        aria-label={`${label} anterior`}
+        className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 p-2 rounded-full bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+      >
+        <ArrowRight className="rotate-180" size={20} />
+      </button>
+      <button
+        onClick={() => go(1)}
+        aria-label={`Próximo ${label}`}
+        className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 p-2 rounded-full bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+      >
+        <ArrowRight size={20} />
+      </button>
+
+      <div className="flex justify-center gap-2 mt-8">
+        {Array.from({ length: count }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => {
+              setDirection(i > index ? 1 : -1);
+              setIndex(i);
+            }}
+            aria-label={`Ver ${label} ${i + 1}`}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              i === index ? "w-6 bg-primary" : "w-2 bg-border hover:bg-primary/50"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DepoimentosSection() {
+  return (
+    <Section id="depoimentos" className="py-20 md:py-28 bg-card">
+      <div className="container mx-auto px-4 lg:px-8">
+        <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
+          <span className="text-primary font-semibold text-sm uppercase tracking-wider">
+            Depoimentos
+          </span>
+          <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
+            O que nossos <span className="text-gradient-gold">clientes dizem</span>
+          </h2>
+        </motion.div>
+
+        <Carousel count={depoimentos.length} label="depoimento">
+          {(i) => {
+            const d = depoimentos[i];
+            return (
+              <div className="bg-background border border-border rounded-2xl p-6 md:p-8">
+                <div className="flex gap-1 mb-4">
+                  {Array.from({ length: 5 }).map((_, s) => (
+                    <Star key={s} className="text-primary fill-primary" size={16} />
+                  ))}
+                </div>
+                <p className="text-foreground leading-relaxed mb-6">"{d.texto}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center font-heading font-bold text-primary">
+                    {initials(d.nome)}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{d.nome}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {d.empresa} · Cliente GA Company
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }}
+        </Carousel>
+      </div>
+    </Section>
+  );
+}
+
+// ==== FAQ ====
+const faqs = [
+  {
+    q: "Como funciona a análise gratuita?",
+    a: "Você preenche o formulário e um especialista chama você no WhatsApp com um diagnóstico dos seus canais de venda e um plano de crescimento para os próximos 90 dias. Sem compromisso.",
+  },
+  {
+    q: "Em quanto tempo vejo resultado?",
+    a: "Os primeiros sinais aparecem nas primeiras semanas de campanha. Nos nossos cases, os saltos maiores de faturamento acontecem entre o 3º e o 6º mês, quando tráfego, recorrência e marca já estão rodando juntos.",
+  },
+  {
+    q: "Atendem qualquer segmento?",
+    a: "Trabalhamos com empresas, clínicas, comércios, deliveries e e-commerces. Nossos cases vão de hamburgueria e odontologia a gerenciamento de imóveis.",
+  },
+  {
+    q: "Preciso investir em anúncios além do serviço?",
+    a: "Sim. O investimento em mídia é separado da assessoria e definido junto com você na análise, de acordo com a meta de faturamento do seu negócio.",
+  },
+  {
+    q: "Vocês cuidam de tudo ou só do tráfego?",
+    a: "Cuidamos do ecossistema completo: tráfego pago, canais de venda, site e cardápio digital, Google Meu Negócio, CRM e fidelização, automações e IA — tudo em um só time.",
+  },
+];
+
+function FaqSection() {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <Section id="faq" className="py-20 md:py-28 bg-background">
+      <div className="container mx-auto px-4 lg:px-8">
+        <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-12">
+          <span className="text-primary font-semibold text-sm uppercase tracking-wider">
+            Dúvidas frequentes
+          </span>
+          <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
+            Perguntas <span className="text-gradient-gold">frequentes</span>
+          </h2>
+        </motion.div>
+
+        <div className="max-w-3xl mx-auto space-y-3">
+          {faqs.map((f, i) => {
+            const isOpen = open === i;
+            return (
+              <motion.div
+                key={f.q}
+                variants={fadeUp}
+                className="bg-card border border-border rounded-xl overflow-hidden"
+              >
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center justify-between gap-4 text-left px-5 md:px-6 py-4 md:py-5"
+                >
+                  <span className="font-heading font-bold text-foreground">{f.q}</span>
+                  <ChevronDown
+                    size={20}
+                    className={`shrink-0 text-primary transition-transform ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="overflow-hidden"
+                    >
+                      <p className="px-5 md:px-6 pb-5 text-muted-foreground leading-relaxed">
+                        {f.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </Section>
   );
 }
+
 
 // ==== PROVA ====
 const cases = [
@@ -748,6 +1080,7 @@ function FormSection() {
 
   return (
     <Section id="formulario" className="py-20 md:py-28 bg-background relative overflow-hidden">
+      <span id="forms" className="absolute -top-24" aria-hidden />
       <div
         className="absolute inset-0 opacity-40"
         style={{
@@ -977,13 +1310,16 @@ export default function DeliveryLanding() {
     <>
       <Hero />
       <MetricsBar />
+      <FormSection />
       <ClientesSection />
+      <DepoimentosSection />
+      <EntregasSection />
+      <ProvaSection />
       <DorSection />
       <MecanismoSection />
-      <EntregasSection />
       <EcossistemaSection />
-      <ProvaSection />
-      <FormSection />
+      <SobreSection />
+      <FaqSection />
       <CtaFinal />
       <Footer />
       <FloatingWhats />
