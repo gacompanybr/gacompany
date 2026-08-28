@@ -435,7 +435,7 @@ function DorSection() {
     "Crescimento previsível de faturamento, mês após mês",
   ];
   return (
-    <Section id="dor" className="py-20 md:py-28 bg-background">
+    <Section id="dor" className="py-14 md:py-20 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -528,7 +528,7 @@ function EntregasSection() {
     },
   ];
   return (
-    <Section id="servicos" className="py-20 md:py-28 bg-background">
+    <Section id="servicos" className="py-14 md:py-20 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -678,7 +678,7 @@ function Carousel({
 
 function DepoimentosSection() {
   return (
-    <Section id="depoimentos" className="py-20 md:py-28 bg-card">
+    <Section id="depoimentos" className="py-14 md:py-20 bg-card">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -747,7 +747,7 @@ const faqs = [
 function FaqSection() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <Section id="faq" className="py-20 md:py-28 bg-background">
+    <Section id="faq" className="py-14 md:py-20 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-12">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -913,7 +913,7 @@ function ProvaSection() {
   }, [inView]);
 
   return (
-    <Section id="prova" className="py-20 md:py-28 bg-card">
+    <Section id="prova" className="py-14 md:py-20 bg-card">
       <div ref={sectionRef} className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">Casos reais</span>
@@ -1009,7 +1009,7 @@ function FormSection() {
   };
 
   return (
-    <Section id="formulario" className="py-20 md:py-28 bg-background relative overflow-hidden">
+    <Section id="formulario" className="py-14 md:py-20 bg-background relative overflow-hidden">
       <span id="forms" className="absolute -top-24" aria-hidden />
       <div
         className="absolute inset-0 opacity-40"
@@ -1155,7 +1155,7 @@ function FormSection() {
 // ==== CTA FINAL ====
 function CtaFinal() {
   return (
-    <Section className="py-20 md:py-28 relative overflow-hidden">
+    <Section className="py-14 md:py-20 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-gold" />
       <div
         className="absolute inset-0 opacity-20 mix-blend-overlay"
