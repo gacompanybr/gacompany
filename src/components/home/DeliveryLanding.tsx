@@ -1246,11 +1246,8 @@ export default function DeliveryLanding() {
       <EntregasSection />
       <ProvaSection />
       <DorSection />
-      <MecanismoSection />
-      <EcossistemaSection />
       <SobreSection />
       <FaqSection />
-      <CtaFinal />
       <Footer />
       <FloatingWhats />
     </>
