@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import heroPortrait from "@/assets/hero-portrait.png";
-import EcossistemaSection from "@/components/EcossistemaSection";
+
 import ClientesSection from "@/components/ClientesSection";
 import SobreSection from "@/components/SobreSection";
 
@@ -398,7 +398,7 @@ function MetricsBar() {
     { value: 98, prefix: "", suffix: "%", label: "de clientes satisfeitos" },
   ];
   return (
-    <Section className="py-14 md:py-20 border-y border-border bg-card/40">
+    <Section className="py-10 md:py-14 border-y border-border bg-card/40">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4">
           {metrics.map((m) => (
