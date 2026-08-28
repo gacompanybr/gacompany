@@ -566,19 +566,43 @@ function MecanismoSection() {
 // ==== ENTREGAS ====
 function EntregasSection() {
   const items = [
-    { icon: Megaphone, title: "Tráfego Pago", desc: "Google Ads, Meta Ads e campanhas de conversão" },
-    { icon: ShoppingBag, title: "Gestão de canais de venda", desc: "iFood, marketplace, site próprio — otimizados" },
-    { icon: Utensils, title: "Site & Cardápio Digital", desc: "Sua loja/site próprio com pagamento — fuja da taxa" },
-    { icon: MapPin, title: "Google Meu Negócio", desc: "Apareça no topo do Google Maps da sua região" },
-    { icon: Repeat, title: "CRM e fidelização", desc: "Campanhas pra fazer o cliente voltar a comprar" },
-    { icon: Bot, title: "Automações & IA", desc: "Atendimento no WhatsApp e recuperação de venda" },
+    {
+      icon: Megaphone,
+      title: "Tráfego Pago",
+      bullets: ["Google Ads", "Meta Ads", "Campanhas de conversão"],
+    },
+    {
+      icon: ShoppingBag,
+      title: "Gestão de canais de venda",
+      bullets: ["iFood e marketplaces", "Site próprio otimizado", "Menos dependência de taxa"],
+    },
+    {
+      icon: Utensils,
+      title: "Site & Cardápio Digital",
+      bullets: ["Loja/site próprio", "Pagamento integrado", "Foco em conversão"],
+    },
+    {
+      icon: MapPin,
+      title: "Google Meu Negócio",
+      bullets: ["Topo do Google Maps", "Perfil otimizado", "Clientes da sua região"],
+    },
+    {
+      icon: Repeat,
+      title: "CRM e fidelização",
+      bullets: ["Funil organizado", "Campanhas de recompra", "Cliente voltando mais vezes"],
+    },
+    {
+      icon: Bot,
+      title: "Automações & IA",
+      bullets: ["Atendimento no WhatsApp", "Recuperação de venda", "Follow-up automático"],
+    },
   ];
   return (
-    <Section id="entregas" className="py-20 md:py-28 bg-background">
+    <Section id="servicos" className="py-20 md:py-28 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            O que entregamos
+            O que fazemos
           </span>
           <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
             Tudo o que seu negócio precisa,{" "}
@@ -587,27 +611,269 @@ function EntregasSection() {
         </motion.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
-          {items.map(({ icon: Icon, title, desc }) => (
+          {items.map(({ icon: Icon, title, bullets }) => (
             <motion.div
               key={title}
               variants={fadeUp}
-              whileHover={{ scale: 1.02 }}
-              className="flex gap-4 bg-card border border-border rounded-xl p-5 hover:border-primary/40 transition-all"
+              whileHover={{ y: -4 }}
+              className="bg-card border border-border rounded-2xl p-6 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all"
             >
-              <div className="w-11 h-11 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center">
+              <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                 <Icon className="text-primary" size={20} />
               </div>
-              <div>
-                <h3 className="font-heading font-bold text-foreground">{title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{desc}</p>
-              </div>
+              <h3 className="font-heading font-bold text-foreground text-lg">{title}</h3>
+              <ul className="mt-3 space-y-2">
+                {bullets.map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Check size={15} className="text-primary mt-0.5 shrink-0" /> {b}
+                  </li>
+                ))}
+              </ul>
             </motion.div>
           ))}
+        </div>
+
+        <motion.div variants={fadeUp} className="mt-12 text-center">
+          <PrimaryCTA>Quero esses serviços no meu negócio</PrimaryCTA>
+        </motion.div>
+      </div>
+    </Section>
+  );
+}
+
+// ==== DEPOIMENTOS (carrossel) ====
+const depoimentos = [
+  {
+    nome: "Tadeu Miabara",
+    empresa: "Vila GYM",
+    texto:
+      "A GA Company entendeu exatamente o que precisávamos. Em 3 meses, triplicamos os leads qualificados.",
+  },
+  {
+    nome: "Bruno Lopes",
+    empresa: "Lopes Odontologia",
+    texto:
+      "Profissionalismo e resultado. A equipe é extremamente dedicada e os relatórios são impecáveis.",
+  },
+  {
+    nome: "Adriana Bueno",
+    empresa: "GarimpaAí",
+    texto:
+      "Melhor investimento que fiz para minha empresa. O ROI das campanhas superou todas as expectativas.",
+  },
+];
+
+const initials = (n: string) =>
+  n
+    .split(" ")
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase();
+
+function Carousel({
+  count,
+  children,
+  label,
+}: {
+  count: number;
+  children: (index: number) => React.ReactNode;
+  label: string;
+}) {
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
+
+  const go = (dir: number) => {
+    setDirection(dir);
+    setIndex((p) => (p + dir + count) % count);
+  };
+
+  return (
+    <div className="relative max-w-xl mx-auto">
+      <div className="overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={index}
+            initial={{ x: direction > 0 ? 60 : -60, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: direction > 0 ? -60 : 60, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -60) go(1);
+              else if (info.offset.x > 60) go(-1);
+            }}
+            className="cursor-grab active:cursor-grabbing"
+          >
+            {children(index)}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <button
+        onClick={() => go(-1)}
+        aria-label={`${label} anterior`}
+        className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 p-2 rounded-full bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+      >
+        <ArrowRight className="rotate-180" size={20} />
+      </button>
+      <button
+        onClick={() => go(1)}
+        aria-label={`Próximo ${label}`}
+        className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 p-2 rounded-full bg-background border border-border hover:border-primary hover:text-primary transition-colors"
+      >
+        <ArrowRight size={20} />
+      </button>
+
+      <div className="flex justify-center gap-2 mt-8">
+        {Array.from({ length: count }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => {
+              setDirection(i > index ? 1 : -1);
+              setIndex(i);
+            }}
+            aria-label={`Ver ${label} ${i + 1}`}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              i === index ? "w-6 bg-primary" : "w-2 bg-border hover:bg-primary/50"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DepoimentosSection() {
+  return (
+    <Section id="depoimentos" className="py-20 md:py-28 bg-card">
+      <div className="container mx-auto px-4 lg:px-8">
+        <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
+          <span className="text-primary font-semibold text-sm uppercase tracking-wider">
+            Depoimentos
+          </span>
+          <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
+            O que nossos <span className="text-gradient-gold">clientes dizem</span>
+          </h2>
+        </motion.div>
+
+        <Carousel count={depoimentos.length} label="depoimento">
+          {(i) => {
+            const d = depoimentos[i];
+            return (
+              <div className="bg-background border border-border rounded-2xl p-6 md:p-8">
+                <div className="flex gap-1 mb-4">
+                  {Array.from({ length: 5 }).map((_, s) => (
+                    <Star key={s} className="text-primary fill-primary" size={16} />
+                  ))}
+                </div>
+                <p className="text-foreground leading-relaxed mb-6">"{d.texto}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center font-heading font-bold text-primary">
+                    {initials(d.nome)}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{d.nome}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {d.empresa} · Cliente GA Company
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }}
+        </Carousel>
+      </div>
+    </Section>
+  );
+}
+
+// ==== FAQ ====
+const faqs = [
+  {
+    q: "Como funciona a análise gratuita?",
+    a: "Você preenche o formulário e um especialista chama você no WhatsApp com um diagnóstico dos seus canais de venda e um plano de crescimento para os próximos 90 dias. Sem compromisso.",
+  },
+  {
+    q: "Em quanto tempo vejo resultado?",
+    a: "Os primeiros sinais aparecem nas primeiras semanas de campanha. Nos nossos cases, os saltos maiores de faturamento acontecem entre o 3º e o 6º mês, quando tráfego, recorrência e marca já estão rodando juntos.",
+  },
+  {
+    q: "Atendem qualquer segmento?",
+    a: "Trabalhamos com empresas, clínicas, comércios, deliveries e e-commerces. Nossos cases vão de hamburgueria e odontologia a gerenciamento de imóveis.",
+  },
+  {
+    q: "Preciso investir em anúncios além do serviço?",
+    a: "Sim. O investimento em mídia é separado da assessoria e definido junto com você na análise, de acordo com a meta de faturamento do seu negócio.",
+  },
+  {
+    q: "Vocês cuidam de tudo ou só do tráfego?",
+    a: "Cuidamos do ecossistema completo: tráfego pago, canais de venda, site e cardápio digital, Google Meu Negócio, CRM e fidelização, automações e IA — tudo em um só time.",
+  },
+];
+
+function FaqSection() {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <Section id="faq" className="py-20 md:py-28 bg-background">
+      <div className="container mx-auto px-4 lg:px-8">
+        <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-12">
+          <span className="text-primary font-semibold text-sm uppercase tracking-wider">
+            Dúvidas frequentes
+          </span>
+          <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
+            Perguntas <span className="text-gradient-gold">frequentes</span>
+          </h2>
+        </motion.div>
+
+        <div className="max-w-3xl mx-auto space-y-3">
+          {faqs.map((f, i) => {
+            const isOpen = open === i;
+            return (
+              <motion.div
+                key={f.q}
+                variants={fadeUp}
+                className="bg-card border border-border rounded-xl overflow-hidden"
+              >
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center justify-between gap-4 text-left px-5 md:px-6 py-4 md:py-5"
+                >
+                  <span className="font-heading font-bold text-foreground">{f.q}</span>
+                  <ChevronDown
+                    size={20}
+                    className={`shrink-0 text-primary transition-transform ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="overflow-hidden"
+                    >
+                      <p className="px-5 md:px-6 pb-5 text-muted-foreground leading-relaxed">
+                        {f.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </Section>
   );
 }
+
 
 // ==== PROVA ====
 const cases = [
