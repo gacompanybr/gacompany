@@ -14,7 +14,7 @@ import {
   ShoppingBag,
   Utensils,
   Bot,
-  Sparkles,
+  
   Star,
   ShieldCheck,
   Clock,
@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import heroPortrait from "@/assets/hero-portrait.png";
-import EcossistemaSection from "@/components/EcossistemaSection";
+
 import ClientesSection from "@/components/ClientesSection";
 import SobreSection from "@/components/SobreSection";
 
@@ -398,7 +398,7 @@ function MetricsBar() {
     { value: 98, prefix: "", suffix: "%", label: "de clientes satisfeitos" },
   ];
   return (
-    <Section className="py-14 md:py-20 border-y border-border bg-card/40">
+    <Section className="py-10 md:py-14 border-y border-border bg-card/40">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4">
           {metrics.map((m) => (
@@ -435,7 +435,7 @@ function DorSection() {
     "Crescimento previsível de faturamento, mês após mês",
   ];
   return (
-    <Section id="dor" className="py-20 md:py-28 bg-background">
+    <Section id="dor" className="py-14 md:py-20 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -493,76 +493,6 @@ function DorSection() {
   );
 }
 
-// ==== MECANISMO ====
-function MecanismoSection() {
-  const pilares = [
-    {
-      icon: Megaphone,
-      title: "Novos clientes",
-      desc: "Tráfego pago no Google e Instagram pra encher sua empresa de clientes novos toda semana.",
-    },
-    {
-      icon: Repeat,
-      title: "Recorrência",
-      desc: "CRM, automação e campanhas de fidelização pra fazer o mesmo cliente voltar, e voltar de novo.",
-    },
-    {
-      icon: Sparkles,
-      title: "Marca e autoridade",
-      desc: "Conteúdo estratégico no Instagram e Google Meu Negócio pra ser a marca lembrada na sua região.",
-    },
-    {
-      icon: TrendingUp,
-      title: "Ticket médio",
-      desc: "Upsell, ofertas inteligentes e combos pra cada venda valer mais sem esforço extra.",
-    },
-  ];
-  return (
-    <Section id="metodo" className="py-20 md:py-28 bg-card">
-      <div className="container mx-auto px-4 lg:px-8">
-        <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
-          <span className="text-primary font-semibold text-sm uppercase tracking-wider">
-            O método
-          </span>
-          <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
-            Como fazemos sua empresa{" "}
-            <span className="text-gradient-gold">crescer de verdade</span>
-          </h2>
-          <p className="text-muted-foreground mt-4">
-            4 motores trabalhando juntos, criando uma máquina de clientes previsível.
-          </p>
-        </motion.div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 md:gap-6">
-          {pilares.map(({ icon: Icon, title, desc }, i) => (
-            <motion.div
-              key={title}
-              variants={fadeUp}
-              whileHover={{ y: -6 }}
-              className="relative bg-background border border-border rounded-2xl p-6 md:p-7 hover:border-primary/40 hover:shadow-[var(--shadow-gold)] transition-all"
-            >
-              <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-gradient-gold text-primary-foreground font-heading font-bold flex items-center justify-center text-sm">
-                {i + 1}
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                <Icon className="text-primary" size={24} />
-              </div>
-              <h3 className="font-heading text-lg font-bold text-foreground mb-2">
-                {title}
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
-            </motion.div>
-          ))}
-        </div>
-
-        <motion.div variants={fadeUp} className="mt-12 text-center">
-          <PrimaryCTA>Quero esse método na minha empresa</PrimaryCTA>
-        </motion.div>
-      </div>
-    </Section>
-  );
-}
-
 // ==== ENTREGAS ====
 function EntregasSection() {
   const items = [
@@ -598,7 +528,7 @@ function EntregasSection() {
     },
   ];
   return (
-    <Section id="servicos" className="py-20 md:py-28 bg-background">
+    <Section id="servicos" className="py-14 md:py-20 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -748,7 +678,7 @@ function Carousel({
 
 function DepoimentosSection() {
   return (
-    <Section id="depoimentos" className="py-20 md:py-28 bg-card">
+    <Section id="depoimentos" className="py-14 md:py-20 bg-card">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -817,7 +747,7 @@ const faqs = [
 function FaqSection() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <Section id="faq" className="py-20 md:py-28 bg-background">
+    <Section id="faq" className="py-14 md:py-20 bg-background">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-12">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -983,7 +913,7 @@ function ProvaSection() {
   }, [inView]);
 
   return (
-    <Section id="prova" className="py-20 md:py-28 bg-card">
+    <Section id="prova" className="py-14 md:py-20 bg-card">
       <div ref={sectionRef} className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">Casos reais</span>
@@ -1079,7 +1009,7 @@ function FormSection() {
   };
 
   return (
-    <Section id="formulario" className="py-20 md:py-28 bg-background relative overflow-hidden">
+    <Section id="formulario" className="py-14 md:py-20 bg-background relative overflow-hidden">
       <span id="forms" className="absolute -top-24" aria-hidden />
       <div
         className="absolute inset-0 opacity-40"
@@ -1222,47 +1152,6 @@ function FormSection() {
   );
 }
 
-// ==== CTA FINAL ====
-function CtaFinal() {
-  return (
-    <Section className="py-20 md:py-28 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-gold" />
-      <div
-        className="absolute inset-0 opacity-20 mix-blend-overlay"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 20%, rgba(0,0,0,0.4), transparent 50%), radial-gradient(circle at 80% 80%, rgba(0,0,0,0.4), transparent 50%)",
-        }}
-      />
-      <div className="container mx-auto px-4 lg:px-8 relative z-10">
-        <motion.div variants={fadeUp} className="max-w-3xl mx-auto text-center text-primary-foreground">
-          <h2 className="font-heading text-3xl md:text-5xl lg:text-6xl font-extrabold leading-tight">
-            Todo dia sem estratégia é dia de pedido perdido.
-          </h2>
-          <p className="mt-4 text-lg md:text-xl opacity-90">
-            Comece agora, sem compromisso. Análise gratuita do seu negócio em minutos.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href="#formulario"
-              className="inline-flex items-center gap-2 bg-background text-foreground font-bold text-lg px-8 py-4 rounded-xl hover:scale-[1.03] active:scale-[0.98] transition-transform"
-            >
-              Quero minha análise <ArrowRight size={20} />
-            </a>
-            <a
-              href={waLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 border-2 border-background/60 text-primary-foreground font-semibold px-7 py-4 rounded-xl hover:bg-background/10 transition-colors"
-            >
-              <MessageCircle size={20} /> Chamar no WhatsApp
-            </a>
-          </div>
-        </motion.div>
-      </div>
-    </Section>
-  );
-}
 
 // ==== FOOTER ====
 function Footer() {
@@ -1316,11 +1205,8 @@ export default function DeliveryLanding() {
       <EntregasSection />
       <ProvaSection />
       <DorSection />
-      <MecanismoSection />
-      <EcossistemaSection />
       <SobreSection />
       <FaqSection />
-      <CtaFinal />
       <Footer />
       <FloatingWhats />
     </>
