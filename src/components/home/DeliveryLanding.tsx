@@ -18,6 +18,7 @@ import {
   Star,
   ShieldCheck,
   Clock,
+  ChevronDown,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import heroPortrait from "@/assets/hero-portrait.png.asset.json";
