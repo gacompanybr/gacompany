@@ -1080,6 +1080,7 @@ function FormSection() {
 
   return (
     <Section id="formulario" className="py-20 md:py-28 bg-background relative overflow-hidden">
+      <span id="forms" className="absolute -top-24" aria-hidden />
       <div
         className="absolute inset-0 opacity-40"
         style={{
@@ -1309,13 +1310,16 @@ export default function DeliveryLanding() {
     <>
       <Hero />
       <MetricsBar />
+      <FormSection />
       <ClientesSection />
+      <DepoimentosSection />
+      <EntregasSection />
+      <ProvaSection />
       <DorSection />
       <MecanismoSection />
-      <EntregasSection />
       <EcossistemaSection />
-      <ProvaSection />
-      <FormSection />
+      <SobreSection />
+      <FaqSection />
       <CtaFinal />
       <Footer />
       <FloatingWhats />
