@@ -21,7 +21,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
-import heroPortrait from "@/assets/hero-portrait.png.asset.json";
+import heroPortrait from "@/assets/hero-portrait.png";
 import EcossistemaSection from "@/components/EcossistemaSection";
 import ClientesSection from "@/components/ClientesSection";
 import SobreSection from "@/components/SobreSection";
@@ -339,7 +339,7 @@ function Hero() {
             />
             <div className="relative rounded-[2rem] overflow-hidden border border-border bg-background">
               <img
-                src={heroPortrait.url}
+                src={heroPortrait}
                 alt="Especialista da GA Company"
                 className="w-full h-auto object-cover object-top"
                 loading="eager"
