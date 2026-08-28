@@ -14,7 +14,7 @@ import {
   ShoppingBag,
   Utensils,
   Bot,
-  Sparkles,
+  
   Star,
   ShieldCheck,
   Clock,
