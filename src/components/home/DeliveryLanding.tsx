@@ -1152,47 +1152,6 @@ function FormSection() {
   );
 }
 
-// ==== CTA FINAL ====
-function CtaFinal() {
-  return (
-    <Section className="py-14 md:py-20 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-gold" />
-      <div
-        className="absolute inset-0 opacity-20 mix-blend-overlay"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 20%, rgba(0,0,0,0.4), transparent 50%), radial-gradient(circle at 80% 80%, rgba(0,0,0,0.4), transparent 50%)",
-        }}
-      />
-      <div className="container mx-auto px-4 lg:px-8 relative z-10">
-        <motion.div variants={fadeUp} className="max-w-3xl mx-auto text-center text-primary-foreground">
-          <h2 className="font-heading text-3xl md:text-5xl lg:text-6xl font-extrabold leading-tight">
-            Todo dia sem estratégia é dia de pedido perdido.
-          </h2>
-          <p className="mt-4 text-lg md:text-xl opacity-90">
-            Comece agora, sem compromisso. Análise gratuita do seu negócio em minutos.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href="#formulario"
-              className="inline-flex items-center gap-2 bg-background text-foreground font-bold text-lg px-8 py-4 rounded-xl hover:scale-[1.03] active:scale-[0.98] transition-transform"
-            >
-              Quero minha análise <ArrowRight size={20} />
-            </a>
-            <a
-              href={waLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 border-2 border-background/60 text-primary-foreground font-semibold px-7 py-4 rounded-xl hover:bg-background/10 transition-colors"
-            >
-              <MessageCircle size={20} /> Chamar no WhatsApp
-            </a>
-          </div>
-        </motion.div>
-      </div>
-    </Section>
-  );
-}
 
 // ==== FOOTER ====
 function Footer() {
