@@ -236,20 +236,12 @@ function Hero() {
   return (
     <section className="relative min-h-[100svh] flex items-center overflow-hidden pt-24 pb-16">
       {/* background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-card" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-card/60" />
       <div
         className="absolute inset-0 opacity-25"
         style={{
           background:
             "radial-gradient(ellipse at 20% 10%, hsl(37 99% 53% / 0.10), transparent 60%), radial-gradient(ellipse at 90% 80%, hsl(30 100% 40% / 0.08), transparent 55%)",
-        }}
-      />
-      <div
-        className="absolute inset-0 opacity-[0.025]"
-        style={{
-          backgroundImage:
-            "linear-gradient(hsl(0 0% 100% / 0.4) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100% / 0.4) 1px, transparent 1px)",
-          backgroundSize: "56px 56px",
         }}
       />
 
