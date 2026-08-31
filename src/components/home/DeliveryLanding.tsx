@@ -388,7 +388,7 @@ function Hero() {
             <motion.img
               src={notifFaturamento.url}
               alt="Faturamento dobrado em 90 dias"
-              className="absolute z-0 right-[-4%] sm:-right-5 top-[8%] w-[66%] max-w-[320px] drop-shadow-2xl"
+              className="absolute z-0 right-[-8%] sm:-right-8 top-[8%] w-[66%] max-w-[320px] drop-shadow-2xl"
               animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
             />
