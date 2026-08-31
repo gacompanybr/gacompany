@@ -21,7 +21,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
-import heroPortrait from "@/assets/hero-portrait.png";
+import heroPortrait from "@/assets/hero-portrait-2.png";
 
 import ClientesSection from "@/components/ClientesSection";
 import AngledDivider from "@/components/AngledDivider";
