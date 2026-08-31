@@ -21,7 +21,10 @@ import {
   ChevronDown,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
-import heroPortrait from "@/assets/hero-portrait-2.png";
+import heroPortrait from "@/assets/hero-portrait-3.png";
+import notifNovoLead from "@/assets/notif-novo-lead.png.asset.json";
+import notifFaturamento from "@/assets/notif-faturamento.png.asset.json";
+import notifMeta from "@/assets/notif-meta.png.asset.json";
 
 import ClientesSection from "@/components/ClientesSection";
 import AngledDivider from "@/components/AngledDivider";
