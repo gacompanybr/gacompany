@@ -379,16 +379,16 @@ function Hero() {
             <motion.img
               src={notifNovoLead.url}
               alt="Novo lead capturado no WhatsApp"
-              className="absolute z-30 -left-4 sm:-left-12 top-[38%] w-[64%] max-w-[310px] drop-shadow-2xl"
+              className="absolute z-30 -left-8 sm:-left-20 top-[38%] w-[64%] max-w-[310px] drop-shadow-2xl"
               animate={{ y: [0, 12, 0], x: [0, -6, 0] }}
               transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
             />
 
-            {/* Notificação — faturamento dobrado */}
+            {/* Notificação — faturamento dobrado (atrás do ombro) */}
             <motion.img
               src={notifFaturamento.url}
               alt="Faturamento dobrado em 90 dias"
-              className="absolute z-30 -right-4 sm:-right-10 top-[62%] w-[66%] max-w-[320px] drop-shadow-2xl"
+              className="absolute z-0 -right-2 sm:right-2 top-[58%] w-[66%] max-w-[320px] drop-shadow-2xl"
               animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
             />
