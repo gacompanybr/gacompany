@@ -24,6 +24,7 @@ import logo from "@/assets/logo.png";
 import heroPortrait from "@/assets/hero-portrait.png";
 
 import ClientesSection from "@/components/ClientesSection";
+import AngledDivider from "@/components/AngledDivider";
 import SobreSection from "@/components/SobreSection";
 
 
@@ -235,20 +236,12 @@ function Hero() {
   return (
     <section className="relative min-h-[100svh] flex items-center overflow-hidden pt-24 pb-16">
       {/* background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-card" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-card/60" />
       <div
         className="absolute inset-0 opacity-25"
         style={{
           background:
             "radial-gradient(ellipse at 20% 10%, hsl(37 99% 53% / 0.10), transparent 60%), radial-gradient(ellipse at 90% 80%, hsl(30 100% 40% / 0.08), transparent 55%)",
-        }}
-      />
-      <div
-        className="absolute inset-0 opacity-[0.025]"
-        style={{
-          backgroundImage:
-            "linear-gradient(hsl(0 0% 100% / 0.4) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100% / 0.4) 1px, transparent 1px)",
-          backgroundSize: "56px 56px",
         }}
       />
 
@@ -435,7 +428,7 @@ function DorSection() {
     "Crescimento previsível de faturamento, mês após mês",
   ];
   return (
-    <Section id="dor" className="py-14 md:py-20 bg-background">
+    <Section id="dor" className="py-14 md:py-20 bg-transparent">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -528,7 +521,7 @@ function EntregasSection() {
     },
   ];
   return (
-    <Section id="servicos" className="py-14 md:py-20 bg-background">
+    <Section id="servicos" className="py-14 md:py-20 bg-transparent">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -678,7 +671,7 @@ function Carousel({
 
 function DepoimentosSection() {
   return (
-    <Section id="depoimentos" className="py-14 md:py-20 bg-card">
+    <Section id="depoimentos" className="py-14 md:py-20 bg-card/40 backdrop-blur-[2px]">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -747,7 +740,7 @@ const faqs = [
 function FaqSection() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <Section id="faq" className="py-14 md:py-20 bg-background">
+    <Section id="faq" className="py-14 md:py-20 bg-transparent">
       <div className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-12">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">
@@ -913,7 +906,7 @@ function ProvaSection() {
   }, [inView]);
 
   return (
-    <Section id="prova" className="py-14 md:py-20 bg-card">
+    <Section id="prova" className="py-14 md:py-20 bg-card/40 backdrop-blur-[2px]">
       <div ref={sectionRef} className="container mx-auto px-4 lg:px-8">
         <motion.div variants={fadeUp} className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">Casos reais</span>
@@ -1009,7 +1002,7 @@ function FormSection() {
   };
 
   return (
-    <Section id="formulario" className="py-14 md:py-20 bg-background relative overflow-hidden">
+    <Section id="formulario" className="py-14 md:py-20 bg-transparent relative overflow-hidden">
       <span id="forms" className="absolute -top-24" aria-hidden />
       <div
         className="absolute inset-0 opacity-40"
@@ -1156,7 +1149,7 @@ function FormSection() {
 // ==== FOOTER ====
 function Footer() {
   return (
-    <footer className="bg-card border-t border-border py-10">
+    <footer className="bg-card/50 backdrop-blur-[2px] border-t border-border py-10">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
@@ -1198,11 +1191,13 @@ export default function DeliveryLanding() {
   return (
     <>
       <Hero />
+      <AngledDivider />
       <MetricsBar />
       <FormSection />
       <ClientesSection />
       <DepoimentosSection />
       <EntregasSection />
+      <AngledDivider />
       <ProvaSection />
       <DorSection />
       <SobreSection />

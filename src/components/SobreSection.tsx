@@ -12,7 +12,7 @@ const highlights = [
 
 const SobreSection = () => {
   return (
-    <section id="sobre" className="py-20 lg:py-32 bg-card">
+    <section id="sobre" className="py-20 lg:py-32 bg-card/40 backdrop-blur-[2px]">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="max-w-4xl mx-auto text-center mb-12">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">Sobre nós</span>
