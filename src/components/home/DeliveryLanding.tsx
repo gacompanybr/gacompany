@@ -384,11 +384,11 @@ function Hero() {
               transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
             />
 
-            {/* Notificação — faturamento dobrado (atrás do ombro) */}
+            {/* Notificação — faturamento dobrado (atrás do ombro, mais alto) */}
             <motion.img
               src={notifFaturamento.url}
               alt="Faturamento dobrado em 90 dias"
-              className="absolute z-0 -right-2 sm:right-2 top-[58%] w-[66%] max-w-[320px] drop-shadow-2xl"
+              className="absolute z-0 -right-2 sm:right-2 top-[26%] w-[66%] max-w-[320px] drop-shadow-2xl"
               animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
             />
