@@ -21,7 +21,10 @@ import {
   ChevronDown,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
-import heroPortrait from "@/assets/hero-portrait-2.png";
+import heroPortrait from "@/assets/hero-portrait-3.png";
+import notifNovoLead from "@/assets/notif-novo-lead.png.asset.json";
+import notifFaturamento from "@/assets/notif-faturamento.png.asset.json";
+import notifMeta from "@/assets/notif-meta.png.asset.json";
 
 import ClientesSection from "@/components/ClientesSection";
 import AngledDivider from "@/components/AngledDivider";
@@ -333,19 +336,14 @@ function Hero() {
               }}
             />
 
-            {/* Card atrás — passa por trás da cabeça */}
-            <motion.div
-              className="absolute z-0 left-2 sm:-left-4 top-4 bg-card/80 backdrop-blur-md border border-border/70 rounded-xl px-4 py-3 shadow-2xl"
+            {/* Notificação atrás — passa por trás da cabeça */}
+            <motion.img
+              src={notifMeta.url}
+              alt="Meta de ROI batida"
+              className="absolute z-0 left-2 sm:-left-10 top-2 w-[62%] max-w-[300px] drop-shadow-2xl"
               animate={{ y: [0, -14, 0], x: [0, 6, 0] }}
               transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Campanhas ativas
-              </p>
-              <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
-                <TrendingUp size={14} className="text-primary" /> ROI médio 12x
-              </p>
-            </motion.div>
+            />
 
             {/* Retrato flutuante, sem moldura, com fade laranja embaixo */}
             <motion.div
@@ -377,32 +375,23 @@ function Hero() {
               }}
             />
 
-            {/* Card — novo lead */}
-            <motion.div
-              className="absolute z-30 -left-3 sm:-left-8 top-1/3 bg-card/90 backdrop-blur-md border border-border rounded-xl px-4 py-3 shadow-2xl"
+            {/* Notificação — novo lead */}
+            <motion.img
+              src={notifNovoLead.url}
+              alt="Novo lead capturado no WhatsApp"
+              className="absolute z-30 -left-4 sm:-left-12 top-[38%] w-[64%] max-w-[310px] drop-shadow-2xl"
               animate={{ y: [0, 12, 0], x: [0, -6, 0] }}
               transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Novo lead
-              </p>
-              <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> WhatsApp
-                recebido
-              </p>
-            </motion.div>
+            />
 
-            {/* Card — faturamento */}
-            <motion.div
-              className="absolute z-30 -right-3 sm:-right-6 top-1/2 bg-card/90 backdrop-blur-md border border-primary/40 rounded-xl px-4 py-3 shadow-[var(--shadow-gold)]"
+            {/* Notificação — faturamento dobrado */}
+            <motion.img
+              src={notifFaturamento.url}
+              alt="Faturamento dobrado em 90 dias"
+              className="absolute z-30 -right-4 sm:-right-10 top-[62%] w-[66%] max-w-[320px] drop-shadow-2xl"
               animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-            >
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Faturamento
-              </p>
-              <p className="font-heading text-lg font-extrabold text-gradient-gold">+167%</p>
-            </motion.div>
+            />
           </motion.div>
 
         </div>
