@@ -24,6 +24,7 @@ import logo from "@/assets/logo.png";
 import heroPortrait from "@/assets/hero-portrait.png";
 
 import ClientesSection from "@/components/ClientesSection";
+import AngledDivider from "@/components/AngledDivider";
 import SobreSection from "@/components/SobreSection";
 
 
@@ -1198,11 +1199,13 @@ export default function DeliveryLanding() {
   return (
     <>
       <Hero />
+      <AngledDivider />
       <MetricsBar />
       <FormSection />
       <ClientesSection />
       <DepoimentosSection />
       <EntregasSection />
+      <AngledDivider />
       <ProvaSection />
       <DorSection />
       <SobreSection />
