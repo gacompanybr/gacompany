@@ -316,56 +316,28 @@ function Hero() {
             </motion.p>
           </motion.div>
 
-          {/* Visual: retrato + cards flutuantes */}
+          {/* Visual: retrato flutuante + cards orbitando */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="relative mx-auto w-full max-w-[520px]"
+            className="relative mx-auto w-full max-w-[520px] aspect-square"
           >
+            {/* Luz laranja difusa atrás */}
             <div
-              className="absolute inset-0 rounded-[2rem] opacity-70"
+              className="absolute inset-0 z-0"
               style={{
                 background:
-                  "radial-gradient(circle at 30% 30%, hsl(37 99% 53% / 0.22), transparent 65%)",
+                  "radial-gradient(circle at 50% 45%, hsl(37 99% 53% / 0.28), transparent 62%)",
+                filter: "blur(18px)",
               }}
             />
-            <div className="relative rounded-[2rem] overflow-hidden border border-border bg-background">
-              <img
-                src={heroPortrait}
-                alt="Especialista da GA Company"
-                className="w-full h-auto object-cover object-top"
-                loading="eager"
-              />
-              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
-            </div>
 
-            {/* Card flutuante — novo lead */}
-            <div className="absolute -left-3 sm:-left-8 top-8 animate-float bg-card/95 backdrop-blur-sm border border-border rounded-xl px-4 py-3 shadow-2xl">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Novo lead
-              </p>
-              <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> WhatsApp
-                recebido
-              </p>
-            </div>
-
-            {/* Card flutuante — faturamento */}
-            <div
-              className="absolute -right-3 sm:-right-6 top-1/3 animate-float bg-card/95 backdrop-blur-sm border border-primary/40 rounded-xl px-4 py-3 shadow-[var(--shadow-gold)]"
-              style={{ animationDelay: "0.8s" }}
-            >
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Faturamento
-              </p>
-              <p className="font-heading text-lg font-extrabold text-gradient-gold">+167%</p>
-            </div>
-
-            {/* Card flutuante — campanhas */}
-            <div
-              className="absolute -left-2 sm:-left-6 bottom-10 animate-float bg-card/95 backdrop-blur-sm border border-border rounded-xl px-4 py-3 shadow-2xl"
-              style={{ animationDelay: "1.4s" }}
+            {/* Card atrás — passa por trás da cabeça */}
+            <motion.div
+              className="absolute z-0 left-2 sm:-left-4 top-4 bg-card/80 backdrop-blur-md border border-border/70 rounded-xl px-4 py-3 shadow-2xl"
+              animate={{ y: [0, -14, 0], x: [0, 6, 0] }}
+              transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
             >
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 Campanhas ativas
@@ -373,8 +345,66 @@ function Hero() {
               <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
                 <TrendingUp size={14} className="text-primary" /> ROI médio 12x
               </p>
-            </div>
+            </motion.div>
+
+            {/* Retrato flutuante, sem moldura, com fade laranja embaixo */}
+            <motion.div
+              className="absolute inset-0 z-10 flex items-end justify-center"
+              animate={{ y: [0, -10, 0] }}
+              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <img
+                src={heroPortrait}
+                alt="Especialista da GA Company"
+                className="w-full h-full object-contain object-bottom drop-shadow-[0_20px_60px_hsl(37_99%_53%/0.18)]"
+                style={{
+                  WebkitMaskImage:
+                    "linear-gradient(to bottom, #000 0%, #000 72%, rgba(0,0,0,0.35) 88%, transparent 100%)",
+                  maskImage:
+                    "linear-gradient(to bottom, #000 0%, #000 72%, rgba(0,0,0,0.35) 88%, transparent 100%)",
+                }}
+                loading="eager"
+              />
+            </motion.div>
+
+            {/* Brilho amarelo no corte inferior */}
+            <div
+              className="absolute inset-x-0 bottom-0 h-40 z-20 pointer-events-none"
+              style={{
+                background:
+                  "radial-gradient(60% 100% at 50% 100%, hsl(37 99% 53% / 0.45), hsl(37 99% 53% / 0.12) 45%, transparent 72%)",
+                filter: "blur(22px)",
+              }}
+            />
+
+            {/* Card — novo lead */}
+            <motion.div
+              className="absolute z-30 -left-3 sm:-left-8 top-1/3 bg-card/90 backdrop-blur-md border border-border rounded-xl px-4 py-3 shadow-2xl"
+              animate={{ y: [0, 12, 0], x: [0, -6, 0] }}
+              transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Novo lead
+              </p>
+              <p className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> WhatsApp
+                recebido
+              </p>
+            </motion.div>
+
+            {/* Card — faturamento */}
+            <motion.div
+              className="absolute z-30 -right-3 sm:-right-6 top-1/2 bg-card/90 backdrop-blur-md border border-primary/40 rounded-xl px-4 py-3 shadow-[var(--shadow-gold)]"
+              animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+            >
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Faturamento
+              </p>
+              <p className="font-heading text-lg font-extrabold text-gradient-gold">+167%</p>
+            </motion.div>
           </motion.div>
+
         </div>
       </div>
     </section>
