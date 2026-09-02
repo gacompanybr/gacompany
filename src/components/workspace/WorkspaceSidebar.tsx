@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone, Wallet, Send, Search, Zap } from "lucide-react";
+import { BarChart3, Bot, Users, Smartphone, Palette, Megaphone, Wallet, Send, Search, Zap, Mail } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader,
@@ -6,7 +6,8 @@ import {
 
 export type WorkspaceModule =
   | "metricas" | "campanhas" | "whatsapp" | "crm" | "social"
-  | "criativos" | "financeiro" | "disparo" | "scrapper" | "robo";
+  | "criativos" | "financeiro" | "disparo" | "scrapper" | "robo"
+  | "email_marketing";
 
 const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | string[] }[] = [
   { key: "metricas", label: "Métricas", icon: BarChart3, service: ["meta_ads", "google_ads"] },
@@ -15,6 +16,7 @@ const ALL: { key: WorkspaceModule; label: string; icon: any; service: string | s
   { key: "disparo", label: "Disparo", icon: Send, service: "disparo" },
   { key: "robo", label: "Robô", icon: Zap, service: "robo" },
   { key: "scrapper", label: "Scrapper", icon: Search, service: "scrapper" },
+  { key: "email_marketing", label: "E-mail Marketing", icon: Mail, service: "email_marketing" },
   { key: "crm", label: "CRM", icon: Users, service: "crm" },
   { key: "social", label: "Social Media", icon: Smartphone, service: "social_media" },
   { key: "criativos", label: "Criativos", icon: Palette, service: "criativos" },

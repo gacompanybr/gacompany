@@ -19,6 +19,7 @@ import FinanceiroModule from "@/modules/Financeiro";
 import DisparoModule from "@/modules/Disparo";
 import RoboModule from "@/modules/Robo";
 import ScrapperModule from "@/modules/Scrapper";
+import EmailMarketingModule from "@/modules/EmailMarketing";
 import gaLogo from "@/assets/logo.png";
 
 export default function Workspace() {
@@ -132,6 +133,9 @@ export default function Workspace() {
             {activeModule === "disparo" && <DisparoModule portfolioId={portfolio.id} />}
             {activeModule === "robo" && <RoboModule portfolioId={portfolio.id} />}
             {activeModule === "scrapper" && <ScrapperModule portfolioId={portfolio.id} />}
+            {activeModule === "email_marketing" && (
+              <EmailMarketingModule portfolioId={portfolio.id} />
+            )}
           </main>
         </div>
       </div>

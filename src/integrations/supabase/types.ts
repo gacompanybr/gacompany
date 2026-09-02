@@ -600,6 +600,196 @@ export type Database = {
           },
         ]
       }
+      email_campanhas: {
+        Row: {
+          assunto: string
+          corpo: string
+          created_at: string
+          enviados: number
+          id: string
+          link_label: string | null
+          link_url: string | null
+          lock_until: string | null
+          nome: string
+          portfolio_id: string
+          remetente_email: string | null
+          remetente_nome: string | null
+          status: string
+          total_contatos: number
+          ultimo_erro: string | null
+          updated_at: string
+        }
+        Insert: {
+          assunto: string
+          corpo: string
+          created_at?: string
+          enviados?: number
+          id?: string
+          link_label?: string | null
+          link_url?: string | null
+          lock_until?: string | null
+          nome: string
+          portfolio_id: string
+          remetente_email?: string | null
+          remetente_nome?: string | null
+          status?: string
+          total_contatos?: number
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assunto?: string
+          corpo?: string
+          created_at?: string
+          enviados?: number
+          id?: string
+          link_label?: string | null
+          link_url?: string | null
+          lock_until?: string | null
+          nome?: string
+          portfolio_id?: string
+          remetente_email?: string | null
+          remetente_nome?: string | null
+          status?: string
+          total_contatos?: number
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campanhas_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_destinatarios: {
+        Row: {
+          aberto_em: string | null
+          abertos: number
+          campanha_id: string
+          clicado_em: string | null
+          cliques: number
+          created_at: string
+          email: string
+          empresa: string | null
+          enviado_em: string | null
+          erro: string | null
+          id: string
+          nome: string | null
+          portfolio_id: string
+          provider_id: string | null
+          respondido_em: string | null
+          status: string
+          variaveis: Json
+        }
+        Insert: {
+          aberto_em?: string | null
+          abertos?: number
+          campanha_id: string
+          clicado_em?: string | null
+          cliques?: number
+          created_at?: string
+          email: string
+          empresa?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome?: string | null
+          portfolio_id: string
+          provider_id?: string | null
+          respondido_em?: string | null
+          status?: string
+          variaveis?: Json
+        }
+        Update: {
+          aberto_em?: string | null
+          abertos?: number
+          campanha_id?: string
+          clicado_em?: string | null
+          cliques?: number
+          created_at?: string
+          email?: string
+          empresa?: string | null
+          enviado_em?: string | null
+          erro?: string | null
+          id?: string
+          nome?: string | null
+          portfolio_id?: string
+          provider_id?: string | null
+          respondido_em?: string | null
+          status?: string
+          variaveis?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_destinatarios_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "email_campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_destinatarios_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_leads: {
+        Row: {
+          cidade: string | null
+          created_at: string
+          email: string
+          endereco: string | null
+          id: string
+          nicho: string | null
+          nome_empresa: string | null
+          place_id: string | null
+          portfolio_id: string
+          telefone: string | null
+          website: string | null
+        }
+        Insert: {
+          cidade?: string | null
+          created_at?: string
+          email: string
+          endereco?: string | null
+          id?: string
+          nicho?: string | null
+          nome_empresa?: string | null
+          place_id?: string | null
+          portfolio_id: string
+          telefone?: string | null
+          website?: string | null
+        }
+        Update: {
+          cidade?: string | null
+          created_at?: string
+          email?: string
+          endereco?: string | null
+          id?: string
+          nicho?: string | null
+          nome_empresa?: string | null
+          place_id?: string | null
+          portfolio_id?: string
+          telefone?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_leads_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_categories: {
         Row: {
           cor: string
