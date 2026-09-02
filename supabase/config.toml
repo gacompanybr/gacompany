@@ -52,3 +52,12 @@ verify_jwt = false
 
 [functions.cobranca-send]
 verify_jwt = false
+
+[functions.email-scraper]
+verify_jwt = true
+
+[functions.email-campaign-send]
+verify_jwt = false
+
+[functions.email-track]
+verify_jwt = false

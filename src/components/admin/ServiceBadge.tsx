@@ -12,6 +12,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   disparo: "Disparo de Mensagens",
   scrapper: "Scrapper",
   robo: "Robô",
+  email_marketing: "E-mail Marketing",
 };
 
 const COLORS: Record<string, string> = {
@@ -26,6 +27,7 @@ const COLORS: Record<string, string> = {
   disparo: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   scrapper: "bg-pink-500/15 text-pink-400 border-pink-500/30",
   robo: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
+  email_marketing: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
 export function ServiceBadge({ service }: { service: string }) {
