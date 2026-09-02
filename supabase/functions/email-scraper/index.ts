@@ -72,8 +72,9 @@ async function buscarEmailsNoSite(site: string): Promise<string[]> {
       if (!res.ok) continue;
       const ct = res.headers.get("content-type") ?? "";
       if (!ct.includes("html") && !ct.includes("text")) continue;
-      const html = (await res.text()).slice(0, 400_000);
+      const html = (await res.text()).slice(0, MAX_HTML);
       for (const e of limparEmails(html)) encontrados.add(e);
+      if (encontrados.size > 0) break; // já achou nesta página, não precisa varrer as outras
     } catch {
       // site fora do ar / timeout — segue
     }
