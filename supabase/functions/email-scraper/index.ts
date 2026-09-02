@@ -30,7 +30,9 @@ const BAD_DOMAINS = [
 ];
 const BAD_EXT = /\.(png|jpe?g|gif|webp|svg|css|js|ico|woff2?)$/i;
 
-const PATHS = ["", "/contato", "/contact", "/quem-somos", "/sobre", "/about", "/fale-conosco"];
+const PATHS = ["", "/contato", "/contact"];
+const MAX_HTML = 120_000;
+const MAX_SITES = 25;
 
 function limparEmails(html: string): string[] {
   const found = new Set<string>();
