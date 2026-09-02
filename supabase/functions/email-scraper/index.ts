@@ -30,7 +30,9 @@ const BAD_DOMAINS = [
 ];
 const BAD_EXT = /\.(png|jpe?g|gif|webp|svg|css|js|ico|woff2?)$/i;
 
-const PATHS = ["", "/contato", "/contact", "/quem-somos", "/sobre", "/about", "/fale-conosco"];
+const PATHS = ["", "/contato", "/contact"];
+const MAX_HTML = 120_000;
+const MAX_SITES = 25;
 
 function limparEmails(html: string): string[] {
   const found = new Set<string>();
@@ -70,8 +72,9 @@ async function buscarEmailsNoSite(site: string): Promise<string[]> {
       if (!res.ok) continue;
       const ct = res.headers.get("content-type") ?? "";
       if (!ct.includes("html") && !ct.includes("text")) continue;
-      const html = (await res.text()).slice(0, 400_000);
+      const html = (await res.text()).slice(0, MAX_HTML);
       for (const e of limparEmails(html)) encontrados.add(e);
+      if (encontrados.size > 0) break; // já achou nesta página, não precisa varrer as outras
     } catch {
       // site fora do ar / timeout — segue
     }
@@ -129,12 +132,13 @@ Deno.serve(async (req) => {
       await new Promise((r) => setTimeout(r, 1200));
     }
 
-    const comSite = places.filter((p) => p.websiteUri);
+    const comSite = places.filter((p) => p.websiteUri).slice(0, MAX_SITES);
 
     // 2) Extrai e-mails dos sites (em lotes paralelos pequenos)
     const leads: any[] = [];
     const CONC = 5;
     for (let i = 0; i < comSite.length; i += CONC) {
+      await new Promise((r) => setTimeout(r, 0));
       const bloco = comSite.slice(i, i + CONC);
       const resultados = await Promise.all(
         bloco.map(async (p) => ({ p, emails: await buscarEmailsNoSite(p.websiteUri) })),
