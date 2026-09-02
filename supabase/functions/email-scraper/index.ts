@@ -132,12 +132,13 @@ Deno.serve(async (req) => {
       await new Promise((r) => setTimeout(r, 1200));
     }
 
-    const comSite = places.filter((p) => p.websiteUri);
+    const comSite = places.filter((p) => p.websiteUri).slice(0, MAX_SITES);
 
     // 2) Extrai e-mails dos sites (em lotes paralelos pequenos)
     const leads: any[] = [];
     const CONC = 5;
     for (let i = 0; i < comSite.length; i += CONC) {
+      await new Promise((r) => setTimeout(r, 0));
       const bloco = comSite.slice(i, i + CONC);
       const resultados = await Promise.all(
         bloco.map(async (p) => ({ p, emails: await buscarEmailsNoSite(p.websiteUri) })),
