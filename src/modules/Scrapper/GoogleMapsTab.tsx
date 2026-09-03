@@ -9,7 +9,29 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, MapPin, Download, Search } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, MapPin, Download, Search, SlidersHorizontal } from "lucide-react";
+
+type Filtros = {
+  site: "todos" | "com" | "sem";
+  somenteWhatsapp: boolean;
+  somenteComTelefone: boolean;
+  avaliacaoMin: number;
+  minAvaliacoes: number;
+};
+
+const FILTROS_PADRAO: Filtros = {
+  site: "todos",
+  somenteWhatsapp: true,
+  somenteComTelefone: false,
+  avaliacaoMin: 0,
+  minAvaliacoes: 0,
+};
 
 type Lead = {
   nome: string;
@@ -40,6 +62,27 @@ export function GoogleMapsTab() {
   const [limite, setLimite] = useState(50);
   const [loading, setLoading] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_PADRAO);
+  const [rascunho, setRascunho] = useState<Filtros>(FILTROS_PADRAO);
+  const [openFiltros, setOpenFiltros] = useState(false);
+
+  const filtrados = leads.filter((l) => {
+    const temSite = !!l.website;
+    if (filtros.site === "com" && !temSite) return false;
+    if (filtros.site === "sem" && temSite) return false;
+    if (filtros.somenteWhatsapp && !extrairCelularBR(l.telefone)) return false;
+    if (filtros.somenteComTelefone && !l.telefone) return false;
+    if (filtros.avaliacaoMin > 0 && (l.avaliacao ?? 0) < filtros.avaliacaoMin) return false;
+    if (filtros.minAvaliacoes > 0 && (l.total_avaliacoes ?? 0) < filtros.minAvaliacoes) return false;
+    return true;
+  });
+
+  const filtrosAtivos =
+    (filtros.site !== "todos" ? 1 : 0) +
+    (filtros.somenteWhatsapp ? 1 : 0) +
+    (filtros.somenteComTelefone ? 1 : 0) +
+    (filtros.avaliacaoMin > 0 ? 1 : 0) +
+    (filtros.minAvaliacoes > 0 ? 1 : 0);
 
   async function buscar() {
     if (!nicho.trim() || !cidade.trim()) return toast.error("Informe nicho e cidade");
@@ -52,15 +95,14 @@ export function GoogleMapsTab() {
     if (error) return toast.error(error.message);
     if ((data as any)?.error) return toast.error((data as any).error);
     const raw = ((data as any)?.leads ?? []) as Lead[];
-    const found = raw.filter((l) => extrairCelularBR(l.telefone));
-    setLeads(found);
-    toast.success(`${found.length} leads com celular encontrados`);
+    setLeads(raw);
+    toast.success(`${raw.length} leads encontrados`);
   }
 
   function exportar() {
-    if (!leads.length) return;
+    if (!filtrados.length) return toast.error("Nada para exportar com os filtros atuais");
     const ws = XLSX.utils.json_to_sheet(
-      leads.map((l) => {
+      filtrados.map((l) => {
         const cel = extrairCelularBR(l.telefone);
         return {
           Nome: l.nome,
@@ -126,7 +168,7 @@ export function GoogleMapsTab() {
             <Button
               onClick={exportar}
               variant="outline"
-              disabled={!leads.length}
+              disabled={!filtrados.length}
               className="gap-2"
               title="Exportar para planilha XLSX"
             >
@@ -134,14 +176,125 @@ export function GoogleMapsTab() {
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Busca via Google Maps Places API. Limite por consulta: 60 resultados (limite da API).
-        </p>
+        <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            Busca via Google Maps Places API. Limite por consulta: 60 resultados (limite da API).
+          </p>
+          <Dialog
+            open={openFiltros}
+            onOpenChange={(o) => {
+              setOpenFiltros(o);
+              if (o) setRascunho(filtros);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <SlidersHorizontal size={14} /> Configurações avançadas
+                {filtrosAtivos > 0 && (
+                  <Badge variant="secondary" className="ml-1">{filtrosAtivos}</Badge>
+                )}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Filtros do scrapper</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5 py-1">
+                <div className="space-y-2">
+                  <Label>Site do negócio</Label>
+                  <RadioGroup
+                    value={rascunho.site}
+                    onValueChange={(v) => setRascunho({ ...rascunho, site: v as Filtros["site"] })}
+                    className="gap-2"
+                  >
+                    {[
+                      { v: "todos", l: "Todos" },
+                      { v: "com", l: "Somente COM site" },
+                      { v: "sem", l: "Somente SEM site" },
+                    ].map((o) => (
+                      <div key={o.v} className="flex items-center gap-2">
+                        <RadioGroupItem value={o.v} id={`site-${o.v}`} />
+                        <Label htmlFor={`site-${o.v}`} className="font-normal cursor-pointer">
+                          {o.l}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="f-wa" className="font-normal">Somente com celular / WhatsApp</Label>
+                  <Switch
+                    id="f-wa"
+                    checked={rascunho.somenteWhatsapp}
+                    onCheckedChange={(c) => setRascunho({ ...rascunho, somenteWhatsapp: c })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="f-tel" className="font-normal">Somente com telefone (qualquer)</Label>
+                  <Switch
+                    id="f-tel"
+                    checked={rascunho.somenteComTelefone}
+                    onCheckedChange={(c) => setRascunho({ ...rascunho, somenteComTelefone: c })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Avaliação mínima</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={5}
+                      step={0.1}
+                      value={rascunho.avaliacaoMin}
+                      onChange={(e) =>
+                        setRascunho({ ...rascunho, avaliacaoMin: Number(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Mín. nº de avaliações</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={rascunho.minAvaliacoes}
+                      onChange={(e) =>
+                        setRascunho({ ...rascunho, minAvaliacoes: Number(e.target.value) || 0 })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button variant="ghost" onClick={() => setRascunho(FILTROS_PADRAO)}>
+                  Limpar
+                </Button>
+                <Button
+                  onClick={() => {
+                    setFiltros(rascunho);
+                    setOpenFiltros(false);
+                  }}
+                >
+                  Aplicar filtros
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </Card>
 
       {loading && (
         <Card className="p-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="animate-spin" size={16} /> Buscando leads no Google Maps…
+        </Card>
+      )}
+
+      {!loading && leads.length > 0 && filtrados.length === 0 && (
+        <Card className="p-10 text-center text-sm text-muted-foreground">
+          <SlidersHorizontal className="mx-auto mb-3" size={24} />
+          {leads.length} resultados encontrados, mas nenhum passa nos filtros avançados.
         </Card>
       )}
 
@@ -152,10 +305,15 @@ export function GoogleMapsTab() {
         </Card>
       )}
 
-      {leads.length > 0 && (
+      {filtrados.length > 0 && (
         <Card>
           <div className="px-4 py-3 border-b flex items-center justify-between">
-            <div className="text-sm font-medium">{leads.length} leads</div>
+            <div className="text-sm font-medium">
+              {filtrados.length} leads
+              {filtrados.length !== leads.length && (
+                <span className="text-muted-foreground font-normal"> de {leads.length}</span>
+              )}
+            </div>
             <Button onClick={exportar} variant="outline" size="sm" className="gap-2">
               <Download size={14} /> Exportar XLSX
             </Button>
@@ -174,7 +332,7 @@ export function GoogleMapsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leads.map((l) => {
+                {filtrados.map((l) => {
                   const cel = extrairCelularBR(l.telefone);
                   return (
                     <TableRow key={l.place_id}>
