@@ -1851,11 +1851,19 @@ Deno.serve(async (req) => {
                   if ((run as any)?.error) nodeErrors.push({ node, error: (run as any).error });
                 }
               }
+              let lastOutput: any = null;
+              try {
+                const runs: any = (runData as any)["Disparar Promo"];
+                const arr = Array.isArray(runs) ? runs : [];
+                const items = arr[arr.length - 1]?.data?.main?.[0] ?? [];
+                lastOutput = items?.[0]?.json ?? null;
+              } catch { /* noop */ }
               out.lastExecutionDetail = {
                 id: lastId,
                 status: detail?.status,
                 error,
                 nodeErrors: nodeErrors.slice(0, 3),
+                output: lastOutput,
               };
             } catch (e) {
               out.lastExecutionDetail = { id: lastId, error: (e as Error).message };
