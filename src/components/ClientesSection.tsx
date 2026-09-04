@@ -30,6 +30,10 @@ const clients = [
   { name: "Academia Fisio Corpus", logo: fisioCorpus },
   { name: "Candles & Mimos by Ari", logo: candlesMimos },
   { name: "Burger on the Grill", logo: burgerOnTheGrill },
+  { name: "Ceya Supermercado", logo: ceyaAsset.url },
+  { name: "Prime Refeições", logo: primeRefeicoesAsset.url },
+  { name: "Sabor Agridoce", logo: saborAgridoceAsset.url },
+  { name: "Vaeli Modas", logo: vaeliAsset.url },
 ];
 
 const ClientesSection = () => {
