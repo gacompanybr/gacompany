@@ -11,6 +11,10 @@ import garimpaAi from "@/assets/clients/transparent/garimpa-ai.png";
 import fisioCorpus from "@/assets/clients/transparent/fisio-corpus.png";
 import candlesMimos from "@/assets/clients/transparent/candles-mimos.png";
 import burgerOnTheGrill from "@/assets/clients/transparent/burger-on-the-grill.png";
+import ceyaAsset from "@/assets/clients/transparent/ceya.png.asset.json";
+import primeRefeicoesAsset from "@/assets/clients/transparent/prime-refeicoes.png.asset.json";
+import saborAgridoceAsset from "@/assets/clients/transparent/sabor-agridoce.png.asset.json";
+import vaeliAsset from "@/assets/clients/transparent/vaeli.png.asset.json";
 
 const clients = [
   { name: "Farma Conde", logo: farmaConde },
