@@ -20,7 +20,7 @@ import {
   Clock,
   ChevronDown,
 } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.png.asset.json";
 import heroPortrait from "@/assets/hero-portrait-3.png";
 import notifNovoLead from "@/assets/notif-novo-lead.png.asset.json";
 import notifFaturamento from "@/assets/notif-faturamento.png.asset.json";
@@ -1172,7 +1172,7 @@ function Footer() {
       <div className="container mx-auto px-4 lg:px-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="GA Company" className="h-9 w-auto" />
+            <img src={logo.url} alt="GA Company" className="h-9 w-auto" />
           </div>
           <div className="flex items-center gap-4">
             <a

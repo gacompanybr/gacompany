@@ -1,5 +1,5 @@
 import { Instagram, Linkedin, Mail, Phone, MessageCircle } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.png.asset.json";
 
 const FooterSection = () => {
   return (
@@ -7,7 +7,7 @@ const FooterSection = () => {
       <div className="container mx-auto px-4 lg:px-8">
         <div className="grid md:grid-cols-3 gap-8 items-center">
           <div>
-            <img src={logo} alt="GA Company" className="h-10 w-auto" />
+            <img src={logo.url} alt="GA Company" className="h-10 w-auto" />
             <p className="text-muted-foreground text-sm mt-2">Assessoria de Marketing Digital que gera resultados reais.</p>
           </div>
 

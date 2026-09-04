@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import gaLogo from "@/assets/logo.png";
+import gaLogo from "@/assets/logo.png.asset.json";
 import { GoogleKeywordsAndTerms } from "@/dashboard/GoogleKeywordsAndTerms";
 
 const fmtBRL = (n: number) =>
@@ -364,7 +364,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
               {isBranded && portfolio.logo ? (
                 <img src={portfolio.logo} alt={portfolio.name} className="h-9 w-auto rounded" />
               ) : (
-                <img src={gaLogo} alt="GA Company" className="h-8 w-auto" />
+                <img src={gaLogo.url} alt="GA Company" className="h-8 w-auto" />
               )}
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground leading-none">Painel Gerencial</p>

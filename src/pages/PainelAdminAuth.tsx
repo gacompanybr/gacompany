@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, ShieldCheck } from "lucide-react";
-import gaLogo from "@/assets/logo.png";
+import gaLogo from "@/assets/logo.png.asset.json";
 
 const schema = z.object({
   email: z.string().email("Email inválido").max(255),
@@ -44,7 +44,7 @@ export default function PainelAdminAuth() {
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-6 space-y-5">
         <div className="flex flex-col items-center gap-2">
-          <img src={gaLogo} alt="GA Company" className="h-10 w-auto" />
+          <img src={gaLogo.url} alt="GA Company" className="h-10 w-auto" />
           <div className="flex items-center gap-2 text-primary text-sm">
             <ShieldCheck size={16} /> Acesso administrativo
           </div>

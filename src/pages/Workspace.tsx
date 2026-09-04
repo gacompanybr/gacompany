@@ -20,7 +20,7 @@ import DisparoModule from "@/modules/Disparo";
 import RoboModule from "@/modules/Robo";
 import ScrapperModule from "@/modules/Scrapper";
 import EmailMarketingModule from "@/modules/EmailMarketing";
-import gaLogo from "@/assets/logo.png";
+import gaLogo from "@/assets/logo.png.asset.json";
 
 export default function Workspace() {
   const { portfolioId } = useParams();
@@ -102,7 +102,7 @@ export default function Workspace() {
                   <Link to="/admin"><ArrowLeft size={14} /> Todos os clientes</Link>
                 </Button>
               )}
-              <img src={gaLogo} alt="GA Company" className="h-7 w-auto hidden sm:block" />
+              <img src={gaLogo.url} alt="GA Company" className="h-7 w-auto hidden sm:block" />
               <span className="font-semibold truncate">{portfolio.name}</span>
             </div>
             <div className="flex items-center gap-2">
