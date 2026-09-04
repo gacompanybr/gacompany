@@ -31,9 +31,9 @@ const clients = [
   { name: "Candles & Mimos by Ari", logo: candlesMimos },
   { name: "Burger on the Grill", logo: burgerOnTheGrill },
   { name: "Ceya Supermercado", logo: ceyaAsset.url },
-  { name: "Prime Refeições", logo: primeRefeicoesAsset.url },
-  { name: "Sabor Agridoce", logo: saborAgridoceAsset.url },
-  { name: "Vaeli Modas", logo: vaeliAsset.url },
+  { name: "Prime Refeições", logo: primeRefeicoesAsset.url, circular: true },
+  { name: "Sabor Agridoce", logo: saborAgridoceAsset.url, circular: true },
+  { name: "Vaeli Modas", logo: vaeliAsset.url, circular: true },
 ];
 
 const ClientesSection = () => {
@@ -63,12 +63,16 @@ const ClientesSection = () => {
               <div
                 key={`${c.name}-${i}`}
                 title={c.name}
-                className="flex h-20 md:h-28 w-36 md:w-48 shrink-0 items-center justify-center"
+                className="flex h-20 w-20 md:h-28 md:w-28 shrink-0 items-center justify-center"
               >
                 <img
                   src={c.logo}
                   alt={`Logo ${c.name}`}
-                  className="max-h-full max-w-full object-contain"
+                  className={
+                    c.circular
+                      ? "h-full w-full rounded-full object-cover"
+                      : "max-h-full max-w-full object-contain"
+                  }
                   loading="lazy"
                 />
               </div>
