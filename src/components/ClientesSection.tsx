@@ -11,6 +11,10 @@ import garimpaAi from "@/assets/clients/transparent/garimpa-ai.png";
 import fisioCorpus from "@/assets/clients/transparent/fisio-corpus.png";
 import candlesMimos from "@/assets/clients/transparent/candles-mimos.png";
 import burgerOnTheGrill from "@/assets/clients/transparent/burger-on-the-grill.png";
+import ceyaAsset from "@/assets/clients/transparent/ceya.png.asset.json";
+import primeRefeicoesAsset from "@/assets/clients/transparent/prime-refeicoes.png.asset.json";
+import saborAgridoceAsset from "@/assets/clients/transparent/sabor-agridoce.png.asset.json";
+import vaeliAsset from "@/assets/clients/transparent/vaeli.png.asset.json";
 
 const clients = [
   { name: "Farma Conde", logo: farmaConde },
@@ -26,6 +30,10 @@ const clients = [
   { name: "Academia Fisio Corpus", logo: fisioCorpus },
   { name: "Candles & Mimos by Ari", logo: candlesMimos },
   { name: "Burger on the Grill", logo: burgerOnTheGrill },
+  { name: "Ceya Supermercado", logo: ceyaAsset.url },
+  { name: "Prime Refeições", logo: primeRefeicoesAsset.url },
+  { name: "Sabor Agridoce", logo: saborAgridoceAsset.url },
+  { name: "Vaeli Modas", logo: vaeliAsset.url },
 ];
 
 const ClientesSection = () => {
