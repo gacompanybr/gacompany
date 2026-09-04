@@ -5,7 +5,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import gaLogo from "@/assets/logo.png";
+import gaLogo from "@/assets/logo.png.asset.json";
 
 export type AdminTab =
   | "dashboard"
@@ -48,7 +48,7 @@ export function AdminSidebar({
     <Sidebar collapsible="icon">
       <SidebarHeader className="pt-8 pb-6 px-4 flex items-center justify-center">
         <img
-          src={gaLogo}
+          src={gaLogo.url}
           alt="GA Company"
           className="h-14 max-h-14 w-auto max-w-[200px] object-contain select-none"
           draggable={false}

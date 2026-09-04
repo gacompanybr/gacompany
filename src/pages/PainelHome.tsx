@@ -4,7 +4,7 @@ import { Loader2, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import gaLogo from "@/assets/logo.png";
+import gaLogo from "@/assets/logo.png.asset.json";
 
 type Portfolio = { id: string; name: string; slug: string };
 
@@ -36,7 +36,7 @@ export default function PainelHome() {
   if (portfolios.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <img src={gaLogo} alt="GA Company" className="h-10 w-auto" />
+        <img src={gaLogo.url} alt="GA Company" className="h-10 w-auto" />
         <Card className="p-6 max-w-md space-y-3">
           <h2 className="font-semibold">Aguardando vínculo</h2>
           <p className="text-sm text-muted-foreground">
@@ -55,7 +55,7 @@ export default function PainelHome() {
     <div className="min-h-screen bg-background text-foreground p-6">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="flex items-center justify-between">
-          <img src={gaLogo} alt="GA Company" className="h-9 w-auto" />
+          <img src={gaLogo.url} alt="GA Company" className="h-9 w-auto" />
           <Button variant="ghost" size="sm" onClick={signOut} className="gap-1">
             <LogOut size={14} /> Sair
           </Button>

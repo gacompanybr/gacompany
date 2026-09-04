@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.png.asset.json";
 
 const platforms = [
   { name: "Google Ads", slug: "googleads", domain: "ads.google.com", top: "8%", left: "8%" },
@@ -36,7 +36,7 @@ const EcossistemaSection = () => {
 
             {/* Central logo */}
             <div className="absolute inset-[28%] rounded-full bg-background border border-primary/30 shadow-[var(--shadow-gold)] flex items-center justify-center p-6">
-              <img src={logo} alt="GA Company" className="w-full h-auto object-contain" />
+              <img src={logo.url} alt="GA Company" className="w-full h-auto object-contain" />
             </div>
 
             {/* Floating platform chips */}
