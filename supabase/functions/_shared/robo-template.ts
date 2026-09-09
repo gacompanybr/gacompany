@@ -86,7 +86,7 @@ export function buildRoboWorkflow(robo: any, workflowName: string, env: RoboBuil
   // DEDUPE_VERSION é constante de versão da LÓGICA de dedupe do template.
   // Só deve ser incrementado manualmente quando essa lógica mudar de propósito.
   // (Antes era derivado de updated_at, o que resetava o baseline em todo save/sync.)
-  const dedupeVersion = 20260731;
+  const dedupeVersion = 20260909;
   code = replaceConst(code, "DEDUPE_VERSION", String(dedupeVersion));
 
 
