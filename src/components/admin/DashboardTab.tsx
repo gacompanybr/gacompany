@@ -41,7 +41,28 @@ export function DashboardTab() {
       const recebPendentes = (recebRes.data ?? []).filter((r: any) => r.status === "pendente").length;
       const leadsNovos = (leadsRes.data ?? []).length;
 
-      return { clientesAtivos, mrr, recebMes, recebPendentes, leadsNovos };
+      const custos = custosRes.data ?? [];
+      const custosMensais = custos
+        .filter((c: any) => c.tipo === "mensal")
+        .reduce((sum: number, c: any) => sum + Number(c.valor ?? 0), 0);
+      const custosUnicos = custos
+        .filter(
+          (c: any) =>
+            c.tipo === "unico" &&
+            String(c.data_referencia ?? "") >= firstDay &&
+            String(c.data_referencia ?? "") <= lastDay,
+        )
+        .reduce((sum: number, c: any) => sum + Number(c.valor ?? 0), 0);
+      const custosMes = custosMensais + custosUnicos;
+
+      const brutoMes = recebMes;
+      const liquidoMes = brutoMes - custosMes;
+      const mrrLiquido = mrr - custosMensais;
+
+      return {
+        clientesAtivos, mrr, recebMes, recebPendentes, leadsNovos,
+        custosMensais, custosUnicos, custosMes, brutoMes, liquidoMes, mrrLiquido,
+      };
     },
   });
 
