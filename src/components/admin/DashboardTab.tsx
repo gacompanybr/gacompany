@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Building2, Wallet, CalendarClock, Users } from "lucide-react";
+import { Building2, Wallet, CalendarClock, Users, TrendingDown, TrendingUp } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
 function brl(v: number) {
@@ -16,7 +16,7 @@ export function DashboardTab() {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-      const [clientesRes, servicosRes, recebRes, leadsRes] = await Promise.all([
+      const [clientesRes, servicosRes, recebRes, leadsRes, custosRes] = await Promise.all([
         supabase.from("portfolios").select("id, status"),
         supabase.from("financial_services").select("valor_total, status"),
         supabase
@@ -25,6 +25,10 @@ export function DashboardTab() {
           .gte("data_prevista", firstDay)
           .lte("data_prevista", lastDay),
         supabase.from("crm_leads").select("id, status, created_at").gte("created_at", firstDay),
+        supabase
+          .from("financial_costs")
+          .select("valor, tipo, data_referencia, ativo")
+          .eq("ativo", true),
       ]);
 
       const clientesAtivos = (clientesRes.data ?? []).filter((c: any) => c.status === "active").length;
@@ -37,7 +41,28 @@ export function DashboardTab() {
       const recebPendentes = (recebRes.data ?? []).filter((r: any) => r.status === "pendente").length;
       const leadsNovos = (leadsRes.data ?? []).length;
 
-      return { clientesAtivos, mrr, recebMes, recebPendentes, leadsNovos };
+      const custos = custosRes.data ?? [];
+      const custosMensais = custos
+        .filter((c: any) => c.tipo === "mensal")
+        .reduce((sum: number, c: any) => sum + Number(c.valor ?? 0), 0);
+      const custosUnicos = custos
+        .filter(
+          (c: any) =>
+            c.tipo === "unico" &&
+            String(c.data_referencia ?? "") >= firstDay &&
+            String(c.data_referencia ?? "") <= lastDay,
+        )
+        .reduce((sum: number, c: any) => sum + Number(c.valor ?? 0), 0);
+      const custosMes = custosMensais + custosUnicos;
+
+      const brutoMes = recebMes;
+      const liquidoMes = brutoMes - custosMes;
+      const mrrLiquido = mrr - custosMensais;
+
+      return {
+        clientesAtivos, mrr, recebMes, recebPendentes, leadsNovos,
+        custosMensais, custosUnicos, custosMes, brutoMes, liquidoMes, mrrLiquido,
+      };
     },
   });
 
@@ -71,9 +96,56 @@ export function DashboardTab() {
         ))}
       </div>
 
-      <Card className="p-6 text-sm text-muted-foreground">
-        Use a aba <strong className="text-foreground">Calendário</strong> para visualizar
-        recebimentos, posts agendados e compromissos do mês.
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Resumo financeiro do mês</h2>
+          <TrendingUp className="text-primary" size={16} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground">Faturamento bruto</div>
+            <div className="text-xl font-bold">{brl(data.brutoMes)}</div>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <TrendingDown size={12} /> Custos do mês
+            </div>
+            <div className="text-xl font-bold text-red-400">- {brl(data.custosMes)}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {brl(data.custosMensais)} mensais + {brl(data.custosUnicos)} únicos
+            </div>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground">Líquido do mês</div>
+            <div
+              className={`text-xl font-bold ${
+                data.liquidoMes >= 0 ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {brl(data.liquidoMes)}
+            </div>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground">MRR líquido</div>
+            <div
+              className={`text-xl font-bold ${
+                data.mrrLiquido >= 0 ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {brl(data.mrrLiquido)}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              MRR {brl(data.mrr)} − custos recorrentes
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Cadastre os custos na aba <strong className="text-foreground">Financeiro › Custos</strong>.
+          Use a aba <strong className="text-foreground">Calendário</strong> para ver recebimentos e
+          compromissos do mês.
+        </p>
       </Card>
     </div>
   );
