@@ -814,6 +814,48 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_costs: {
+        Row: {
+          ativo: boolean
+          categoria: string | null
+          created_at: string
+          created_by: string | null
+          data_referencia: string
+          descricao: string | null
+          id: string
+          nome: string
+          tipo: Database["public"]["Enums"]["financial_cost_type"]
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_referencia?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          tipo?: Database["public"]["Enums"]["financial_cost_type"]
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_referencia?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          tipo?: Database["public"]["Enums"]["financial_cost_type"]
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       financial_receivables: {
         Row: {
           created_at: string
@@ -2504,6 +2546,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "viewer"
       financial_billing_type: "mensal" | "unico" | "trimestral"
+      financial_cost_type: "mensal" | "unico"
       financial_payment_method:
         | "pix"
         | "boleto"
@@ -2648,6 +2691,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "viewer"],
       financial_billing_type: ["mensal", "unico", "trimestral"],
+      financial_cost_type: ["mensal", "unico"],
       financial_payment_method: [
         "pix",
         "boleto",
