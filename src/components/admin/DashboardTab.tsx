@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Building2, Wallet, CalendarClock, Users } from "lucide-react";
+import { Building2, Wallet, CalendarClock, Users, TrendingDown, TrendingUp } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
 function brl(v: number) {
@@ -16,7 +16,7 @@ export function DashboardTab() {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-      const [clientesRes, servicosRes, recebRes, leadsRes] = await Promise.all([
+      const [clientesRes, servicosRes, recebRes, leadsRes, custosRes] = await Promise.all([
         supabase.from("portfolios").select("id, status"),
         supabase.from("financial_services").select("valor_total, status"),
         supabase
@@ -25,6 +25,10 @@ export function DashboardTab() {
           .gte("data_prevista", firstDay)
           .lte("data_prevista", lastDay),
         supabase.from("crm_leads").select("id, status, created_at").gte("created_at", firstDay),
+        supabase
+          .from("financial_costs")
+          .select("valor, tipo, data_referencia, ativo")
+          .eq("ativo", true),
       ]);
 
       const clientesAtivos = (clientesRes.data ?? []).filter((c: any) => c.status === "active").length;
