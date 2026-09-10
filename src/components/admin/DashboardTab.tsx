@@ -96,9 +96,56 @@ export function DashboardTab() {
         ))}
       </div>
 
-      <Card className="p-6 text-sm text-muted-foreground">
-        Use a aba <strong className="text-foreground">Calendário</strong> para visualizar
-        recebimentos, posts agendados e compromissos do mês.
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Resumo financeiro do mês</h2>
+          <TrendingUp className="text-primary" size={16} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground">Faturamento bruto</div>
+            <div className="text-xl font-bold">{brl(data.brutoMes)}</div>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <TrendingDown size={12} /> Custos do mês
+            </div>
+            <div className="text-xl font-bold text-red-400">- {brl(data.custosMes)}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {brl(data.custosMensais)} mensais + {brl(data.custosUnicos)} únicos
+            </div>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground">Líquido do mês</div>
+            <div
+              className={`text-xl font-bold ${
+                data.liquidoMes >= 0 ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {brl(data.liquidoMes)}
+            </div>
+          </div>
+          <div className="rounded-md border border-border p-3">
+            <div className="text-xs text-muted-foreground">MRR líquido</div>
+            <div
+              className={`text-xl font-bold ${
+                data.mrrLiquido >= 0 ? "text-green-400" : "text-red-400"
+              }`}
+            >
+              {brl(data.mrrLiquido)}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              MRR {brl(data.mrr)} − custos recorrentes
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Cadastre os custos na aba <strong className="text-foreground">Financeiro › Custos</strong>.
+          Use a aba <strong className="text-foreground">Calendário</strong> para ver recebimentos e
+          compromissos do mês.
+        </p>
       </Card>
     </div>
   );
