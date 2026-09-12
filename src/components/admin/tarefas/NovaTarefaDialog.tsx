@@ -68,6 +68,7 @@ export function NovaTarefaDialog({
 
   async function handleSave() {
     if (!titulo.trim()) { toast.error("Informe o título"); return; }
+    if (subtasks.some((item) => !item.title.trim())) { toast.error("Preencha ou remova as subtarefas vazias"); return; }
     if (!user) return;
     setSaving(true);
     try {

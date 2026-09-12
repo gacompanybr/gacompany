@@ -27,6 +27,9 @@ export function NotificationCenter() {
     const channel = sb.channel(`notifications-${user.id}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, (payload: { new: NotificationRow }) => {
       setItems((current) => [payload.new, ...current]);
       playNotificationSound();
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(payload.new.title, { body: payload.new.body, icon: "/icon-192.png" });
+      }
       toast(payload.new.title, { description: payload.new.body });
     }).subscribe();
     return () => { sb.removeChannel(channel); };

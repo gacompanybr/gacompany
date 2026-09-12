@@ -38,6 +38,7 @@ export function ConvidarUsuarioDialog({
 
   async function handleInvite() {
     if (!email.trim()) return toast.error("Email obrigatório");
+    if (role === "admin" && jobRoleId === "none") return toast.error("Selecione o cargo da pessoa");
     if (role === "viewer" && selectedIds.length === 0) {
       return toast.error("Selecione pelo menos um cliente para o viewer");
     }

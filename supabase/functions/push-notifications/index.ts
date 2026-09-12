@@ -22,8 +22,9 @@ Deno.serve(async (req) => {
     let sent = 0;
     for (const notification of notifications ?? []) {
       const preferenceColumn = notification.type === "task_assigned" ? "task_assigned" : notification.type === "task_completed" ? "task_completed" : notification.type === "new_client" ? "new_client" : "task_deadlines";
-      const { data: preference } = await db.from("notification_preferences").select("push_enabled," + preferenceColumn).eq("user_id", notification.user_id).maybeSingle();
-      if (preference && (!preference.push_enabled || !preference[preferenceColumn])) {
+      const { data: preference } = await db.from("notification_preferences").select("push_enabled,task_assigned,task_completed,new_client,task_deadlines").eq("user_id", notification.user_id).maybeSingle();
+      const preferenceEnabled = !preference || (preference.push_enabled && Boolean((preference as Record<string, unknown>)[preferenceColumn]));
+      if (!preferenceEnabled) {
         await db.from("notifications").update({ pushed_at: new Date().toISOString() }).eq("id", notification.id);
         continue;
       }
