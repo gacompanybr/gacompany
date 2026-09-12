@@ -157,7 +157,7 @@ export function NovaTarefaDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
+              <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)} disabled={!canManage}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="a_fazer">A fazer</SelectItem>
@@ -168,7 +168,7 @@ export function NovaTarefaDialog({
             </div>
             <div>
               <Label>Prioridade</Label>
-              <Select value={prioridade} onValueChange={(v) => setPrioridade(v as TaskPriority)}>
+              <Select value={prioridade} onValueChange={(v) => setPrioridade(v as TaskPriority)} disabled={!canManage}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="baixa">Baixa</SelectItem>
@@ -182,16 +182,16 @@ export function NovaTarefaDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Data do prazo</Label>
-              <Input type="date" value={prazoDate} onChange={(e) => setPrazoDate(e.target.value)} />
+              <Input type="date" value={prazoDate} onChange={(e) => setPrazoDate(e.target.value)} disabled={!canManage} />
             </div>
             <div>
               <Label>Hora</Label>
-              <Input type="time" value={prazoTime} onChange={(e) => setPrazoTime(e.target.value)} />
+              <Input type="time" value={prazoTime} onChange={(e) => setPrazoTime(e.target.value)} disabled={!canManage} />
             </div>
           </div>
           <div>
             <Label>Cliente (opcional)</Label>
-            <Select value={portfolioId} onValueChange={setPortfolioId}>
+            <Select value={portfolioId} onValueChange={setPortfolioId} disabled={!canManage}>
               <SelectTrigger><SelectValue placeholder="Sem cliente" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sem cliente</SelectItem>
@@ -203,18 +203,18 @@ export function NovaTarefaDialog({
           </div>
           <div>
             <Label>Responsáveis</Label>
-            <ResponsaveisMultiSelect value={assignees} onChange={setAssignees} />
+            {canManage ? <ResponsaveisMultiSelect value={assignees} onChange={setAssignees} /> : <p className="text-sm text-muted-foreground">{assignees.map((id) => id.slice(0, 8)).join(", ") || "Sem responsável"}</p>}
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>Subtarefas</Label>
-              <Button type="button" variant="ghost" size="sm" className="gap-1" onClick={() => setSubtasks((current) => [...current, { id: `new-${crypto.randomUUID()}`, title: "", is_completed: false }])}><Plus size={13} /> Adicionar</Button>
+              {canManage && <Button type="button" variant="ghost" size="sm" className="gap-1" onClick={() => setSubtasks((current) => [...current, { id: `new-${crypto.randomUUID()}`, title: "", is_completed: false }])}><Plus size={13} /> Adicionar</Button>}
             </div>
             {subtasks.map((item, index) => (
               <div key={item.id} className="flex items-center gap-2">
                 <Checkbox checked={item.is_completed} onCheckedChange={(checked) => setSubtasks((current) => current.map((row, i) => i === index ? { ...row, is_completed: checked === true } : row))} />
-                <Input value={item.title} placeholder={`Subtarefa ${index + 1}`} onChange={(event) => setSubtasks((current) => current.map((row, i) => i === index ? { ...row, title: event.target.value } : row))} />
-                <Button type="button" variant="ghost" size="icon" onClick={() => setSubtasks((current) => current.filter((_, i) => i !== index))} aria-label="Excluir subtarefa"><Trash2 size={14} /></Button>
+                <Input value={item.title} placeholder={`Subtarefa ${index + 1}`} disabled={!canManage} onChange={(event) => setSubtasks((current) => current.map((row, i) => i === index ? { ...row, title: event.target.value } : row))} />
+                {canManage && <Button type="button" variant="ghost" size="icon" onClick={() => setSubtasks((current) => current.filter((_, i) => i !== index))} aria-label="Excluir subtarefa"><Trash2 size={14} /></Button>}
               </div>
             ))}
           </div>
