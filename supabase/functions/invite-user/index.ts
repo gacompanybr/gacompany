@@ -57,12 +57,7 @@ Deno.serve(async (req) => {
 
     // Garantir papel correto (handle_new_user já cria 'viewer' por padrão se trigger existir;
     // aqui forçamos o papel pedido)
-    if (role === "admin") {
-      await admin.from("user_roles").upsert(
-        { user_id: newUserId, role: "admin" },
-        { onConflict: "user_id,role" },
-      );
-    }
+    // Membros da equipe recebem acesso conforme o cargo. Administrador é uma permissão separada.
     if (jobRoleId) {
       await admin.from("user_job_roles").upsert({ user_id: newUserId, job_role_id: jobRoleId, assigned_by: userData.user.id }, { onConflict: "user_id" });
     }

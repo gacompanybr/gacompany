@@ -21,7 +21,7 @@ export function ConvidarUsuarioDialog({
   onInvited: () => void;
 }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "viewer">("viewer");
+  const [role, setRole] = useState<"admin" | "viewer">("admin");
   const [jobRoleId, setJobRoleId] = useState("none");
   const [jobRoles, setJobRoles] = useState<{ id: string; label: string }[]>([]);
   const [portfolios, setPortfolios] = useState<{ id: string; name: string }[]>([]);
@@ -55,7 +55,7 @@ export function ConvidarUsuarioDialog({
       return toast.error((data as any)?.error ?? error?.message ?? "Erro ao convidar");
     }
     toast.success("Convite enviado!");
-    setEmail(""); setRole("viewer"); setJobRoleId("none"); setSelectedIds([]);
+    setEmail(""); setRole("admin"); setJobRoleId("none"); setSelectedIds([]);
     onOpenChange(false);
     onInvited();
   }
@@ -87,14 +87,14 @@ export function ConvidarUsuarioDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="viewer">Viewer (cliente)</SelectItem>
-                <SelectItem value="admin">Admin (equipe)</SelectItem>
+                <SelectItem value="admin">Equipe</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1 flex gap-1">
               <Info size={12} className="mt-0.5 shrink-0" />
               {role === "viewer"
                 ? "Vai logar em /painel e ver apenas os clientes vinculados."
-                : "Vai logar em /paineladmin e ter acesso administrativo total."}
+                : "Vai acessar as áreas liberadas para o cargo. O administrador pode ser definido depois."}
             </p>
           </div>
 
