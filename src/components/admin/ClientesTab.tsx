@@ -141,14 +141,14 @@ export function ClientesTab() {
                   onClick={() => nav(`/workspace/${c.id}`)}
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell className="hidden md:table-cell" className="text-sm text-muted-foreground">{c.cnpj ?? "—"}</TableCell>
+                  <TableCell className="hidden text-sm text-muted-foreground md:table-cell">{c.cnpj ?? "—"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {c.servicos.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
                       {c.servicos.map((s) => <ServiceBadge key={s} service={s} />)}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell" className="text-sm">
+                  <TableCell className="hidden text-sm lg:table-cell">
                     {c.responsaveis.length === 0 ? (
                       <span className="text-xs text-muted-foreground">—</span>
                     ) : (

@@ -57,23 +57,23 @@ export default function Admin() {
         <AdminSidebar active={tab} onChange={setTab} />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center justify-between border-b border-border px-2 sm:px-4 gap-1 sm:gap-3">
+          <header className="flex min-h-14 items-center justify-between border-b border-border px-2 py-2 sm:px-4 gap-1 sm:gap-3">
             <div className="flex items-center gap-1 sm:gap-3 min-w-0">
               <SidebarTrigger />
-              <h1 className="text-lg font-semibold truncate">{TITLES[tab]}</h1>
+              <h1 className="truncate text-base font-semibold sm:text-lg">{TITLES[tab]}</h1>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <NotificationCenter />
               <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
                 {user?.email}
               </span>
-              <Button onClick={signOut} variant="ghost" size="sm" className="gap-1">
-                <LogOut size={14} /> Sair
+              <Button onClick={signOut} variant="ghost" size="sm" className="gap-1 px-2" aria-label="Sair">
+                <LogOut size={14} /> <span className="hidden sm:inline">Sair</span>
               </Button>
             </div>
           </header>
 
-          <main className="flex-1 p-4 lg:p-6 overflow-auto">
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2.5 sm:p-4 lg:p-6">
              {tab === "dashboard" && (isAdmin || hasPermission("finance.view")) && <DashboardTab />}
              {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
              {tab === "equipe" && hasPermission("team.view") && <EquipeTab />}
