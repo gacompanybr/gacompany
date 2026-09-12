@@ -42,7 +42,7 @@ const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any;
 export function AdminSidebar({
   active, onChange,
 }: { active: AdminTab; onChange: (t: AdminTab) => void }) {
-  const { user, signOut, hasPermission } = useAuth();
+  const { user, signOut, hasPermission, isAdmin } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -56,7 +56,7 @@ export function AdminSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {GROUPS.map((g) => ({ ...g, items: g.items.filter((item) => hasPermission(item.permission)) })).filter((g) => g.items.length > 0).map((g) => (
+        {GROUPS.map((g) => ({ ...g, items: g.items.filter((item) => item.key === "dashboard" ? (isAdmin || hasPermission("finance.view")) : hasPermission(item.permission)) })).filter((g) => g.items.length > 0).map((g) => (
           <SidebarGroup key={g.label}>
             <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
             <SidebarGroupContent>
