@@ -39,11 +39,15 @@ Deno.serve(async (req) => {
     const role: "admin" | "viewer" = body.role ?? "viewer";
     const portfolioIds: string[] = body.portfolio_ids ?? [];
     const jobRoleId: string | null = body.job_role_id ?? null;
+    const redirectOrigin: string = body.redirect_origin ?? "https://gacompany.online";
 
     if (!email) return json({ error: "Email obrigatório" }, 400);
 
     // Convidar — redirect específico por papel
-    const baseOrigin = new URL(req.url).origin.replace("supabase.co", "lovable.app");
+    const parsedOrigin = new URL(redirectOrigin);
+    const allowedOrigin = parsedOrigin.hostname === "gacompany.online" || parsedOrigin.hostname === "www.gacompany.online" || parsedOrigin.hostname.endsWith(".lovable.app") || parsedOrigin.hostname === "localhost";
+    if (!allowedOrigin) return json({ error: "Endereço de redirecionamento inválido" }, 400);
+    const baseOrigin = parsedOrigin.origin;
     const redirectTo = role === "admin"
       ? `${baseOrigin}/paineladmin`
       : `${baseOrigin}/painel`;

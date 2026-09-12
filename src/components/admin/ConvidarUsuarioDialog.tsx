@@ -49,6 +49,7 @@ export function ConvidarUsuarioDialog({
         role,
         job_role_id: role === "viewer" ? null : jobRoleId === "none" ? null : jobRoleId,
         portfolio_ids: role === "admin" ? [] : selectedIds,
+        redirect_origin: window.location.origin,
       },
     });
     setBusy(false);
