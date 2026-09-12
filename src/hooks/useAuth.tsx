@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -121,19 +121,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return !!data;
   }, [session, isAdmin]);
 
+  const hasPermission = useCallback((permission: string) => isAdmin || permissions.has(permission), [isAdmin, permissions]);
+  const contextValue = useMemo(() => ({
+    user: session?.user ?? null,
+    session,
+    isAdmin,
+    permissions,
+    hasPermission,
+    loading,
+    signOut: async () => { await supabase.auth.signOut(); },
+    getUserPortfolios,
+    hasPortfolioAccess,
+  }), [session, isAdmin, permissions, hasPermission, loading, getUserPortfolios, hasPortfolioAccess]);
+
   return (
     <Ctx.Provider
-      value={{
-        user: session?.user ?? null,
-        session,
-        isAdmin,
-        permissions,
-        hasPermission: (permission: string) => isAdmin || permissions.has(permission),
-        loading,
-        signOut: async () => { await supabase.auth.signOut(); },
-        getUserPortfolios,
-        hasPortfolioAccess,
-      }}
+      value={contextValue}
     >
       {children}
     </Ctx.Provider>

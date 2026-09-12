@@ -44,6 +44,7 @@ export function TarefasTab() {
   const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [search, setSearch] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const canManage = hasPermission("tasks.manage");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,6 +77,7 @@ export function TarefasTab() {
   const overdueTasks = filtered.filter(isOverdue);
 
   async function handleStatus(task: Task, status: TaskStatus) {
+    if (!canManage && !(task.assignees ?? []).includes(user?.id ?? "")) { toast.error("Você só pode atualizar tarefas atribuídas a você."); return; }
     if (task.status === status) return;
     if ((task.subtasks ?? []).some((item) => !item.is_completed) && COLUMNS.indexOf(status) > COLUMNS.indexOf(task.status)) {
       toast.error(`Conclua todas as subtarefas de “${task.titulo}” antes de avançar.`); return;
@@ -100,7 +102,7 @@ export function TarefasTab() {
       <Select value={filterScope} onValueChange={(value: "all" | "mine") => setFilterScope(value)}><SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mine">Minhas tarefas</SelectItem></SelectContent></Select>
       <Select value={filterPortfolio} onValueChange={setFilterPortfolio}><SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os clientes</SelectItem>{Array.from(portfolios.values()).map((portfolio) => <SelectItem key={portfolio.id} value={portfolio.id}>{portfolio.name}</SelectItem>)}</SelectContent></Select>
       <div className="flex-1" />
-      {hasPermission("tasks.manage") && <Button onClick={() => { setEditing(null); setOpenDialog(true); }} className="gap-2"><Plus size={14} /> Nova tarefa</Button>}
+      {canManage && <Button onClick={() => { setEditing(null); setOpenDialog(true); }} className="gap-2"><Plus size={14} /> Nova tarefa</Button>}
     </div>
     {overdueTasks.length > 0 && <Card className="flex items-center gap-2 border-destructive/50 bg-destructive/5 p-3"><AlertCircle size={16} className="text-destructive" /><span className="text-sm"><strong>{overdueTasks.length}</strong> tarefa(s) atrasada(s)</span></Card>}
     {loading ? <Card className="p-12 text-center text-muted-foreground">Carregando...</Card> : <DndContext sensors={sensors} onDragEnd={handleDragEnd}><div className="grid grid-cols-1 gap-3 overflow-x-auto md:grid-cols-3">{COLUMNS.map((status) => <KanbanColumn key={status} status={status} tasks={byStatus[status]}>{byStatus[status].map((task) => <DraggableTask key={task.id} task={task} profiles={profiles} portfolioName={task.portfolio_id ? portfolios.get(task.portfolio_id)?.name : undefined} onEdit={(selected) => { setEditing(selected); setOpenDialog(true); }} onComplete={(selected) => handleStatus(selected, "feita")} />)}</KanbanColumn>)}</div></DndContext>}

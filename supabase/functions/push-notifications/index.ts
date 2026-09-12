@@ -14,6 +14,16 @@ Deno.serve(async (req) => {
     const firebaseKey = Deno.env.get("FIREBASE_MESSAGING_API_KEY");
     if (!url || !serviceKey || !lovableKey || !firebaseKey) return respond({ error: "Notificações não configuradas" }, 500);
     const db = createClient(url, serviceKey);
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+    const isCron = cronSecret.length > 0 && req.headers.get("x-cron-secret") === cronSecret;
+    if (!isCron) {
+      const requester = createClient(url, anonKey, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
+      const { data: authData } = await requester.auth.getUser();
+      if (!authData.user) return respond({ error: "Não autenticado" }, 401);
+      const { data: role } = await db.from("user_roles").select("role").eq("user_id", authData.user.id).eq("role", "admin").maybeSingle();
+      if (!role) return respond({ error: "Apenas administradores podem executar o envio" }, 403);
+    }
 
     await db.rpc("generate_task_deadline_notifications");
     const { data: notifications, error } = await db.from("notifications").select("id,user_id,title,body,data,type").is("pushed_at", null).order("created_at").limit(100);
@@ -22,8 +32,9 @@ Deno.serve(async (req) => {
     let sent = 0;
     for (const notification of notifications ?? []) {
       const preferenceColumn = notification.type === "task_assigned" ? "task_assigned" : notification.type === "task_completed" ? "task_completed" : notification.type === "new_client" ? "new_client" : "task_deadlines";
-      const { data: preference } = await db.from("notification_preferences").select("push_enabled," + preferenceColumn).eq("user_id", notification.user_id).maybeSingle();
-      if (preference && (!preference.push_enabled || !preference[preferenceColumn])) {
+      const { data: preference } = await db.from("notification_preferences").select("push_enabled,task_assigned,task_completed,new_client,task_deadlines").eq("user_id", notification.user_id).maybeSingle();
+      const preferenceEnabled = !preference || (preference.push_enabled && Boolean((preference as Record<string, unknown>)[preferenceColumn]));
+      if (!preferenceEnabled) {
         await db.from("notifications").update({ pushed_at: new Date().toISOString() }).eq("id", notification.id);
         continue;
       }

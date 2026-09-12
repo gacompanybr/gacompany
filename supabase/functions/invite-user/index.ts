@@ -38,11 +38,16 @@ Deno.serve(async (req) => {
     const email: string = body.email;
     const role: "admin" | "viewer" = body.role ?? "viewer";
     const portfolioIds: string[] = body.portfolio_ids ?? [];
+    const jobRoleId: string | null = body.job_role_id ?? null;
+    const redirectOrigin: string = body.redirect_origin ?? "https://gacompany.online";
 
     if (!email) return json({ error: "Email obrigatório" }, 400);
 
     // Convidar — redirect específico por papel
-    const baseOrigin = new URL(req.url).origin.replace("supabase.co", "lovable.app");
+    const parsedOrigin = new URL(redirectOrigin);
+    const allowedOrigin = parsedOrigin.hostname === "gacompany.online" || parsedOrigin.hostname === "www.gacompany.online" || parsedOrigin.hostname.endsWith(".lovable.app") || parsedOrigin.hostname === "localhost";
+    if (!allowedOrigin) return json({ error: "Endereço de redirecionamento inválido" }, 400);
+    const baseOrigin = parsedOrigin.origin;
     const redirectTo = role === "admin"
       ? `${baseOrigin}/paineladmin`
       : `${baseOrigin}/painel`;
@@ -56,11 +61,9 @@ Deno.serve(async (req) => {
 
     // Garantir papel correto (handle_new_user já cria 'viewer' por padrão se trigger existir;
     // aqui forçamos o papel pedido)
-    if (role === "admin") {
-      await admin.from("user_roles").upsert(
-        { user_id: newUserId, role: "admin" },
-        { onConflict: "user_id,role" },
-      );
+    // Membros da equipe recebem acesso conforme o cargo. Administrador é uma permissão separada.
+    if (jobRoleId) {
+      await admin.from("user_job_roles").upsert({ user_id: newUserId, job_role_id: jobRoleId, assigned_by: userData.user.id }, { onConflict: "user_id" });
     }
 
     // Vincular portfolios

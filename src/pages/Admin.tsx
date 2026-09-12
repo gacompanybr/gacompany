@@ -32,7 +32,7 @@ export default function Admin() {
     const saved = typeof window !== "undefined" ? localStorage.getItem(ADMIN_TAB_KEY) : null;
     return (saved as AdminTab) || "dashboard";
   });
-  const { user, signOut, hasPermission } = useAuth();
+  const { user, signOut, hasPermission, isAdmin } = useAuth();
 
   const tabPermissions: Record<AdminTab, string> = {
     dashboard: "dashboard.view", clientes: "clients.view", equipe: "team.view",
@@ -41,10 +41,11 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (hasPermission(tabPermissions[tab])) return;
-    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find((key) => hasPermission(tabPermissions[key]));
+    const canOpen = (key: AdminTab) => key === "dashboard" ? (isAdmin || hasPermission("finance.view")) : hasPermission(tabPermissions[key]);
+    if (canOpen(tab)) return;
+    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find(canOpen);
     if (fallback) setTab(fallback);
-  }, [tab, hasPermission]);
+  }, [tab, hasPermission, isAdmin]);
 
   useEffect(() => {
     try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch {}
@@ -73,14 +74,14 @@ export default function Admin() {
           </header>
 
           <main className="flex-1 p-4 lg:p-6 overflow-auto">
-            {tab === "dashboard" && <DashboardTab />}
-            {tab === "clientes" && <ClientesTab />}
-            {tab === "equipe" && <EquipeTab />}
-            {tab === "tarefas" && <TarefasTab />}
-            {tab === "calendario" && <CalendarioTab />}
-            {tab === "financeiro" && <FinanceiroTab />}
-            {tab === "integracoes" && <IntegracoesTab />}
-            {tab === "config" && (
+             {tab === "dashboard" && (isAdmin || hasPermission("finance.view")) && <DashboardTab />}
+             {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
+             {tab === "equipe" && hasPermission("team.view") && <EquipeTab />}
+             {tab === "tarefas" && hasPermission("tasks.view") && <TarefasTab />}
+             {tab === "calendario" && hasPermission("calendar.view") && <CalendarioTab />}
+             {tab === "financeiro" && hasPermission("finance.view") && <FinanceiroTab />}
+             {tab === "integracoes" && hasPermission("integrations.view") && <IntegracoesTab />}
+             {tab === "config" && hasPermission("settings.manage") && (
               <Card className="p-8 text-center text-muted-foreground">
                 Configurações gerais em breve.
               </Card>

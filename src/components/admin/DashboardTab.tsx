@@ -3,12 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Building2, Wallet, CalendarClock, Users, TrendingDown, TrendingUp } from "lucide-react";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 function brl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export function DashboardTab() {
+  const { hasPermission } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: async () => {
@@ -16,19 +18,20 @@ export function DashboardTab() {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
+      const canSeeFinance = hasPermission("finance.view");
       const [clientesRes, servicosRes, recebRes, leadsRes, custosRes] = await Promise.all([
         supabase.from("portfolios").select("id, status"),
-        supabase.from("financial_services").select("valor_total, status"),
-        supabase
+        canSeeFinance ? supabase.from("financial_services").select("valor_total, status") : Promise.resolve({ data: [] }),
+        canSeeFinance ? supabase
           .from("financial_receivables")
           .select("valor_previsto, valor_recebido, status, data_prevista")
           .gte("data_prevista", firstDay)
-          .lte("data_prevista", lastDay),
+          .lte("data_prevista", lastDay) : Promise.resolve({ data: [] }),
         supabase.from("crm_leads").select("id, status, created_at").gte("created_at", firstDay),
-        supabase
+        canSeeFinance ? supabase
           .from("financial_costs")
           .select("valor, tipo, data_referencia, ativo")
-          .eq("ativo", true),
+          .eq("ativo", true) : Promise.resolve({ data: [] }),
       ]);
 
       const clientesAtivos = (clientesRes.data ?? []).filter((c: any) => c.status === "active").length;
@@ -64,6 +67,7 @@ export function DashboardTab() {
         custosMensais, custosUnicos, custosMes, brutoMes, liquidoMes, mrrLiquido,
       };
     },
+    enabled: hasPermission("dashboard.view") || hasPermission("finance.view"),
   });
 
   if (isLoading || !data) {
@@ -74,10 +78,13 @@ export function DashboardTab() {
     );
   }
 
+  const canSeeFinance = hasPermission("finance.view");
   const cards = [
     { label: "Clientes ativos", value: String(data.clientesAtivos), icon: Building2 },
-    { label: "MRR estimado", value: brl(data.mrr), icon: Wallet },
-    { label: "A receber no mês", value: brl(data.recebMes), icon: CalendarClock, sub: `${data.recebPendentes} pendentes` },
+    ...(canSeeFinance ? [
+      { label: "MRR estimado", value: brl(data.mrr), icon: Wallet },
+      { label: "A receber no mês", value: brl(data.recebMes), icon: CalendarClock, sub: `${data.recebPendentes} pendentes` },
+    ] : []),
     { label: "Leads novos no mês", value: String(data.leadsNovos), icon: Users },
   ];
 
@@ -96,7 +103,7 @@ export function DashboardTab() {
         ))}
       </div>
 
-      <Card className="p-5 space-y-4">
+      {canSeeFinance && <Card className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Resumo financeiro do mês</h2>
           <TrendingUp className="text-primary" size={16} />
@@ -146,7 +153,7 @@ export function DashboardTab() {
           Use a aba <strong className="text-foreground">Calendário</strong> para ver recebimentos e
           compromissos do mês.
         </p>
-      </Card>
+      </Card>}
     </div>
   );
 }

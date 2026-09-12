@@ -21,20 +21,24 @@ export function ConvidarUsuarioDialog({
   onInvited: () => void;
 }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "viewer">("viewer");
+  const [role, setRole] = useState<"admin" | "viewer">("admin");
+  const [jobRoleId, setJobRoleId] = useState("none");
+  const [jobRoles, setJobRoles] = useState<{ id: string; label: string }[]>([]);
   const [portfolios, setPortfolios] = useState<{ id: string; name: string }[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    supabase.from("portfolios").select("id, name").order("name").then(({ data }) => {
-      setPortfolios(data ?? []);
-    });
+    Promise.all([
+      supabase.from("portfolios").select("id, name").order("name"),
+      supabase.from("job_roles").select("id, label").order("label"),
+    ]).then(([portfolioResult, roleResult]) => { setPortfolios(portfolioResult.data ?? []); setJobRoles(roleResult.data ?? []); });
   }, [open]);
 
   async function handleInvite() {
     if (!email.trim()) return toast.error("Email obrigatório");
+    if (role === "admin" && jobRoleId === "none") return toast.error("Selecione o cargo da pessoa");
     if (role === "viewer" && selectedIds.length === 0) {
       return toast.error("Selecione pelo menos um cliente para o viewer");
     }
@@ -43,7 +47,9 @@ export function ConvidarUsuarioDialog({
       body: {
         email: email.trim(),
         role,
+        job_role_id: role === "viewer" ? null : jobRoleId === "none" ? null : jobRoleId,
         portfolio_ids: role === "admin" ? [] : selectedIds,
+        redirect_origin: window.location.origin,
       },
     });
     setBusy(false);
@@ -51,7 +57,7 @@ export function ConvidarUsuarioDialog({
       return toast.error((data as any)?.error ?? error?.message ?? "Erro ao convidar");
     }
     toast.success("Convite enviado!");
-    setEmail(""); setRole("viewer"); setSelectedIds([]);
+    setEmail(""); setRole("admin"); setJobRoleId("none"); setSelectedIds([]);
     onOpenChange(false);
     onInvited();
   }
@@ -75,22 +81,25 @@ export function ConvidarUsuarioDialog({
               placeholder="usuario@empresa.com"
             />
           </div>
+
           <div>
             <Label>Papel</Label>
             <Select value={role} onValueChange={(v) => setRole(v as any)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="viewer">Viewer (cliente)</SelectItem>
-                <SelectItem value="admin">Admin (equipe)</SelectItem>
+                <SelectItem value="admin">Equipe</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-1 flex gap-1">
               <Info size={12} className="mt-0.5 shrink-0" />
               {role === "viewer"
                 ? "Vai logar em /painel e ver apenas os clientes vinculados."
-                : "Vai logar em /paineladmin e ter acesso administrativo total."}
+                : "Vai acessar as áreas liberadas para o cargo. O administrador pode ser definido depois."}
             </p>
           </div>
+
+          {role === "admin" && <div><Label>Cargo</Label><Select value={jobRoleId} onValueChange={setJobRoleId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="none">Sem cargo</SelectItem>{jobRoles.map((job) => <SelectItem key={job.id} value={job.id}>{job.label}</SelectItem>)}</SelectContent></Select></div>}
 
           {role === "viewer" && (
             <div>
