@@ -315,7 +315,7 @@ export default function CampanhasModule({
               <TableRow>
                 <TableHead>Campanha</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Objetivo</TableHead>
+                <TableHead className="hidden lg:table-cell">Objetivo</TableHead>
                 <TableHead className="text-right">Gasto no período</TableHead>
                 <TableHead className="text-right">Resultados</TableHead>
                 <TableHead className="text-right">Impressões</TableHead>
@@ -346,11 +346,11 @@ export default function CampanhasModule({
                         {STATUS_LABEL[st] ?? st ?? "—"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">{objetivoLabel(c.objective)}</TableCell>
+                    <TableCell className="hidden lg:table-cell" className="text-sm">{objetivoLabel(c.objective)}</TableCell>
                     <TableCell className="text-right text-sm">{fmtBRL(m.spend)}</TableCell>
                     <TableCell className="text-right text-sm">{fmtNum(m.results)}</TableCell>
-                    <TableCell className="text-right text-sm">{fmtNum(m.impressions)}</TableCell>
-                    <TableCell className="text-right text-sm">{fmtNum(m.clicks)}</TableCell>
+                    <TableCell className="hidden md:table-cell" className="text-right text-sm">{fmtNum(m.impressions)}</TableCell>
+                    <TableCell className="hidden md:table-cell" className="text-right text-sm">{fmtNum(m.clicks)}</TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

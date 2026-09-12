@@ -432,7 +432,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
         )}
 
         <Card className="p-4 lg:p-5">
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="col-span-2 lg:col-span-1">
               <Label className="text-xs">Portfólio / BM</Label>
               <Select value={portfolioId} onValueChange={(v) => { setPortfolioId(v); setAccountId("all"); setCampaignId("all"); }}>
@@ -489,7 +489,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
         </Card>
 
         {/* KPIs */}
-        <div className={`grid grid-cols-2 lg:grid-cols-3 ${showConversionsKpi ? "xl:grid-cols-4 2xl:grid-cols-7" : "xl:grid-cols-6"} gap-3 lg:gap-4`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 ${showConversionsKpi ? "xl:grid-cols-4 2xl:grid-cols-7" : "xl:grid-cols-6"} gap-3 lg:gap-4`}>
           {showConversionsKpi && (
             <>
               <KpiCard

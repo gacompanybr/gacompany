@@ -35,7 +35,7 @@ function KanbanColumn({ status, tasks, children }: { status: TaskStatus; tasks: 
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return <section ref={setNodeRef} className={`min-w-[280px] rounded-md border bg-muted/20 p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-border"}`}>
     <div className="mb-2 flex items-center justify-between px-1"><h3 className="text-sm font-semibold">{STATUS_LABELS[status]}</h3><span className="text-xs text-muted-foreground">{tasks.length}</span></div>
-    <div className="max-h-[28rem] min-h-[8rem] space-y-2 overflow-y-auto pr-1">{children}{tasks.length === 0 && <div className="rounded-md border border-dashed p-5 text-center text-xs text-muted-foreground">Arraste uma tarefa para cá</div>}</div>
+    <div className="max-h-[28rem] md:max-h-[calc(100vh-250px)] min-h-[8rem] space-y-2 overflow-y-auto pr-1">{children}{tasks.length === 0 && <div className="rounded-md border border-dashed p-5 text-center text-xs text-muted-foreground">Arraste uma tarefa para cá</div>}</div>
   </section>;
 }
 
