@@ -33,10 +33,10 @@ export function EquipeTab() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin-equipe"] });
   async function confirmDelete() {
     if (!deleteUser) return;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    const accessToken = refreshed.session?.access_token;
     if (!accessToken) {
-      toast.error("Sua sessão expirou. Entre novamente no painel.");
+      toast.error(refreshError?.message ?? "Sua sessão expirou. Entre novamente no painel.");
       return;
     }
     const { data: result, error } = await supabase.functions.invoke("admin-manage-user", {

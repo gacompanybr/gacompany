@@ -22,13 +22,16 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !anonKey || !serviceKey) return respond({ error: "Serviço indisponível" }, 500);
 
-    const requester = createClient(url, anonKey, {
-      global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+    const authorization = req.headers.get("Authorization") ?? "";
+    const accessToken = authorization.replace(/^Bearer\s+/i, "").trim();
+    if (!accessToken) return respond({ error: "Não autenticado" }, 401);
+
+    const admin = createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: authData, error: authError } = await requester.auth.getUser();
+    const { data: authData, error: authError } = await admin.auth.getUser(accessToken);
     if (authError || !authData.user) return respond({ error: "Não autenticado" }, 401);
 
-    const admin = createClient(url, serviceKey);
     const { data: adminRole } = await admin.from("user_roles").select("role").eq("user_id", authData.user.id).eq("role", "admin").maybeSingle();
     if (!adminRole) return respond({ error: "Apenas administradores podem gerenciar a equipe" }, 403);
 

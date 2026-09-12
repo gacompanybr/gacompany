@@ -20,11 +20,11 @@ export function GerenciarUsuarioDialog({ user, roles, open, onOpenChange, onSave
 
   async function save() {
     setBusy(true);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    const accessToken = refreshed.session?.access_token;
     if (!accessToken) {
       setBusy(false);
-      toast.error("Sua sessão expirou. Entre novamente no painel.");
+      toast.error(refreshError?.message ?? "Sua sessão expirou. Entre novamente no painel.");
       return;
     }
     const { data, error } = await supabase.functions.invoke("admin-manage-user", {
