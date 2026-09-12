@@ -164,7 +164,7 @@ export function NovaTarefaDialog({
             <Label>Descrição</Label>
             <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} disabled={!canManage} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label>Status</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)} disabled={!canManage}>
@@ -189,7 +189,7 @@ export function NovaTarefaDialog({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label>Data do prazo</Label>
               <Input type="date" value={prazoDate} onChange={(e) => setPrazoDate(e.target.value)} disabled={!canManage} />

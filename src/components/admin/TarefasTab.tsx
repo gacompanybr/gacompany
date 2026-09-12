@@ -33,9 +33,9 @@ function DraggableTask({ task, ...props }: { task: Task; profiles: Map<string, P
 
 function KanbanColumn({ status, tasks, children }: { status: TaskStatus; tasks: Task[]; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
-  return <section ref={setNodeRef} className={`min-w-[280px] rounded-md border bg-muted/20 p-2 transition-colors ${isOver ? "border-primary bg-primary/5" : "border-border"}`}>
+  return <section ref={setNodeRef} className={`w-[calc(100vw-2.75rem)] shrink-0 snap-start rounded-md border bg-muted/20 p-2 transition-colors sm:w-auto sm:min-w-[280px] ${isOver ? "border-primary bg-primary/5" : "border-border"}`}>
     <div className="mb-2 flex items-center justify-between px-1"><h3 className="text-sm font-semibold">{STATUS_LABELS[status]}</h3><span className="text-xs text-muted-foreground">{tasks.length}</span></div>
-    <div className="max-h-[28rem] min-h-[8rem] space-y-2 overflow-y-auto pr-1">{children}{tasks.length === 0 && <div className="rounded-md border border-dashed p-5 text-center text-xs text-muted-foreground">Arraste uma tarefa para cá</div>}</div>
+    <div className="max-h-[28rem] md:max-h-[calc(100vh-250px)] min-h-[8rem] space-y-2 overflow-y-auto pr-1">{children}{tasks.length === 0 && <div className="rounded-md border border-dashed p-5 text-center text-xs text-muted-foreground">Arraste uma tarefa para cá</div>}</div>
   </section>;
 }
 
@@ -103,17 +103,17 @@ export function TarefasTab() {
   }
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[200px] flex-1 max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} /><Input placeholder="Buscar tarefas..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 pl-9" /></div>
-      <div className="relative"><CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} /><Input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="h-9 w-[155px] pl-9" /></div>
+    <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+      <div className="relative col-span-2 min-w-0 flex-1 sm:max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} /><Input placeholder="Buscar tarefas..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 pl-9" /></div>
+      <div className="relative min-w-0"><CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} /><Input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="h-9 w-full pl-9 sm:w-[155px]" /></div>
       <Button variant="ghost" size="sm" onClick={() => setFilterDate("")}>Todas as datas</Button>
-      <Select value={filterScope} onValueChange={(value: "all" | "mine") => setFilterScope(value)}><SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mine">Minhas tarefas</SelectItem></SelectContent></Select>
-      <Select value={filterPortfolio} onValueChange={setFilterPortfolio}><SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os clientes</SelectItem>{Array.from(portfolios.values()).map((portfolio) => <SelectItem key={portfolio.id} value={portfolio.id}>{portfolio.name}</SelectItem>)}</SelectContent></Select>
+      <Select value={filterScope} onValueChange={(value: "all" | "mine") => setFilterScope(value)}><SelectTrigger className="h-9 w-full sm:w-[150px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mine">Minhas tarefas</SelectItem></SelectContent></Select>
+      <Select value={filterPortfolio} onValueChange={setFilterPortfolio}><SelectTrigger className="h-9 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os clientes</SelectItem>{Array.from(portfolios.values()).map((portfolio) => <SelectItem key={portfolio.id} value={portfolio.id}>{portfolio.name}</SelectItem>)}</SelectContent></Select>
       <div className="flex-1" />
-      {canManage && <Button onClick={() => { setEditing(null); setOpenDialog(true); }} className="gap-2"><Plus size={14} /> Nova tarefa</Button>}
+      {canManage && <Button onClick={() => { setEditing(null); setOpenDialog(true); }} className="col-span-2 gap-2 sm:w-auto"><Plus size={14} /> Nova tarefa</Button>}
     </div>
     {overdueTasks.length > 0 && <Card className="flex items-center gap-2 border-destructive/50 bg-destructive/5 p-3"><AlertCircle size={16} className="text-destructive" /><span className="text-sm"><strong>{overdueTasks.length}</strong> tarefa(s) atrasada(s)</span></Card>}
-    {loading ? <Card className="p-12 text-center text-muted-foreground">Carregando...</Card> : <DndContext sensors={sensors} onDragEnd={handleDragEnd}><div className="grid grid-cols-1 gap-3 overflow-x-auto md:grid-cols-3">{COLUMNS.map((status) => <KanbanColumn key={status} status={status} tasks={byStatus[status]}>{byStatus[status].map((task) => <DraggableTask key={task.id} task={task} profiles={profiles} portfolioName={task.portfolio_id ? portfolios.get(task.portfolio_id)?.name : undefined} onEdit={(selected) => { setEditing(selected); setOpenDialog(true); }} onComplete={(selected) => handleStatus(selected, "feita")} />)}</KanbanColumn>)}</div></DndContext>}
+    {loading ? <Card className="p-8 text-center text-muted-foreground sm:p-12">Carregando...</Card> : <DndContext sensors={sensors} onDragEnd={handleDragEnd}><div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:overflow-visible">{COLUMNS.map((status) => <KanbanColumn key={status} status={status} tasks={byStatus[status]}>{byStatus[status].map((task) => <DraggableTask key={task.id} task={task} profiles={profiles} portfolioName={task.portfolio_id ? portfolios.get(task.portfolio_id)?.name : undefined} onEdit={(selected) => { setEditing(selected); setOpenDialog(true); }} onComplete={(selected) => handleStatus(selected, "feita")} />)}</KanbanColumn>)}</div></DndContext>}
     <NovaTarefaDialog open={openDialog} onOpenChange={setOpenDialog} onSaved={load} editing={editing} />
   </div>;
 }

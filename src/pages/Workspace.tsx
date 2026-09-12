@@ -94,26 +94,26 @@ export default function Workspace() {
         />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center justify-between border-b border-border px-2 sm:px-4 gap-1 sm:gap-3">
+          <header className="flex min-h-14 items-center justify-between border-b border-border px-2 py-2 sm:px-4 gap-1 sm:gap-3">
             <div className="flex items-center gap-1 sm:gap-3 min-w-0">
               <SidebarTrigger />
               {isAdmin && (
-                <Button asChild variant="ghost" size="sm" className="gap-1 text-muted-foreground">
-                  <Link to="/admin"><ArrowLeft size={14} /> Todos os clientes</Link>
+                <Button asChild variant="ghost" size="sm" className="gap-1 px-2 text-muted-foreground">
+                  <Link to="/admin"><ArrowLeft size={14} /><span className="hidden md:inline">Todos os clientes</span></Link>
                 </Button>
               )}
               <img src={gaLogo.url} alt="GA Company" className="h-7 w-auto hidden sm:block" />
-              <span className="font-semibold truncate">{portfolio.name}</span>
+              <span className="max-w-[8rem] truncate text-sm font-semibold sm:max-w-none sm:text-base">{portfolio.name}</span>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
-              <Button onClick={signOut} variant="ghost" size="sm" className="gap-1">
-                <LogOut size={14} /> Sair
+              <Button onClick={signOut} variant="ghost" size="sm" className="gap-1 px-2" aria-label="Sair">
+                <LogOut size={14} /> <span className="hidden sm:inline">Sair</span>
               </Button>
             </div>
           </header>
 
-          <main className="flex-1 overflow-auto">
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
             {activeModule === "metricas" && (
               <Dashboard portfolioId={portfolio.id} embedded />
             )}

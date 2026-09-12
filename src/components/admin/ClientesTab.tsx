@@ -119,9 +119,9 @@ export function ClientesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
-                <TableHead>CNPJ</TableHead>
+                <TableHead className="hidden md:table-cell">CNPJ</TableHead>
                 <TableHead>Serviços</TableHead>
-                <TableHead>Responsável</TableHead>
+                <TableHead className="hidden lg:table-cell">Responsável</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -141,14 +141,14 @@ export function ClientesTab() {
                   onClick={() => nav(`/workspace/${c.id}`)}
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{c.cnpj ?? "—"}</TableCell>
+                  <TableCell className="hidden text-sm text-muted-foreground md:table-cell">{c.cnpj ?? "—"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {c.servicos.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
                       {c.servicos.map((s) => <ServiceBadge key={s} service={s} />)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="hidden text-sm lg:table-cell">
                     {c.responsaveis.length === 0 ? (
                       <span className="text-xs text-muted-foreground">—</span>
                     ) : (
