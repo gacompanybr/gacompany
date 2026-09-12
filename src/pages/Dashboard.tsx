@@ -406,7 +406,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
       </header>
       )}
 
-      <main className="container mx-auto px-4 lg:px-6 py-6 space-y-6">
+      <main className="container mx-auto space-y-4 overflow-x-hidden px-2.5 py-4 sm:px-4 sm:py-6 lg:px-6 lg:space-y-6">
         {/* Filters */}
         {/* Tabs por origem dos dados */}
         {(hasMeta || hasGoogle) && (
@@ -431,9 +431,9 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
           </div>
         )}
 
-        <Card className="p-4 lg:p-5">
+        <Card className="p-3 sm:p-4 lg:p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="col-span-2 lg:col-span-1">
+            <div className="sm:col-span-2 lg:col-span-1">
               <Label className="text-xs">Portfólio / BM</Label>
               <Select value={portfolioId} onValueChange={(v) => { setPortfolioId(v); setAccountId("all"); setCampaignId("all"); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -555,7 +555,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
 
         {/* Evolução diária */}
         {dailySeries.length > 0 && (
-          <Card className="p-5">
+          <Card className="overflow-hidden p-3 sm:p-5">
             <h3 className="font-semibold mb-4">Evolução diária no período</h3>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={dailySeries}>
@@ -631,7 +631,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
 
         {/* Charts */}
         <div className="grid lg:grid-cols-2 gap-4">
-          <Card className="p-5">
+          <Card className="overflow-hidden p-3 sm:p-5">
             <h3 className="font-semibold mb-4">Resultados por campanha</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={filteredCampaigns}>
@@ -647,7 +647,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             </ResponsiveContainer>
           </Card>
 
-          <Card className="p-5">
+          <Card className="overflow-hidden p-3 sm:p-5">
             <h3 className="font-semibold mb-4">Investimento vs Custo por resultado</h3>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={filteredCampaigns}>
@@ -668,7 +668,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
         </div>
 
         {/* Table */}
-        <Card className="p-5 overflow-x-auto">
+        <Card className="max-w-full overflow-x-auto p-3 sm:p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Detalhamento por campanha</h3>
             <Badge variant="secondary">{filteredCampaigns.length} campanha(s)</Badge>

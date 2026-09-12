@@ -346,11 +346,11 @@ export default function CampanhasModule({
                         {STATUS_LABEL[st] ?? st ?? "—"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell" className="text-sm">{objetivoLabel(c.objective)}</TableCell>
+                    <TableCell className="hidden text-sm lg:table-cell">{objetivoLabel(c.objective)}</TableCell>
                     <TableCell className="text-right text-sm">{fmtBRL(m.spend)}</TableCell>
                     <TableCell className="text-right text-sm">{fmtNum(m.results)}</TableCell>
-                    <TableCell className="hidden md:table-cell" className="text-right text-sm">{fmtNum(m.impressions)}</TableCell>
-                    <TableCell className="hidden md:table-cell" className="text-right text-sm">{fmtNum(m.clicks)}</TableCell>
+                    <TableCell className="hidden text-right text-sm md:table-cell">{fmtNum(m.impressions)}</TableCell>
+                    <TableCell className="hidden text-right text-sm md:table-cell">{fmtNum(m.clicks)}</TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

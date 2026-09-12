@@ -169,8 +169,8 @@ export function RecebimentosTab() {
                     onClick={() => setEditing(r)}
                   >
                     <TableCell className="font-medium">{r.cliente_nome}</TableCell>
-                    <TableCell className="hidden sm:table-cell" className="text-sm">{r.servico_nome}</TableCell>
-                    <TableCell className="hidden lg:table-cell" className="text-sm">{r.participante_nome}</TableCell>
+                    <TableCell className="hidden text-sm sm:table-cell">{r.servico_nome}</TableCell>
+                    <TableCell className="hidden text-sm lg:table-cell">{r.participante_nome}</TableCell>
                     <TableCell className="text-right font-medium">
                       {BRL(r.valor_recebido ?? r.valor_previsto)}
                     </TableCell>
