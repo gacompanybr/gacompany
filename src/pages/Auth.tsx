@@ -81,7 +81,7 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-6 space-y-5">
+      <Card className="w-full max-w-md p-5 md:p-6 space-y-5">
         <div className="flex flex-col items-center gap-2">
           <img src={gaLogo.url} alt="GA Company" className="h-10 w-auto" />
           <p className="text-sm text-muted-foreground">Acesso ao painel gerencial</p>

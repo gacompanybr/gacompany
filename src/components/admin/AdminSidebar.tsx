@@ -46,11 +46,11 @@ export function AdminSidebar({
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="pt-8 pb-6 px-4 flex items-center justify-center">
+      <SidebarHeader className="pt-4 pb-2 lg:pt-8 lg:pb-6 px-4 flex items-center justify-center">
         <img
           src={gaLogo.url}
           alt="GA Company"
-          className="h-14 max-h-14 w-auto max-w-[200px] object-contain select-none"
+          className="h-8 lg:h-14 max-h-14 w-auto max-w-[200px] object-contain select-none"
           draggable={false}
         />
       </SidebarHeader>

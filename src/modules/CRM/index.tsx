@@ -78,11 +78,11 @@ export default function CRMModule({ portfolioId }: { portfolioId: string }) {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {STATUS_COLUNAS.map((col) => {
             const items = leads.filter((l) => l.status === col.key);
             return (

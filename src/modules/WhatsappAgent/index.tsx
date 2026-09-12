@@ -191,7 +191,7 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
       </Card>
 
       <Tabs defaultValue="config">
-        <TabsList className="grid grid-cols-6 w-full mb-4">
+        <TabsList className="flex flex-wrap h-auto gap-1 mb-4">
           <TabsTrigger value="config">Configurações</TabsTrigger>
           <TabsTrigger value="faqs">FAQs</TabsTrigger>
           <TabsTrigger value="conectar">

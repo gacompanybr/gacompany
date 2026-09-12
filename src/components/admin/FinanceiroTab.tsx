@@ -13,7 +13,7 @@ export function FinanceiroTab() {
   const canManage = hasPermission("finance.manage");
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-      <TabsList>
+      <TabsList className="flex flex-wrap h-auto gap-1">
         <TabsTrigger value="servicos">Serviços</TabsTrigger>
         <TabsTrigger value="recebimentos">Recebimentos</TabsTrigger>
         <TabsTrigger value="custos">Custos</TabsTrigger>

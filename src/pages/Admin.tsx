@@ -57,12 +57,12 @@ export default function Admin() {
         <AdminSidebar active={tab} onChange={setTab} />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 flex items-center justify-between border-b border-border px-4 gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+          <header className="h-14 flex items-center justify-between border-b border-border px-2 sm:px-4 gap-1 sm:gap-3">
+            <div className="flex items-center gap-1 sm:gap-3 min-w-0">
               <SidebarTrigger />
               <h1 className="text-lg font-semibold truncate">{TITLES[tab]}</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <NotificationCenter />
               <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
                 {user?.email}
