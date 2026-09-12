@@ -18,8 +18,14 @@ Deno.serve(async (req) => {
     const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
     const authorization = req.headers.get("Authorization") ?? "";
     const isCron = cronSecret.length > 0 && req.headers.get("x-cron-secret") === cronSecret;
+    let bearerRole = "";
+    try {
+      const token = authorization.replace(/^Bearer\s+/i, "");
+      const payload = token.split(".")[1];
+      if (payload) bearerRole = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))).role ?? "";
+    } catch { bearerRole = ""; }
     const isDatabaseJob = anonKey.length > 0 && (
-      authorization === `Bearer ${anonKey}` || req.headers.get("apikey") === anonKey
+      authorization === `Bearer ${anonKey}` || req.headers.get("apikey") === anonKey || bearerRole === "anon"
     );
     if (!isCron && !isDatabaseJob) {
       const requester = createClient(url, anonKey, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
