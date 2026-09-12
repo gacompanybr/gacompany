@@ -22,7 +22,20 @@ export function GerenciarUsuarioDialog({ user, roles, open, onOpenChange, onSave
     setBusy(true);
     const { data, error } = await supabase.functions.invoke("admin-manage-user", { body: { action: "update", user_id: user.user_id, display_name: name, is_admin: isAdmin, job_role_id: jobRoleId === "none" ? null : jobRoleId } });
     setBusy(false);
-    if (error || data?.error) return toast.error(data?.error ?? error?.message);
+    if (error || data?.error) {
+      let message = data?.error ?? error?.message ?? "Não foi possível atualizar o usuário";
+      const response = (error as { context?: Response } | null)?.context;
+      if (response) {
+        try {
+          const body = await response.clone().json();
+          if (typeof body?.error === "string") message = body.error;
+        } catch {
+          // Mantém a mensagem original quando a resposta não contém JSON.
+        }
+      }
+      toast.error(message);
+      return;
+    }
     toast.success("Usuário atualizado"); onSaved(); onOpenChange(false);
   }
 
