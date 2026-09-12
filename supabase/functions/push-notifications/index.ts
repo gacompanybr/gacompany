@@ -18,7 +18,9 @@ Deno.serve(async (req) => {
     const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
     const authorization = req.headers.get("Authorization") ?? "";
     const isCron = cronSecret.length > 0 && req.headers.get("x-cron-secret") === cronSecret;
-    const isDatabaseJob = anonKey.length > 0 && authorization === `Bearer ${anonKey}`;
+    const isDatabaseJob = anonKey.length > 0 && (
+      authorization === `Bearer ${anonKey}` || req.headers.get("apikey") === anonKey
+    );
     if (!isCron && !isDatabaseJob) {
       const requester = createClient(url, anonKey, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
       const { data: authData } = await requester.auth.getUser();
