@@ -18,19 +18,20 @@ export function DashboardTab() {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
       const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
+      const canSeeFinance = hasPermission("finance.view");
       const [clientesRes, servicosRes, recebRes, leadsRes, custosRes] = await Promise.all([
         supabase.from("portfolios").select("id, status"),
-        supabase.from("financial_services").select("valor_total, status"),
-        supabase
+        canSeeFinance ? supabase.from("financial_services").select("valor_total, status") : Promise.resolve({ data: [] }),
+        canSeeFinance ? supabase
           .from("financial_receivables")
           .select("valor_previsto, valor_recebido, status, data_prevista")
           .gte("data_prevista", firstDay)
-          .lte("data_prevista", lastDay),
+          .lte("data_prevista", lastDay) : Promise.resolve({ data: [] }),
         supabase.from("crm_leads").select("id, status, created_at").gte("created_at", firstDay),
-        supabase
+        canSeeFinance ? supabase
           .from("financial_costs")
           .select("valor, tipo, data_referencia, ativo")
-          .eq("ativo", true),
+          .eq("ativo", true) : Promise.resolve({ data: [] }),
       ]);
 
       const clientesAtivos = (clientesRes.data ?? []).filter((c: any) => c.status === "active").length;
@@ -66,6 +67,7 @@ export function DashboardTab() {
         custosMensais, custosUnicos, custosMes, brutoMes, liquidoMes, mrrLiquido,
       };
     },
+    enabled: hasPermission("dashboard.view") || hasPermission("finance.view"),
   });
 
   if (isLoading || !data) {

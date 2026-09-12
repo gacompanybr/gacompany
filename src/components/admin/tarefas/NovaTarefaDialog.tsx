@@ -23,7 +23,8 @@ export function NovaTarefaDialog({
   onSaved: () => void;
   editing?: Task | null;
 }) {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canManage = hasPermission("tasks.manage");
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [status, setStatus] = useState<TaskStatus>("a_fazer");
@@ -67,6 +68,18 @@ export function NovaTarefaDialog({
   }, [open, editing]);
 
   async function handleSave() {
+    if (!canManage && editing) {
+      const changed = subtasks.filter((item) => !item.id.startsWith("new-") && item.is_completed !== (editing.subtasks ?? []).find((old) => old.id === item.id)?.is_completed);
+      try {
+        setSaving(true);
+        for (const item of changed) {
+          const { error } = await sb.from("task_subtasks").update({ is_completed: item.is_completed, completed_by: item.is_completed ? user?.id : null, completed_at: item.is_completed ? new Date().toISOString() : null }).eq("id", item.id);
+          if (error) throw error;
+        }
+        toast.success("Checklist atualizado"); onSaved(); onOpenChange(false);
+      } catch (error: any) { toast.error(error.message ?? "Erro ao atualizar checklist"); } finally { setSaving(false); }
+      return;
+    }
     if (!titulo.trim()) { toast.error("Informe o título"); return; }
     if (subtasks.some((item) => !item.title.trim())) { toast.error("Preencha ou remova as subtarefas vazias"); return; }
     if (!user) return;
@@ -135,11 +148,11 @@ export function NovaTarefaDialog({
         <div className="space-y-3">
           <div>
             <Label>Título *</Label>
-            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} disabled={!canManage} />
           </div>
           <div>
             <Label>Descrição</Label>
-            <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} />
+            <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} disabled={!canManage} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
