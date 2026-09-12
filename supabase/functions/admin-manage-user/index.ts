@@ -55,15 +55,19 @@ Deno.serve(async (req) => {
     if (profileError) return respond({ error: profileError.message }, 400);
 
     if (input.is_admin) {
-      await admin.from("user_roles").upsert({ user_id: input.user_id, role: "admin" }, { onConflict: "user_id,role" });
+      const { error: roleError } = await admin.from("user_roles").upsert({ user_id: input.user_id, role: "admin" }, { onConflict: "user_id,role" });
+      if (roleError) return respond({ error: roleError.message }, 400);
     } else {
-      await admin.from("user_roles").delete().eq("user_id", input.user_id).eq("role", "admin");
+      const { error: roleError } = await admin.from("user_roles").delete().eq("user_id", input.user_id).eq("role", "admin");
+      if (roleError) return respond({ error: roleError.message }, 400);
     }
 
     if (input.job_role_id) {
-      await admin.from("user_job_roles").upsert({ user_id: input.user_id, job_role_id: input.job_role_id, assigned_by: authData.user.id }, { onConflict: "user_id" });
+      const { error: jobRoleError } = await admin.from("user_job_roles").upsert({ user_id: input.user_id, job_role_id: input.job_role_id, assigned_by: authData.user.id }, { onConflict: "user_id" });
+      if (jobRoleError) return respond({ error: jobRoleError.message }, 400);
     } else {
-      await admin.from("user_job_roles").delete().eq("user_id", input.user_id);
+      const { error: jobRoleError } = await admin.from("user_job_roles").delete().eq("user_id", input.user_id);
+      if (jobRoleError) return respond({ error: jobRoleError.message }, 400);
     }
 
     await admin.from("team_audit_log").insert({

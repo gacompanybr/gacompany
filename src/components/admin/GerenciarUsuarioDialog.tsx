@@ -20,7 +20,17 @@ export function GerenciarUsuarioDialog({ user, roles, open, onOpenChange, onSave
 
   async function save() {
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("admin-manage-user", { body: { action: "update", user_id: user.user_id, display_name: name, is_admin: isAdmin, job_role_id: jobRoleId === "none" ? null : jobRoleId } });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      setBusy(false);
+      toast.error("Sua sessão expirou. Entre novamente no painel.");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("admin-manage-user", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: { action: "update", user_id: user.user_id, display_name: name, is_admin: isAdmin, job_role_id: jobRoleId === "none" ? null : jobRoleId },
+    });
     setBusy(false);
     if (error || data?.error) {
       let message = data?.error ?? error?.message ?? "Não foi possível atualizar o usuário";

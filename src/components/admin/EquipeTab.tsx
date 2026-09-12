@@ -31,7 +31,22 @@ export function EquipeTab() {
     return { roles: jobs ?? [], users: (profs ?? []).map((profile: any) => ({ ...profile, is_admin: adminIds.has(profile.user_id), job_role_id: assignmentMap.get(profile.user_id) ?? null, job_label: jobMap.get(assignmentMap.get(profile.user_id)) ?? null, portfolios: accessMap.get(profile.user_id) ?? [] })) as EquipeRow[] };
   }});
   const refresh = () => qc.invalidateQueries({ queryKey: ["admin-equipe"] });
-  async function confirmDelete() { if (!deleteUser) return; const { data: result, error } = await supabase.functions.invoke("admin-manage-user", { body: { action: "delete", user_id: deleteUser.user_id } }); if (error || result?.error) toast.error(result?.error ?? error?.message); else { toast.success("Usuário excluído"); refresh(); } setDeleteUser(null); }
+  async function confirmDelete() {
+    if (!deleteUser) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      toast.error("Sua sessão expirou. Entre novamente no painel.");
+      return;
+    }
+    const { data: result, error } = await supabase.functions.invoke("admin-manage-user", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: { action: "delete", user_id: deleteUser.user_id },
+    });
+    if (error || result?.error) toast.error(result?.error ?? error?.message);
+    else { toast.success("Usuário excluído"); refresh(); }
+    setDeleteUser(null);
+  }
   return <div className="space-y-4">{isAdmin && <div className="flex justify-end"><Button onClick={() => setOpenConvidar(true)} className="gap-2"><Plus size={14} /> Convidar usuário</Button></div>}
     <Card className="overflow-x-auto">{isLoading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" size={20} /></div> : <Table><TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Cargo</TableHead><TableHead>Acesso</TableHead><TableHead>Clientes</TableHead><TableHead>Cadastro</TableHead>{isAdmin && <TableHead className="text-right">Ações</TableHead>}</TableRow></TableHeader><TableBody>{data?.users.map((row) => <TableRow key={row.user_id}><TableCell className="font-medium">{row.display_name ?? row.user_id.slice(0, 8)}</TableCell><TableCell>{row.job_label ? <Badge variant="secondary">{row.job_label}</Badge> : "—"}</TableCell><TableCell>{row.is_admin ? <Badge>Administrador</Badge> : <Badge variant="outline">Por cargo</Badge>}</TableCell><TableCell>{row.portfolios.length}</TableCell><TableCell>{new Date(row.created_at).toLocaleDateString("pt-BR")}</TableCell>{isAdmin && <TableCell><div className="flex justify-end gap-1"><Button variant="ghost" size="icon" onClick={() => setSenhaUser(row)} aria-label="Alterar senha"><KeyRound size={14} /></Button><Button variant="ghost" size="icon" onClick={() => setAccessUser(row)} aria-label="Gerenciar clientes"><Settings2 size={14} /></Button><Button variant="ghost" size="icon" onClick={() => setEditUser(row)} aria-label="Editar usuário"><Settings2 size={14} /></Button><Button variant="ghost" size="icon" disabled={row.user_id === user?.id} onClick={() => setDeleteUser(row)} aria-label="Excluir usuário"><Trash2 size={14} /></Button></div></TableCell>}</TableRow>)}</TableBody></Table>}</Card>
     {isAdmin && <PermissoesCargos roles={data?.roles ?? []} />}
