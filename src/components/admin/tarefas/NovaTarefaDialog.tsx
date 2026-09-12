@@ -15,6 +15,14 @@ import { Plus, Trash2 } from "lucide-react";
 
 type Portfolio = { id: string; name: string };
 
+function localDateKey(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function NovaTarefaDialog({
   open, onOpenChange, onSaved, editing,
 }: {
@@ -53,7 +61,7 @@ export function NovaTarefaDialog({
       setPrioridade(editing.prioridade);
       if (editing.prazo) {
         const d = new Date(editing.prazo);
-        setPrazoDate(d.toISOString().slice(0, 10));
+        setPrazoDate(localDateKey(d));
         setPrazoTime(d.toTimeString().slice(0, 5));
       } else {
         setPrazoDate(""); setPrazoTime("");
@@ -63,7 +71,7 @@ export function NovaTarefaDialog({
       setSubtasks(editing.subtasks ?? []);
     } else {
       setTitulo(""); setDescricao(""); setStatus("a_fazer"); setPrioridade("media");
-      setPrazoDate(""); setPrazoTime(""); setPortfolioId("none"); setAssignees([]); setSubtasks([]);
+      setPrazoDate(localDateKey(new Date())); setPrazoTime("23:59"); setPortfolioId("none"); setAssignees([]); setSubtasks([]);
     }
   }, [open, editing]);
 
@@ -112,6 +120,8 @@ export function NovaTarefaDialog({
         const rows = assignees.map((uid) => ({ task_id: taskId, user_id: uid }));
         const { error } = await sb.from("task_assignees").insert(rows);
         if (error) throw error;
+        const { error: pushError } = await sb.functions.invoke("push-notifications", { body: { source: "task_assignment" } });
+        if (pushError) console.error("Falha ao disparar notificações:", pushError);
       }
 
       if (taskId) {

@@ -16,13 +16,16 @@ Deno.serve(async (req) => {
     const db = createClient(url, serviceKey);
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+    const authorization = req.headers.get("Authorization") ?? "";
     const isCron = cronSecret.length > 0 && req.headers.get("x-cron-secret") === cronSecret;
-    if (!isCron) {
+    const isDatabaseJob = anonKey.length > 0 && authorization === `Bearer ${anonKey}`;
+    if (!isCron && !isDatabaseJob) {
       const requester = createClient(url, anonKey, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
       const { data: authData } = await requester.auth.getUser();
       if (!authData.user) return respond({ error: "Não autenticado" }, 401);
       const { data: role } = await db.from("user_roles").select("role").eq("user_id", authData.user.id).eq("role", "admin").maybeSingle();
-      if (!role) return respond({ error: "Apenas administradores podem executar o envio" }, 403);
+      const { data: canManageTasks } = await db.rpc("has_permission", { _user_id: authData.user.id, _permission_key: "tasks.manage" });
+      if (!role && !canManageTasks) return respond({ error: "Sem permissão para executar o envio" }, 403);
     }
 
     await db.rpc("generate_task_deadline_notifications");
