@@ -22,15 +22,18 @@ export function ConvidarUsuarioDialog({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "viewer">("viewer");
+  const [jobRoleId, setJobRoleId] = useState("none");
+  const [jobRoles, setJobRoles] = useState<{ id: string; label: string }[]>([]);
   const [portfolios, setPortfolios] = useState<{ id: string; name: string }[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    supabase.from("portfolios").select("id, name").order("name").then(({ data }) => {
-      setPortfolios(data ?? []);
-    });
+    Promise.all([
+      supabase.from("portfolios").select("id, name").order("name"),
+      supabase.from("job_roles").select("id, label").order("label"),
+    ]).then(([portfolioResult, roleResult]) => { setPortfolios(portfolioResult.data ?? []); setJobRoles(roleResult.data ?? []); });
   }, [open]);
 
   async function handleInvite() {
@@ -43,6 +46,7 @@ export function ConvidarUsuarioDialog({
       body: {
         email: email.trim(),
         role,
+        job_role_id: role === "viewer" ? null : jobRoleId === "none" ? null : jobRoleId,
         portfolio_ids: role === "admin" ? [] : selectedIds,
       },
     });
@@ -51,7 +55,7 @@ export function ConvidarUsuarioDialog({
       return toast.error((data as any)?.error ?? error?.message ?? "Erro ao convidar");
     }
     toast.success("Convite enviado!");
-    setEmail(""); setRole("viewer"); setSelectedIds([]);
+    setEmail(""); setRole("viewer"); setJobRoleId("none"); setSelectedIds([]);
     onOpenChange(false);
     onInvited();
   }
@@ -75,6 +79,8 @@ export function ConvidarUsuarioDialog({
               placeholder="usuario@empresa.com"
             />
           </div>
+
+          {role === "admin" && <div><Label>Cargo</Label><Select value={jobRoleId} onValueChange={setJobRoleId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="none">Sem cargo</SelectItem>{jobRoles.map((job) => <SelectItem key={job.id} value={job.id}>{job.label}</SelectItem>)}</SelectContent></Select></div>}
           <div>
             <Label>Papel</Label>
             <Select value={role} onValueChange={(v) => setRole(v as any)}>

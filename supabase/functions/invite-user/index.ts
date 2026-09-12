@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
     const email: string = body.email;
     const role: "admin" | "viewer" = body.role ?? "viewer";
     const portfolioIds: string[] = body.portfolio_ids ?? [];
+    const jobRoleId: string | null = body.job_role_id ?? null;
 
     if (!email) return json({ error: "Email obrigatório" }, 400);
 
@@ -61,6 +62,9 @@ Deno.serve(async (req) => {
         { user_id: newUserId, role: "admin" },
         { onConflict: "user_id,role" },
       );
+    }
+    if (jobRoleId) {
+      await admin.from("user_job_roles").upsert({ user_id: newUserId, job_role_id: jobRoleId, assigned_by: userData.user.id }, { onConflict: "user_id" });
     }
 
     // Vincular portfolios

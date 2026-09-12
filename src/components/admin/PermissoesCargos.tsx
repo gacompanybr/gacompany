@@ -21,7 +21,13 @@ export function PermissoesCargos({ roles }: { roles: JobRole[] }) {
     setSelected(next);
   }
   useEffect(() => { load(); }, [roles]);
-  const byModule = useMemo(() => Object.entries(Object.groupBy(permissions, (permission) => permission.module)), [permissions]);
+  const byModule = useMemo(() => {
+    const groups = permissions.reduce<Record<string, Permission[]>>((result, permission) => {
+      result[permission.module] = [...(result[permission.module] ?? []), permission];
+      return result;
+    }, {});
+    return Object.entries(groups);
+  }, [permissions]);
 
   async function save(roleId: string) {
     const { error: deleteError } = await sb.from("job_role_permissions").delete().eq("job_role_id", roleId);
