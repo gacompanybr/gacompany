@@ -18,6 +18,14 @@ type Profile = { user_id: string; display_name: string | null };
 type Portfolio = { id: string; name: string };
 const COLUMNS: TaskStatus[] = ["a_fazer", "em_andamento", "feita"];
 
+function localDateKey(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function DraggableTask({ task, ...props }: { task: Task; profiles: Map<string, Profile>; portfolioName?: string; onEdit: (task: Task) => void; onComplete: (task: Task) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id, data: { task } });
   return <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.45 : 1 }}><TaskCard task={task} {...props} dragHandleProps={{ ...attributes, ...listeners }} /></div>;
@@ -41,7 +49,7 @@ export function TarefasTab() {
   const [editing, setEditing] = useState<Task | null>(null);
   const [filterScope, setFilterScope] = useState<"all" | "mine">("all");
   const [filterPortfolio, setFilterPortfolio] = useState("all");
-  const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [filterDate, setFilterDate] = useState(() => localDateKey(new Date()));
   const [search, setSearch] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const canManage = hasPermission("tasks.manage");
@@ -68,7 +76,7 @@ export function TarefasTab() {
   const filtered = useMemo(() => tasks.filter((task) => {
     if (filterScope === "mine" && user && !(task.assignees ?? []).includes(user.id)) return false;
     if (filterPortfolio !== "all" && task.portfolio_id !== filterPortfolio) return false;
-    if (filterDate && task.prazo?.slice(0, 10) !== filterDate) return false;
+    if (filterDate && (!task.prazo || localDateKey(task.prazo) !== filterDate)) return false;
     if (search.trim() && !task.titulo.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   }), [tasks, filterScope, filterPortfolio, filterDate, search, user]);
