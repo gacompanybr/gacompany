@@ -46,7 +46,7 @@ const Navbar = () => {
       </div>
 
       {menuOpen && (
-        <div className="md:hidden bg-background/98 backdrop-blur-md border-b border-border px-4 pb-6">
+        <div className="md:hidden bg-background/98 backdrop-blur-md border-b border-border px-4 pb-6 max-h-[calc(100vh-4rem)] overflow-y-auto">
           {links.map((link) => (
             <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="block py-3 text-muted-foreground hover:text-primary transition-colors">
               {link.label}

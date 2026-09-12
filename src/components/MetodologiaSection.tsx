@@ -47,7 +47,7 @@ const MetodologiaSection = () => {
       <div className="container mx-auto px-4 lg:px-8 relative">
         <div className="text-center mb-16">
           <span className="text-primary font-semibold text-sm uppercase tracking-wider">Metodologia GAC</span>
-          <h2 className="font-heading text-3xl md:text-5xl font-bold mt-3">
+          <h2 className="font-heading text-2xl md:text-5xl font-bold mt-3">
             <span className="text-gradient-gold">GROW</span> · <span className="text-gradient-gold">ACTIVATE</span> · <span className="text-gradient-gold">CONVERT</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto mt-4">

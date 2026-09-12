@@ -270,7 +270,7 @@ function Hero() {
               <span className="block text-xl sm:text-2xl md:text-3xl text-muted-foreground font-medium mb-3">
                 Seu negócio bombando de clientes
               </span>
-              <span className="block text-4xl sm:text-5xl md:text-6xl lg:text-6xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
+              <span className="block text-[1.75rem] sm:text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[0.95] uppercase min-h-[1.1em]">
                 <TypewriterWords
                   words={[
                     "TODOS OS DIAS",
@@ -340,7 +340,7 @@ function Hero() {
             <motion.img
               src={notifMeta.url}
               alt="Meta de ROI batida"
-              className="absolute z-0 left-2 sm:-left-10 top-2 w-[62%] max-w-[300px] drop-shadow-2xl"
+              className="absolute z-0 left-2 sm:-left-10 top-2 w-[50%] sm:w-[62%] max-w-[300px] drop-shadow-2xl"
               animate={{ y: [0, -14, 0], x: [0, 6, 0] }}
               transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
             />
@@ -379,7 +379,7 @@ function Hero() {
             <motion.img
               src={notifNovoLead.url}
               alt="Novo lead capturado no WhatsApp"
-              className="absolute z-30 -left-8 sm:-left-20 top-[38%] w-[64%] max-w-[310px] drop-shadow-2xl"
+              className="absolute z-30 -left-4 sm:-left-20 top-[38%] w-[55%] sm:w-[64%] max-w-[310px] drop-shadow-2xl"
               animate={{ y: [0, 12, 0], x: [0, -6, 0] }}
               transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
             />
@@ -388,7 +388,7 @@ function Hero() {
             <motion.img
               src={notifFaturamento.url}
               alt="Faturamento dobrado em 90 dias"
-              className="absolute z-0 right-[-20%] sm:right-[-24%] top-[8%] w-[66%] max-w-[320px] drop-shadow-2xl"
+              className="absolute z-0 right-[-10%] sm:right-[-24%] top-[8%] w-[55%] sm:w-[66%] max-w-[320px] drop-shadow-2xl"
               animate={{ y: [0, -16, 0], x: [0, 8, 0] }}
               transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
             />
@@ -876,10 +876,10 @@ function CaseCard({ c }: { c: (typeof cases)[number] }) {
         "{c.quote}"
       </p>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 items-stretch">
+      <div className="mt-auto grid grid-cols-3 gap-1.5 md:gap-2 items-stretch">
         <div className="rounded-xl p-3 text-center border border-border bg-card/60">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Antes</p>
-          <p className="font-heading text-lg md:text-xl font-extrabold text-foreground">{c.antes}</p>
+          <p className="font-heading text-base md:text-xl font-extrabold text-foreground">{c.antes}</p>
         </div>
         <div className="rounded-xl p-3 text-center border border-border bg-card/60 flex flex-col items-center justify-center">
           <ArrowRight className="text-primary" size={18} />
@@ -887,7 +887,7 @@ function CaseCard({ c }: { c: (typeof cases)[number] }) {
         </div>
         <div className="rounded-xl p-3 text-center border border-primary/50 bg-primary/5 shadow-[var(--shadow-gold)]">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Depois</p>
-          <p className="font-heading text-lg md:text-xl font-extrabold text-primary">{c.depois}</p>
+          <p className="font-heading text-base md:text-xl font-extrabold text-primary">{c.depois}</p>
         </div>
       </div>
     </div>
