@@ -1,0 +1,11 @@
+REVOKE ALL ON FUNCTION public.has_permission(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.has_permission(uuid, text) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.get_my_permissions() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_permissions() TO authenticated;
+REVOKE ALL ON FUNCTION public.generate_task_deadline_notifications() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.generate_task_deadline_notifications() TO service_role;
+REVOKE ALL ON FUNCTION public.enforce_task_subtasks_complete() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.notify_task_assigned() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.notify_task_completed() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.notify_new_client() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.snapshot_task_actor_names() FROM PUBLIC, anon, authenticated;

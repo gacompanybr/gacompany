@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut } from "lucide-react";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 
 const TITLES: Record<AdminTab, string> = {
   dashboard: "Dashboard",
@@ -31,7 +32,19 @@ export default function Admin() {
     const saved = typeof window !== "undefined" ? localStorage.getItem(ADMIN_TAB_KEY) : null;
     return (saved as AdminTab) || "dashboard";
   });
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasPermission } = useAuth();
+
+  const tabPermissions: Record<AdminTab, string> = {
+    dashboard: "dashboard.view", clientes: "clients.view", equipe: "team.view",
+    tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
+    integracoes: "integrations.view", config: "settings.manage",
+  };
+
+  useEffect(() => {
+    if (hasPermission(tabPermissions[tab])) return;
+    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find((key) => hasPermission(tabPermissions[key]));
+    if (fallback) setTab(fallback);
+  }, [tab, hasPermission]);
 
   useEffect(() => {
     try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch {}
@@ -49,6 +62,7 @@ export default function Admin() {
               <h1 className="text-lg font-semibold truncate">{TITLES[tab]}</h1>
             </div>
             <div className="flex items-center gap-2">
+              <NotificationCenter />
               <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
                 {user?.email}
               </span>

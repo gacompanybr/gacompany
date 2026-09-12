@@ -9,7 +9,7 @@ import gaLogo from "@/assets/logo.png.asset.json";
 type Portfolio = { id: string; name: string; slug: string };
 
 export default function PainelHome() {
-  const { user, loading, isAdmin, getUserPortfolios, signOut } = useAuth();
+  const { user, loading, isAdmin, permissions, getUserPortfolios, signOut } = useAuth();
   const [portfolios, setPortfolios] = useState<Portfolio[] | null>(null);
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export default function PainelHome() {
 
   if (loading) return null;
   if (!user) return <Navigate to="/painel" replace />;
-  if (isAdmin) return <Navigate to="/paineladmin/app" replace />;
+  if (isAdmin || permissions.size > 0) return <Navigate to="/paineladmin/app" replace />;
 
   if (portfolios === null) {
     return (

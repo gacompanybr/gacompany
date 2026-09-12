@@ -1,0 +1,14 @@
+{
+  "name": "GA Company",
+  "short_name": "GA Company",
+  "description": "Gestão de clientes, equipe, tarefas e resultados da GA Company.",
+  "start_url": "/paineladmin/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

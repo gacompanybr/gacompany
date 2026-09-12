@@ -15,6 +15,17 @@ export type Task = {
   created_at: string;
   updated_at: string;
   assignees?: string[]; // user_ids
+  subtasks?: TaskSubtask[];
+};
+
+export type TaskSubtask = {
+  id: string;
+  task_id: string;
+  title: string;
+  position: number;
+  is_completed: boolean;
+  completed_by: string | null;
+  completed_at: string | null;
 };
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {

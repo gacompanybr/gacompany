@@ -1023,6 +1023,69 @@ export type Database = {
           },
         ]
       }
+      job_role_permissions: {
+        Row: {
+          created_at: string
+          job_role_id: string
+          permission_id: string
+        }
+        Insert: {
+          created_at?: string
+          job_role_id: string
+          permission_id: string
+        }
+        Update: {
+          created_at?: string
+          job_role_id?: string
+          permission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_role_permissions_job_role_id_fkey"
+            columns: ["job_role_id"]
+            isOneToOne: false
+            referencedRelation: "job_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_roles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          key: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          key: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          key?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leads_incompletos: {
         Row: {
           contexto: Json
@@ -1358,6 +1421,108 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          in_app_enabled: boolean
+          new_client: boolean
+          push_enabled: boolean
+          sound_enabled: boolean
+          task_assigned: boolean
+          task_completed: boolean
+          task_deadlines: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          in_app_enabled?: boolean
+          new_client?: boolean
+          push_enabled?: boolean
+          sound_enabled?: boolean
+          task_assigned?: boolean
+          task_completed?: boolean
+          task_deadlines?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          in_app_enabled?: boolean
+          new_client?: boolean
+          push_enabled?: boolean
+          sound_enabled?: boolean
+          task_assigned?: boolean
+          task_completed?: boolean
+          task_deadlines?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          data: Json
+          dedupe_key: string | null
+          id: string
+          pushed_at: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          data?: Json
+          dedupe_key?: string | null
+          id?: string
+          pushed_at?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          data?: Json
+          dedupe_key?: string | null
+          id?: string
+          pushed_at?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      permissions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          label: string
+          module: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          label: string
+          module: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          label?: string
+          module?: string
+        }
+        Relationships: []
+      }
       portfolio_responsaveis: {
         Row: {
           created_at: string
@@ -1444,6 +1609,39 @@ export type Database = {
           display_name?: string | null
           id?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_devices: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          last_seen_at: string
+          platform: string
+          token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          token?: string
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: []
@@ -2046,12 +2244,58 @@ export type Database = {
           },
         ]
       }
-      tasks: {
+      task_subtasks: {
         Row: {
           completed_at: string | null
           completed_by: string | null
           created_at: string
+          id: string
+          is_completed: boolean
+          position: number
+          task_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          position?: number
+          task_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          position?: number
+          task_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          completed_by_name: string | null
+          created_at: string
           created_by: string
+          created_by_name: string | null
           descricao: string | null
           id: string
           portfolio_id: string | null
@@ -2064,8 +2308,10 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           completed_by?: string | null
+          completed_by_name?: string | null
           created_at?: string
           created_by: string
+          created_by_name?: string | null
           descricao?: string | null
           id?: string
           portfolio_id?: string | null
@@ -2078,8 +2324,10 @@ export type Database = {
         Update: {
           completed_at?: string | null
           completed_by?: string | null
+          completed_by_name?: string | null
           created_at?: string
           created_by?: string
+          created_by_name?: string | null
           descricao?: string | null
           id?: string
           portfolio_id?: string | null
@@ -2090,6 +2338,71 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      team_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          created_at: string
+          details: Json
+          id: string
+          target_name: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          target_name?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          target_name?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_job_roles: {
+        Row: {
+          assigned_by: string | null
+          created_at: string
+          job_role_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          created_at?: string
+          job_role_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          created_at?: string
+          job_role_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_job_roles_job_role_id_fkey"
+            columns: ["job_role_id"]
+            isOneToOne: false
+            referencedRelation: "job_roles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_portfolio_access: {
         Row: {
@@ -2526,6 +2839,17 @@ export type Database = {
       }
     }
     Functions: {
+      generate_task_deadline_notifications: { Args: never; Returns: number }
+      get_my_permissions: {
+        Args: never
+        Returns: {
+          permission_key: string
+        }[]
+      }
+      has_permission: {
+        Args: { _permission_key: string; _user_id: string }
+        Returns: boolean
+      }
       has_portfolio_access: {
         Args: { _portfolio_id: string; _user_id: string }
         Returns: boolean

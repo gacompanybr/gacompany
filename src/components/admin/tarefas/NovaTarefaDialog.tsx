@@ -9,7 +9,9 @@ import { sb } from "@/lib/sb";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { ResponsaveisMultiSelect } from "@/components/admin/ResponsaveisMultiSelect";
-import type { Task, TaskPriority, TaskStatus } from "./types";
+import type { Task, TaskPriority, TaskStatus, TaskSubtask } from "./types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Trash2 } from "lucide-react";
 
 type Portfolio = { id: string; name: string };
 
@@ -32,6 +34,7 @@ export function NovaTarefaDialog({
   const [assignees, setAssignees] = useState<string[]>([]);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [saving, setSaving] = useState(false);
+  const [subtasks, setSubtasks] = useState<Array<Pick<TaskSubtask, "id" | "title" | "is_completed">>>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,9 +59,10 @@ export function NovaTarefaDialog({
       }
       setPortfolioId(editing.portfolio_id ?? "none");
       setAssignees(editing.assignees ?? []);
+      setSubtasks(editing.subtasks ?? []);
     } else {
       setTitulo(""); setDescricao(""); setStatus("a_fazer"); setPrioridade("media");
-      setPrazoDate(""); setPrazoTime(""); setPortfolioId("none"); setAssignees([]);
+      setPrazoDate(""); setPrazoTime(""); setPortfolioId("none"); setAssignees([]); setSubtasks([]);
     }
   }, [open, editing]);
 
@@ -94,6 +98,20 @@ export function NovaTarefaDialog({
         const rows = assignees.map((uid) => ({ task_id: taskId, user_id: uid }));
         const { error } = await sb.from("task_assignees").insert(rows);
         if (error) throw error;
+      }
+
+      if (taskId) {
+        const currentIds = subtasks.filter((item) => !item.id.startsWith("new-")).map((item) => item.id);
+        let deleteQuery = sb.from("task_subtasks").delete().eq("task_id", taskId);
+        if (currentIds.length > 0) deleteQuery = deleteQuery.not("id", "in", `(${currentIds.join(",")})`);
+        const { error: deleteError } = await deleteQuery;
+        if (deleteError) throw deleteError;
+        for (const [position, item] of subtasks.entries()) {
+          const payload = { task_id: taskId, title: item.title.trim(), is_completed: item.is_completed, position, completed_by: item.is_completed ? user.id : null, completed_at: item.is_completed ? new Date().toISOString() : null };
+          const query = item.id.startsWith("new-") ? sb.from("task_subtasks").insert(payload) : sb.from("task_subtasks").update(payload).eq("id", item.id);
+          const { error } = await query;
+          if (error) throw error;
+        }
       }
 
       toast.success(editing ? "Tarefa atualizada" : "Tarefa criada");
@@ -172,6 +190,19 @@ export function NovaTarefaDialog({
           <div>
             <Label>Responsáveis</Label>
             <ResponsaveisMultiSelect value={assignees} onChange={setAssignees} />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Subtarefas</Label>
+              <Button type="button" variant="ghost" size="sm" className="gap-1" onClick={() => setSubtasks((current) => [...current, { id: `new-${crypto.randomUUID()}`, title: "", is_completed: false }])}><Plus size={13} /> Adicionar</Button>
+            </div>
+            {subtasks.map((item, index) => (
+              <div key={item.id} className="flex items-center gap-2">
+                <Checkbox checked={item.is_completed} onCheckedChange={(checked) => setSubtasks((current) => current.map((row, i) => i === index ? { ...row, is_completed: checked === true } : row))} />
+                <Input value={item.title} placeholder={`Subtarefa ${index + 1}`} onChange={(event) => setSubtasks((current) => current.map((row, i) => i === index ? { ...row, title: event.target.value } : row))} />
+                <Button type="button" variant="ghost" size="icon" onClick={() => setSubtasks((current) => current.filter((_, i) => i !== index))} aria-label="Excluir subtarefa"><Trash2 size={14} /></Button>
+              </div>
+            ))}
           </div>
         </div>
 
