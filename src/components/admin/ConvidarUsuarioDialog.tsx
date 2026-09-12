@@ -81,7 +81,6 @@ export function ConvidarUsuarioDialog({
             />
           </div>
 
-          {role === "admin" && <div><Label>Cargo</Label><Select value={jobRoleId} onValueChange={setJobRoleId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="none">Sem cargo</SelectItem>{jobRoles.map((job) => <SelectItem key={job.id} value={job.id}>{job.label}</SelectItem>)}</SelectContent></Select></div>}
           <div>
             <Label>Papel</Label>
             <Select value={role} onValueChange={(v) => setRole(v as any)}>
@@ -98,6 +97,8 @@ export function ConvidarUsuarioDialog({
                 : "Vai acessar as áreas liberadas para o cargo. O administrador pode ser definido depois."}
             </p>
           </div>
+
+          {role === "admin" && <div><Label>Cargo</Label><Select value={jobRoleId} onValueChange={setJobRoleId}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent><SelectItem value="none">Sem cargo</SelectItem>{jobRoles.map((job) => <SelectItem key={job.id} value={job.id}>{job.label}</SelectItem>)}</SelectContent></Select></div>}
 
           {role === "viewer" && (
             <div>

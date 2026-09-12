@@ -73,14 +73,14 @@ export default function Admin() {
           </header>
 
           <main className="flex-1 p-4 lg:p-6 overflow-auto">
-            {tab === "dashboard" && <DashboardTab />}
-            {tab === "clientes" && <ClientesTab />}
-            {tab === "equipe" && <EquipeTab />}
-            {tab === "tarefas" && <TarefasTab />}
-            {tab === "calendario" && <CalendarioTab />}
-            {tab === "financeiro" && <FinanceiroTab />}
-            {tab === "integracoes" && <IntegracoesTab />}
-            {tab === "config" && (
+             {tab === "dashboard" && hasPermission("dashboard.view") && <DashboardTab />}
+             {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
+             {tab === "equipe" && hasPermission("team.view") && <EquipeTab />}
+             {tab === "tarefas" && hasPermission("tasks.view") && <TarefasTab />}
+             {tab === "calendario" && hasPermission("calendar.view") && <CalendarioTab />}
+             {tab === "financeiro" && hasPermission("finance.view") && <FinanceiroTab />}
+             {tab === "integracoes" && hasPermission("integrations.view") && <IntegracoesTab />}
+             {tab === "config" && hasPermission("settings.manage") && (
               <Card className="p-8 text-center text-muted-foreground">
                 Configurações gerais em breve.
               </Card>
