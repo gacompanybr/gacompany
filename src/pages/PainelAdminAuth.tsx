@@ -17,14 +17,14 @@ const schema = z.object({
 });
 
 export default function PainelAdminAuth() {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, permissions } = useAuth();
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   if (loading) return null;
-  if (user && isAdmin) return <Navigate to="/paineladmin/app" replace />;
-  if (user && !isAdmin) {
+  if (user && (isAdmin || permissions.size > 0)) return <Navigate to="/paineladmin/app" replace />;
+  if (user && !isAdmin && permissions.size === 0) {
     // Logado mas sem permissão: força logout
     supabase.auth.signOut().then(() => {
       toast.error("Esta conta não tem permissão administrativa.");
@@ -46,7 +46,7 @@ export default function PainelAdminAuth() {
         <div className="flex flex-col items-center gap-2">
           <img src={gaLogo.url} alt="GA Company" className="h-10 w-auto" />
           <div className="flex items-center gap-2 text-primary text-sm">
-            <ShieldCheck size={16} /> Acesso administrativo
+            <ShieldCheck size={16} /> Acesso da equipe
           </div>
         </div>
 
@@ -70,7 +70,7 @@ export default function PainelAdminAuth() {
         </div>
 
         <p className="text-xs text-center text-muted-foreground">
-          Contas administrativas são criadas internamente pela equipe.
+          Contas da equipe são criadas internamente.
           <br />
           <Link to="/painel" className="hover:text-foreground">É cliente? Acesse aqui →</Link>
         </p>

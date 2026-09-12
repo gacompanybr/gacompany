@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export function RequireAdmin({ children }: { children: ReactNode }) {
-  const { user, isAdmin, loading, getUserPortfolios } = useAuth();
+  const { user, isAdmin, permissions, loading, getUserPortfolios } = useAuth();
   const [redirect, setRedirect] = useState<string | null>(null);
   const [resolving, setResolving] = useState(true);
 
@@ -18,7 +18,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
         if (active) { setRedirect("/paineladmin"); setResolving(false); }
         return;
       }
-      if (isAdmin) {
+      if (isAdmin || permissions.size > 0) {
         if (active) { setRedirect(null); setResolving(false); }
         return;
       }
@@ -30,7 +30,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
     resolve();
     return () => { active = false; };
-  }, [loading, user, isAdmin, getUserPortfolios]);
+  }, [loading, user, isAdmin, permissions, getUserPortfolios]);
 
   if (loading || resolving) {
     return (

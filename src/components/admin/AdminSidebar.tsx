@@ -17,32 +17,32 @@ export type AdminTab =
   | "integracoes"
   | "config";
 
-const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any }[] }[] = [
+const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any; permission: string }[] }[] = [
   {
     label: "Visão geral",
-    items: [{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard }],
+    items: [{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard.view" }],
   },
   {
     label: "Operação",
     items: [
-      { key: "clientes", label: "Clientes", icon: Building2 },
-      { key: "equipe", label: "Equipe", icon: Users },
-      { key: "tarefas", label: "Tarefas", icon: CheckSquare },
-      { key: "calendario", label: "Calendário", icon: Calendar },
-      { key: "financeiro", label: "Financeiro", icon: Wallet },
-      { key: "integracoes", label: "Integrações", icon: Plug },
+      { key: "clientes", label: "Clientes", icon: Building2, permission: "clients.view" },
+      { key: "equipe", label: "Equipe", icon: Users, permission: "team.view" },
+      { key: "tarefas", label: "Tarefas", icon: CheckSquare, permission: "tasks.view" },
+      { key: "calendario", label: "Calendário", icon: Calendar, permission: "calendar.view" },
+      { key: "financeiro", label: "Financeiro", icon: Wallet, permission: "finance.view" },
+      { key: "integracoes", label: "Integrações", icon: Plug, permission: "integrations.view" },
     ],
   },
   {
     label: "Sistema",
-    items: [{ key: "config", label: "Configurações", icon: Settings }],
+    items: [{ key: "config", label: "Configurações", icon: Settings, permission: "settings.manage" }],
   },
 ];
 
 export function AdminSidebar({
   active, onChange,
 }: { active: AdminTab; onChange: (t: AdminTab) => void }) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasPermission } = useAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -56,7 +56,7 @@ export function AdminSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {GROUPS.map((g) => (
+        {GROUPS.map((g) => ({ ...g, items: g.items.filter((item) => hasPermission(item.permission)) })).filter((g) => g.items.length > 0).map((g) => (
           <SidebarGroup key={g.label}>
             <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
             <SidebarGroupContent>

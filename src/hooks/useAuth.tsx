@@ -8,6 +8,8 @@ type AuthCtx = {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  permissions: Set<string>;
+  hasPermission: (permission: string) => boolean;
   loading: boolean;
   signOut: () => Promise<void>;
   getUserPortfolios: () => Promise<PortfolioMini[]>;
@@ -16,12 +18,13 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx>({
   user: null, session: null, isAdmin: false, loading: true,
+  permissions: new Set(), hasPermission: () => false,
   signOut: async () => {},
   getUserPortfolios: async () => [],
   hasPortfolioAccess: async () => false,
 });
 
-async function fetchRole(userId: string): Promise<boolean> {
+async function fetchAccess(userId: string): Promise<{ admin: boolean; permissions: Set<string> }> {
   // Tenta até 5 vezes com backoff — o trigger pode demorar alguns ms após signup
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data, error } = await supabase
@@ -30,16 +33,19 @@ async function fetchRole(userId: string): Promise<boolean> {
       .eq("user_id", userId);
 
     if (!error && data) {
-      return data.some((r: any) => r.role === "admin");
+      const admin = data.some((r: any) => r.role === "admin");
+      const { data: permissionRows } = await supabase.rpc("get_my_permissions");
+      return { admin, permissions: new Set((permissionRows ?? []).map((row) => row.permission_key)) };
     }
     await new Promise((res) => setTimeout(res, 300 * (attempt + 1)));
   }
-  return false;
+  return { admin: false, permissions: new Set() };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,10 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (opts.initial) setLoading(true);
 
       if (s?.user) {
-        const admin = await fetchRole(s.user.id);
-        if (active) setIsAdmin(admin);
+        const access = await fetchAccess(s.user.id);
+        if (active) {
+          setIsAdmin(access.admin);
+          setPermissions(access.permissions);
+        }
       } else if (active) {
         setIsAdmin(false);
+        setPermissions(new Set());
       }
 
       if (active && opts.initial) setLoading(false);
@@ -117,6 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         session,
         isAdmin,
+        permissions,
+        hasPermission: (permission: string) => isAdmin || permissions.has(permission),
         loading,
         signOut: async () => { await supabase.auth.signOut(); },
         getUserPortfolios,
