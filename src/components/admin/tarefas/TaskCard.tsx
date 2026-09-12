@@ -2,21 +2,21 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Check, Clock, Pencil } from "lucide-react";
+import { Calendar, Check, Clock, GripVertical, ListChecks, Pencil } from "lucide-react";
 import { type Task, PRIORITY_COLORS, PRIORITY_LABELS, isOverdue } from "./types";
 import { cn } from "@/lib/utils";
 
 type Profile = { user_id: string; display_name: string | null };
 
 export function TaskCard({
-  task, profiles, portfolioName, onEdit, onComplete, onStatusChange,
+  task, profiles, portfolioName, onEdit, onComplete, dragHandleProps,
 }: {
   task: Task;
   profiles: Map<string, Profile>;
   portfolioName?: string;
   onEdit: (t: Task) => void;
   onComplete: (t: Task) => void;
-  onStatusChange: (t: Task, status: Task["status"]) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }) {
   const overdue = isOverdue(task);
   const prazoLabel = task.prazo
@@ -24,7 +24,7 @@ export function TaskCard({
     : null;
 
   return (
-    <Card className={cn("p-3 space-y-2 hover:border-primary/50 transition-colors", overdue && "border-destructive/50")}>
+    <Card className={cn("p-3 space-y-2 hover:border-primary/50 transition-colors", overdue && "border-destructive/50")} onClick={() => onEdit(task)}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-medium text-sm leading-tight">{task.titulo}</p>
@@ -33,16 +33,25 @@ export function TaskCard({
           )}
         </div>
         <div className="flex gap-1 shrink-0">
+          <div {...dragHandleProps} className="cursor-grab touch-none p-1 text-muted-foreground" onClick={(event) => event.stopPropagation()}><GripVertical size={14} /></div>
           {task.status !== "feita" && (
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onComplete(task)} title="Marcar feita">
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(event) => { event.stopPropagation(); onComplete(task); }} title="Marcar feita">
               <Check size={14} />
             </Button>
           )}
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(task)} title="Editar">
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(event) => { event.stopPropagation(); onEdit(task); }} title="Editar">
             <Pencil size={12} />
           </Button>
         </div>
       </div>
+
+      {(task.subtasks ?? []).length > 0 && (
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <ListChecks size={12} />
+          <span>{task.subtasks?.filter((item) => item.is_completed).length}/{task.subtasks?.length} subtarefas</span>
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${((task.subtasks?.filter((item) => item.is_completed).length ?? 0) / (task.subtasks?.length ?? 1)) * 100}%` }} /></div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge className={cn("text-[10px] px-1.5 py-0", PRIORITY_COLORS[task.prioridade])} variant="outline">
@@ -78,22 +87,6 @@ export function TaskCard({
         </div>
       )}
 
-      {task.status !== "feita" && (
-        <div className="flex gap-1 pt-1 border-t border-border">
-          {task.status === "a_fazer" && (
-            <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2"
-              onClick={() => onStatusChange(task, "em_andamento")}>
-              → Em andamento
-            </Button>
-          )}
-          {task.status === "em_andamento" && (
-            <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2"
-              onClick={() => onStatusChange(task, "a_fazer")}>
-              ← A fazer
-            </Button>
-          )}
-        </div>
-      )}
     </Card>
   );
 }
