@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Target, DollarSign, Wallet, Eye, Users, TrendingUp,
+  ArrowLeft, Target, DollarSign, Wallet, Eye, EyeOff, Users, TrendingUp,
   TrendingDown, Activity, Calendar, RefreshCw, Loader2,
 } from "lucide-react";
 import {
@@ -34,8 +34,8 @@ const fmtBRL = (n: number) =>
 const fmtNum = (n: number) => n.toLocaleString("pt-BR");
 
 function KpiCard({
-  icon: Icon, label, value, hint, accent = false, delta,
-}: { icon: any; label: string; value: string; hint?: string; accent?: boolean; delta?: number | null }) {
+  icon: Icon, label, value, hint, accent = false, delta, valuesVisible,
+}: { icon: any; label: string; value: string; hint?: string; accent?: boolean; delta?: number | null; valuesVisible: boolean }) {
   const showDelta = typeof delta === "number" && isFinite(delta);
   const positive = (delta ?? 0) >= 0;
   return (
@@ -46,8 +46,8 @@ function KpiCard({
           <Icon size={16} className={accent ? "text-primary" : "text-muted-foreground"} />
         </div>
       </div>
-      <div className="text-2xl lg:text-3xl font-bold tracking-tight">{value}</div>
-      {showDelta && (
+      <div className={`text-2xl lg:text-3xl font-bold tracking-tight ${valuesVisible ? "" : "blur-[1px] select-none"}`}>{valuesVisible ? value : "*****"}</div>
+      {showDelta && valuesVisible && (
         <div className={`mt-1 inline-flex items-center gap-1 text-xs font-semibold ${positive ? "text-emerald-500" : "text-red-500"}`}>
           {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
           {positive ? "+" : ""}{delta!.toFixed(0)}%
@@ -75,6 +75,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [period, setPeriod] = useState("current_month");
+  const [valuesVisible, setValuesVisible] = useState(false);
 
   // Pick first portfolio once data arrives
   useEffect(() => {
@@ -407,6 +408,18 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
       )}
 
       <main className="container mx-auto space-y-4 overflow-x-hidden px-2.5 py-4 sm:px-4 sm:py-6 lg:px-6 lg:space-y-6">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setValuesVisible((visible) => !visible)}
+            aria-label={valuesVisible ? "Ocultar valores" : "Mostrar valores"}
+          >
+            {valuesVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+            <span>{valuesVisible ? "Ocultar valores" : "Mostrar valores"}</span>
+          </Button>
+        </div>
         {/* Filters */}
         {/* Tabs por origem dos dados */}
         {(hasMeta || hasGoogle) && (
@@ -498,12 +511,14 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
                 value={fmtNum(totals.conversions)}
                 hint="Ações de conversão registradas no Google Ads (leads, formulários, etc.)."
                 accent
+                valuesVisible={valuesVisible}
               />
               <KpiCard
                 icon={DollarSign}
                 label="Custo por conversão"
                 value={fmtBRL(costPerConversion)}
                 hint="Investimento médio para gerar 1 conversão."
+                valuesVisible={valuesVisible}
               />
             </>
           )}
@@ -516,6 +531,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
               : resultDescription}
             accent={!showConversionsKpi}
             delta={deltaResults}
+            valuesVisible={valuesVisible}
           />
           {!showConversionsKpi && (
             <KpiCard
@@ -523,6 +539,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
               label="Custo por resultado"
               value={fmtBRL(cpr)}
               hint="Valor médio gasto para gerar 1 resultado."
+              valuesVisible={valuesVisible}
             />
           )}
           <KpiCard
@@ -530,6 +547,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             label="Orçamento"
             value={totals.budget ? fmtBRL(totals.budget) : "—"}
             hint="Soma dos orçamentos definidos."
+            valuesVisible={valuesVisible}
           />
           <KpiCard
             icon={Activity}
@@ -537,6 +555,7 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             value={fmtBRL(totals.spent)}
             hint="Investimento real consumido pelas campanhas."
             delta={deltaSpent}
+            valuesVisible={valuesVisible}
           />
           <KpiCard
             icon={Eye}
@@ -544,12 +563,14 @@ const Dashboard = ({ portfolioId: lockedPortfolioId, embedded = false }: Dashboa
             value={fmtNum(totals.impressions)}
             hint="Total de exibições dos anúncios."
             delta={deltaImpressions}
+            valuesVisible={valuesVisible}
           />
           <KpiCard
             icon={Users}
             label="Alcance"
             value={fmtNum(totals.reach)}
             hint="Pessoas únicas atingidas."
+            valuesVisible={valuesVisible}
           />
         </div>
 

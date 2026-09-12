@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Building2, Wallet, CalendarClock, Users, TrendingDown, TrendingUp } from "lucide-react";
+import { Building2, Wallet, CalendarClock, Users, TrendingDown, TrendingUp, Eye, EyeOff } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 function brl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -11,6 +13,8 @@ function brl(v: number) {
 
 export function DashboardTab() {
   const { hasPermission } = useAuth();
+  const [valuesVisible, setValuesVisible] = useState(false);
+  const privateValue = (value: string) => valuesVisible ? value : "*****";
   const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: async () => {
@@ -90,6 +94,18 @@ export function DashboardTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => setValuesVisible((visible) => !visible)}
+          aria-label={valuesVisible ? "Ocultar valores" : "Mostrar valores"}
+        >
+          {valuesVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+          <span>{valuesVisible ? "Ocultar valores" : "Mostrar valores"}</span>
+        </Button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {cards.map((c) => (
           <Card key={c.label} className="p-4 space-y-2">
@@ -97,8 +113,8 @@ export function DashboardTab() {
               <span className="text-xs text-muted-foreground">{c.label}</span>
               <c.icon className="text-primary" size={16} />
             </div>
-            <p className="break-words text-xl font-semibold sm:text-2xl">{c.value}</p>
-            {c.sub && <p className="text-xs text-muted-foreground">{c.sub}</p>}
+            <p className={`break-words text-xl font-semibold sm:text-2xl ${valuesVisible ? "" : "blur-[1px] select-none"}`}>{privateValue(c.value)}</p>
+            {c.sub && <p className={`text-xs text-muted-foreground ${valuesVisible ? "" : "blur-[1px] select-none"}`}>{privateValue(c.sub)}</p>}
           </Card>
         ))}
       </div>
@@ -112,15 +128,15 @@ export function DashboardTab() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-md border border-border p-3">
             <div className="text-xs text-muted-foreground">Faturamento bruto</div>
-            <div className="break-words text-lg font-bold sm:text-xl">{brl(data.brutoMes)}</div>
+            <div className={`break-words text-lg font-bold sm:text-xl ${valuesVisible ? "" : "blur-[1px] select-none"}`}>{privateValue(brl(data.brutoMes))}</div>
           </div>
           <div className="rounded-md border border-border p-3">
             <div className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingDown size={12} /> Custos do mês
             </div>
-            <div className="break-words text-lg font-bold text-destructive sm:text-xl">- {brl(data.custosMes)}</div>
-            <div className="text-[11px] text-muted-foreground">
-              {brl(data.custosMensais)} mensais + {brl(data.custosUnicos)} únicos
+            <div className={`break-words text-lg font-bold text-destructive sm:text-xl ${valuesVisible ? "" : "blur-[1px] select-none"}`}>{valuesVisible ? `- ${brl(data.custosMes)}` : "*****"}</div>
+            <div className={`text-[11px] text-muted-foreground ${valuesVisible ? "" : "blur-[1px] select-none"}`}>
+              {valuesVisible ? `${brl(data.custosMensais)} mensais + ${brl(data.custosUnicos)} únicos` : "*****"}
             </div>
           </div>
           <div className="rounded-md border border-border p-3">
@@ -130,7 +146,7 @@ export function DashboardTab() {
                 data.liquidoMes >= 0 ? "text-green-400" : "text-red-400"
               }`}
             >
-              {brl(data.liquidoMes)}
+              <span className={valuesVisible ? "" : "blur-[1px] select-none"}>{privateValue(brl(data.liquidoMes))}</span>
             </div>
           </div>
           <div className="rounded-md border border-border p-3">
@@ -140,10 +156,10 @@ export function DashboardTab() {
                 data.mrrLiquido >= 0 ? "text-green-400" : "text-red-400"
               }`}
             >
-              {brl(data.mrrLiquido)}
+              <span className={valuesVisible ? "" : "blur-[1px] select-none"}>{privateValue(brl(data.mrrLiquido))}</span>
             </div>
             <div className="text-[11px] text-muted-foreground">
-              MRR {brl(data.mrr)} − custos recorrentes
+              {valuesVisible ? `MRR ${brl(data.mrr)} − custos recorrentes` : <span className="blur-[1px] select-none">*****</span>}
             </div>
           </div>
         </div>
