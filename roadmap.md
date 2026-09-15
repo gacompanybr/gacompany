@@ -11,3 +11,4 @@
 - [x] Adicionar áudio pontual por campanha no SDR com Google Cloud TTS
 - [x] Instalar Pixel da Meta na página inicial e registrar conversões Lead com proteção regional
 - [x] Criar landing page curta em /forms para restaurantes e delivery com WhatsApp e Pixel
+- [x] Usar logos enviadas na faixa de parceiros e incluir os clientes abaixo do formulário

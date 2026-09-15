@@ -2,17 +2,24 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Check, MessageCircle, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ClientsMarquee from "@/components/ClientsMarquee";
 import { initializeMetaPixel, trackMetaLead } from "@/lib/metaPixel";
+import aiqfomeAsset from "@/assets/delivery-platforms/aiqfome.png.asset.json";
+import ifoodAsset from "@/assets/delivery-platforms/ifood.png.asset.json";
+import food99Asset from "@/assets/delivery-platforms/99food.png.asset.json";
+import uberEatsAsset from "@/assets/delivery-platforms/uber-eats.png.asset.json";
+import rappiAsset from "@/assets/delivery-platforms/rappi.png.asset.json";
+import delMatchAsset from "@/assets/delivery-platforms/del-match.png.asset.json";
 
 const WHATSAPP = "5512988334006";
 
 const platforms = [
-  { name: "iFood", accent: true },
-  { name: "99Food", accent: true },
-  { name: "Uber Eats" },
-  { name: "Rappi", accent: true },
-  { name: "Delivery Much" },
-  { name: "aiqfome", accent: true },
+  { name: "aiqfome", logo: aiqfomeAsset.url },
+  { name: "iFood", logo: ifoodAsset.url },
+  { name: "99Food", logo: food99Asset.url },
+  { name: "Uber Eats", logo: uberEatsAsset.url },
+  { name: "Rappi", logo: rappiAsset.url },
+  { name: "Del Match Delivery", logo: delMatchAsset.url },
 ];
 
 const fieldClass =
@@ -27,12 +34,10 @@ function PlatformStrip() {
         {repeated.map((platform, index) => (
           <div
             key={`${platform.name}-${index}`}
-            className="flex h-7 w-24 shrink-0 items-center justify-center opacity-70 grayscale transition hover:opacity-100 hover:grayscale-0"
+            className="flex h-9 w-28 shrink-0 items-center justify-center opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
             aria-hidden={index >= platforms.length}
           >
-            <span className={`whitespace-nowrap font-heading text-sm font-bold ${platform.accent ? "text-primary" : "text-foreground"}`}>
-              {platform.name}
-            </span>
+            <img src={platform.logo} alt={platform.name} className="max-h-9 max-w-28 object-contain" />
           </div>
         ))}
       </div>
@@ -206,6 +211,15 @@ const RestaurantForms = () => {
           </div>
         </section>
       </div>
+
+      <section aria-labelledby="clients-title" className="relative z-10 border-t border-border/70 py-8 sm:py-10">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p id="clients-title" className="mb-6 text-center text-xs font-semibold uppercase text-muted-foreground">
+            Alguns clientes que confiam na GA Company
+          </p>
+          <ClientsMarquee compact />
+        </div>
+      </section>
 
       <footer className="relative z-10 border-t border-border/70 py-5 text-center text-xs text-muted-foreground">
         © 2026 GA Company · Marketing para restaurantes e delivery
