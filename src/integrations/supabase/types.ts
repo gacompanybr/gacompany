@@ -1932,6 +1932,10 @@ export type Database = {
       }
       sdr_campaigns: {
         Row: {
+          audio_enabled: boolean
+          audio_long_message_threshold: number
+          audio_on_intro: boolean
+          audio_on_long_message: boolean
           created_at: string
           finished_at: string | null
           id: string
@@ -1943,6 +1947,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audio_enabled?: boolean
+          audio_long_message_threshold?: number
+          audio_on_intro?: boolean
+          audio_on_long_message?: boolean
           created_at?: string
           finished_at?: string | null
           id?: string
@@ -1954,6 +1962,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audio_enabled?: boolean
+          audio_long_message_threshold?: number
+          audio_on_intro?: boolean
+          audio_on_long_message?: boolean
           created_at?: string
           finished_at?: string | null
           id?: string

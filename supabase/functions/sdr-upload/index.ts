@@ -34,7 +34,16 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "Não autenticado" }, 401);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const { portfolioId, nome, ratePerHour, rows } = await req.json();
+    const {
+      portfolioId,
+      nome,
+      ratePerHour,
+      audioEnabled,
+      audioOnIntro,
+      audioOnLongMessage,
+      audioLongMessageThreshold,
+      rows,
+    } = await req.json();
     if (!portfolioId) return json({ error: "portfolioId obrigatório" }, 400);
     if (!Array.isArray(rows) || rows.length === 0) return json({ error: "Planilha vazia" }, 400);
 
@@ -82,6 +91,10 @@ Deno.serve(async (req) => {
         portfolio_id: portfolioId,
         nome: nome || `Campanha ${new Date().toISOString().slice(0, 10)}`,
         rate_per_hour: Math.max(1, Math.min(500, Number(ratePerHour ?? 30))),
+        audio_enabled: audioEnabled === true,
+        audio_on_intro: audioOnIntro !== false,
+        audio_on_long_message: audioOnLongMessage !== false,
+        audio_long_message_threshold: Math.max(200, Math.min(2000, Number(audioLongMessageThreshold ?? 420))),
         total_leads: valid.length,
         status: "draft",
       })

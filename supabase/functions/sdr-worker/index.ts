@@ -13,6 +13,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const EVO_URL = Deno.env.get("EVOLUTION_API_URL")!;
 const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const GOOGLE_CLOUD_TTS_API_KEY = Deno.env.get("GOOGLE_CLOUD_TTS_API_KEY") ?? "";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -61,6 +62,61 @@ function splitMessage(text: string): string[] {
 const SPLIT_DELAY_MS = 8000;
 
 type SendResult = { ok: boolean; invalidNumber: boolean };
+
+async function synthesizeSpeech(text: string): Promise<string | null> {
+  if (!GOOGLE_CLOUD_TTS_API_KEY || !text.trim()) return null;
+  try {
+    const r = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(GOOGLE_CLOUD_TTS_API_KEY)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: { text: text.trim() },
+        voice: { languageCode: "pt-BR", name: "pt-BR-Neural2-B" },
+        audioConfig: { audioEncoding: "OGG_OPUS", speakingRate: 1.04, pitch: 0 },
+      }),
+    });
+    if (!r.ok) {
+      console.error("Google TTS fail", r.status, (await r.text()).slice(0, 300));
+      return null;
+    }
+    const body = await r.json();
+    return typeof body?.audioContent === "string" && body.audioContent ? body.audioContent : null;
+  } catch (e) {
+    console.error("Google TTS exception", e);
+    return null;
+  }
+}
+
+async function evoSendAudio(instance: string, number: string, text: string, portfolioId?: string | null): Promise<SendResult> {
+  const audio = await synthesizeSpeech(text);
+  if (!audio) return { ok: false, invalidNumber: false };
+  try {
+    const r = await fetch(`${EVO_URL}/message/sendWhatsAppAudio/${instance}`, {
+      method: "POST",
+      headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ number, audio: `data:audio/ogg;codecs=opus;base64,${audio}` }),
+    });
+    if (r.ok) {
+      try {
+        const body = await r.clone().json().catch(() => null);
+        const msgId = body?.key?.id ?? body?.message?.key?.id ?? body?.data?.key?.id ?? null;
+        if (msgId && portfolioId) {
+          await admin.from("whatsapp_sent_messages_log").upsert(
+            { portfolio_id: portfolioId, instance_name: instance, phone: number, message_id: String(msgId) },
+            { onConflict: "message_id", ignoreDuplicates: true },
+          );
+        }
+      } catch { /* log best-effort */ }
+      return { ok: true, invalidNumber: false };
+    }
+    const responseText = await r.text();
+    console.error("evoSendAudio fail", instance, number, r.status, responseText.slice(0, 300));
+    return { ok: false, invalidNumber: r.status === 400 && /"exists"\s*:\s*false/i.test(responseText) };
+  } catch (e) {
+    console.error("evoSendAudio exception", instance, number, e);
+    return { ok: false, invalidNumber: false };
+  }
+}
 
 async function evoSend(instance: string, number: string, text: string, portfolioId?: string | null): Promise<SendResult> {
   try {
@@ -111,6 +167,51 @@ async function sendInBubbles(instance: string, number: string, text: string, por
     if (i < parts.length - 1) await sleep(SPLIT_DELAY_MS);
   }
   return { sent, failed, invalidNumber };
+}
+
+async function sendOpeningWithAudio(
+  instance: string,
+  number: string,
+  text: string,
+  campaign: any,
+  portfolioId?: string | null,
+): Promise<{ sent: string[]; failed: string[]; invalidNumber: boolean; audioSent: string[] }> {
+  const parts = splitMessage(text);
+  const sent: string[] = [];
+  const failed: string[] = [];
+  const audioSent: string[] = [];
+  let invalidNumber = false;
+  const longOpeningAsAudio = campaign.audio_enabled === true && campaign.audio_on_intro !== true &&
+    campaign.audio_on_long_message === true && text.length >= Number(campaign.audio_long_message_threshold ?? 420);
+
+  if (longOpeningAsAudio) {
+    let result = await evoSendAudio(instance, number, text, portfolioId);
+    if (result.ok) return { sent: [text], failed, invalidNumber: false, audioSent: [text] };
+    if (!result.invalidNumber) {
+      return { ...(await sendInBubbles(instance, number, text, portfolioId)), audioSent };
+    }
+    return { sent, failed: [text], invalidNumber: true, audioSent };
+  }
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const shouldUseAudio = campaign.audio_enabled === true && campaign.audio_on_intro === true && i === 0;
+    let result: SendResult;
+    if (shouldUseAudio) {
+      result = await evoSendAudio(instance, number, part, portfolioId);
+      if (result.ok) audioSent.push(part);
+      else if (!result.invalidNumber) result = await evoSend(instance, number, part, portfolioId);
+    } else {
+      result = await evoSend(instance, number, part, portfolioId);
+    }
+    if (result.ok) sent.push(part);
+    else {
+      failed.push(part);
+      if (result.invalidNumber) { invalidNumber = true; break; }
+    }
+    if (i < parts.length - 1) await sleep(SPLIT_DELAY_MS);
+  }
+  return { sent, failed, invalidNumber, audioSent };
 }
 
 
@@ -423,8 +524,9 @@ async function processCampaign(campaign: any) {
       const nameResolved = await resolveName(instance, lead);
       const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
       await sleep(rand(8000, 16000));
-      const { sent, failed, invalidNumber } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
-      await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, sent, failed);
+      const { sent, failed, invalidNumber, audioSent } = await sendOpeningWithAudio(instance, lead.telefone, text, campaign, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
+      const loggedSent = sent.map((message) => audioSent.includes(message) ? `[ÁUDIO] ${message}` : message);
+      await logAssistant({ ...lead, nome_resolvido: nameResolved }, instance, loggedSent, failed);
       if (sent.length) {
         await admin.from("sdr_leads").update({
           enviado: true,
