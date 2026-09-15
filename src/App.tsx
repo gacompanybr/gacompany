@@ -18,6 +18,7 @@ const PainelHome = lazy(() => import("./pages/PainelHome.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Workspace = lazy(() => import("./pages/Workspace.tsx"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy.tsx"));
+const RestaurantForms = lazy(() => import("./pages/RestaurantForms.tsx"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +44,7 @@ const App = () => (
           <Suspense fallback={<PageFallback />}>
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/forms" element={<RestaurantForms />} />
               <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
 
               {/* Painel do CLIENTE */}
