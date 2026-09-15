@@ -29,6 +29,8 @@ import notifMeta from "@/assets/notif-meta.png.asset.json";
 import ClientesSection from "@/components/ClientesSection";
 import AngledDivider from "@/components/AngledDivider";
 import SobreSection from "@/components/SobreSection";
+import { Button } from "@/components/ui/button";
+import { trackMetaLead } from "@/lib/metaPixel";
 
 
 // ==== CONFIG ====
@@ -1016,6 +1018,7 @@ function FormSection() {
       `*WhatsApp:* ${form.whatsapp}%0A` +
       `*Instagram:* @${form.instagram.replace(/^@/, "")}%0A` +
       `*Faturamento/mês:* ${form.faturamento}`;
+    void trackMetaLead();
     window.open(`https://wa.me/${WHATSAPP}?text=${msg}`, "_blank");
     setSubmitted(true);
   };
@@ -1146,14 +1149,17 @@ function FormSection() {
                   </select>
                 </div>
 
-                <button
+                <Button
                   type="submit"
-                  className="w-full bg-gradient-gold text-primary-foreground py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 hover:opacity-95 hover:scale-[1.01] active:scale-[0.99] transition-all shadow-[var(--shadow-gold)]"
+                  className="h-auto w-full bg-gradient-gold py-4 text-lg font-bold shadow-[var(--shadow-gold)] transition-all hover:scale-[1.01] hover:opacity-95 active:scale-[0.99]"
                 >
                   Quero minha análise gratuita <ArrowRight size={20} />
-                </button>
+                </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Sem compromisso · resposta pelo WhatsApp · análise personalizada
+                  Sem compromisso · resposta pelo WhatsApp · análise personalizada ·{" "}
+                  <a href="/politica-de-privacidade" className="underline hover:text-primary">
+                    Política de Privacidade
+                  </a>
                 </p>
               </form>
             )}
@@ -1197,6 +1203,11 @@ function Footer() {
           <div className="text-xs text-muted-foreground text-center md:text-right">
             <p>São José dos Campos · SP</p>
             <p>WhatsApp {WHATSAPP_LABEL}</p>
+            <p className="mt-1">
+              <a href="/politica-de-privacidade" className="underline hover:text-primary">
+                Política de Privacidade
+              </a>
+            </p>
             <p className="mt-1">© {new Date().getFullYear()} GA Company. Todos os direitos reservados.</p>
           </div>
         </div>

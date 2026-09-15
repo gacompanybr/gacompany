@@ -9,3 +9,4 @@
 - [x] Tornar o painel instalável e ativar push no celular
 - [x] Testar segurança, desktop e celular
 - [x] Adicionar áudio pontual por campanha no SDR com Google Cloud TTS
+- [x] Instalar Pixel da Meta na página inicial e registrar conversões Lead com proteção regional
