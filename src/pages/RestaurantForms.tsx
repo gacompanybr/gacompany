@@ -34,7 +34,7 @@ function PlatformStrip() {
         {repeated.map((platform, index) => (
           <div
             key={`${platform.name}-${index}`}
-            className="flex h-9 w-28 shrink-0 items-center justify-center opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
+            className="flex h-9 w-28 shrink-0 items-center justify-center"
             aria-hidden={index >= platforms.length}
           >
             <img src={platform.logo} alt={platform.name} className="max-h-9 max-w-28 object-contain" />
