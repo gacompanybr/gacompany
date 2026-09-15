@@ -181,13 +181,21 @@ async function sendOpeningWithAudio(
   const failed: string[] = [];
   const audioSent: string[] = [];
   let invalidNumber = false;
+  const longOpeningAsAudio = campaign.audio_enabled === true && campaign.audio_on_intro !== true &&
+    campaign.audio_on_long_message === true && text.length >= Number(campaign.audio_long_message_threshold ?? 420);
+
+  if (longOpeningAsAudio) {
+    let result = await evoSendAudio(instance, number, text, portfolioId);
+    if (result.ok) return { sent: [text], failed, invalidNumber: false, audioSent: [text] };
+    if (!result.invalidNumber) {
+      return { ...(await sendInBubbles(instance, number, text, portfolioId)), audioSent };
+    }
+    return { sent, failed: [text], invalidNumber: true, audioSent };
+  }
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
-    const shouldUseAudio = campaign.audio_enabled === true && (
-      (campaign.audio_on_intro === true && i === 0) ||
-      (campaign.audio_on_long_message === true && part.length >= Number(campaign.audio_long_message_threshold ?? 420))
-    );
+    const shouldUseAudio = campaign.audio_enabled === true && campaign.audio_on_intro === true && i === 0;
     let result: SendResult;
     if (shouldUseAudio) {
       result = await evoSendAudio(instance, number, part, portfolioId);

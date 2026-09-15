@@ -974,12 +974,17 @@ async function sendSdrReply(
   const sent: string[] = [];
   const failed: string[] = [];
   const threshold = Number(campaign?.audio_long_message_threshold ?? 420);
+  const fullText = parts.join(" ").trim();
+  const shouldUseAudio = campaign?.audio_enabled === true && campaign?.audio_on_long_message === true && fullText.length >= threshold;
+  if (shouldUseAudio) {
+    const audioOk = await sendAudioOnce(instance, targets, fullText, ctx);
+    if (audioOk) return { sent: [`[ÁUDIO] ${fullText}`], failed };
+    return sendText(instance, targets, parts, ctx);
+  }
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
-    const shouldUseAudio = campaign?.audio_enabled === true && campaign?.audio_on_long_message === true && part.length >= threshold;
-    let ok = shouldUseAudio ? await sendAudioOnce(instance, targets, part, ctx) : false;
-    if (!ok) ok = await sendOnce(instance, targets, part, ctx);
-    if (ok) sent.push(shouldUseAudio ? `[ÁUDIO] ${part}` : part);
+    const ok = await sendOnce(instance, targets, part, ctx);
+    if (ok) sent.push(part);
     else failed.push(part);
     if (i < parts.length - 1) await new Promise((resolve) => setTimeout(resolve, randomSplitDelayMs()));
   }
