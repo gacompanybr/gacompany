@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Check, MessageCircle, Store } from "lucide-react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import ClientsMarquee from "@/components/ClientsMarquee";
 import { initializeMetaPixel, trackMetaLead } from "@/lib/metaPixel";
@@ -24,6 +25,15 @@ const platforms = [
 
 const fieldClass =
   "h-12 w-full rounded-lg border border-border bg-background px-4 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+const formSchema = z.object({
+  nome: z.string().trim().min(2, "Informe seu nome.").max(100, "Nome muito longo."),
+  whatsapp: z.string().refine((value) => value.replace(/\D/g, "").length >= 10, "Informe o WhatsApp com DDD."),
+  negocio: z.string().trim().max(120, "Nome do restaurante muito longo."),
+  faturamento: z.string().min(1, "Selecione o faturamento mensal."),
+});
+
+type FormField = keyof z.infer<typeof formSchema>;
 
 function PlatformStrip() {
   const repeated = [...platforms, ...platforms];
@@ -51,10 +61,9 @@ const RestaurantForms = () => {
     nome: "",
     whatsapp: "",
     negocio: "",
-    instagram: "",
-    plataforma: "",
     faturamento: "",
   });
+  const [errors, setErrors] = useState<Partial<Record<FormField, string>>>({});
 
   useEffect(() => {
     document.title = "Marketing para Restaurantes e Delivery | GA Company";
@@ -70,15 +79,25 @@ const RestaurantForms = () => {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const result = formSchema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<FormField, string>> = {};
+      result.error.issues.forEach((issue) => {
+        const field = issue.path[0] as FormField | undefined;
+        if (field && !fieldErrors[field]) fieldErrors[field] = issue.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setErrors({});
     const message = [
       "Olá! Quero aumentar os pedidos do meu restaurante/delivery.",
       "",
-      `*Nome:* ${form.nome}`,
-      `*WhatsApp:* ${form.whatsapp}`,
-      `*Restaurante/Delivery:* ${form.negocio}`,
-      `*Instagram:* @${form.instagram.replace(/^@/, "")}`,
-      `*Plataforma principal:* ${form.plataforma}`,
-      `*Faturamento mensal:* ${form.faturamento}`,
+      `*Nome:* ${result.data.nome}`,
+      `*WhatsApp:* ${result.data.whatsapp}`,
+      `*Restaurante/Delivery:* ${result.data.negocio || "Não informado"}`,
+      `*Faturamento mensal:* ${result.data.faturamento}`,
     ].join("\n");
 
     void trackMetaLead();
@@ -171,33 +190,32 @@ const RestaurantForms = () => {
             ) : (
               <form onSubmit={handleSubmit} className="grid gap-3.5">
                 <div className="grid gap-3.5 sm:grid-cols-2">
-                  <label className="sr-only" htmlFor="restaurant-name">Seu nome</label>
-                  <input id="restaurant-name" required autoComplete="name" placeholder="Seu nome" className={fieldClass} value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} />
-                  <label className="sr-only" htmlFor="restaurant-whatsapp">WhatsApp</label>
-                  <input id="restaurant-whatsapp" required inputMode="tel" autoComplete="tel" placeholder="WhatsApp com DDD" className={fieldClass} value={form.whatsapp} onChange={(event) => setForm({ ...form, whatsapp: maskPhone(event.target.value) })} />
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium" htmlFor="restaurant-name">Seu nome <span className="text-primary">*</span></label>
+                    <input id="restaurant-name" required maxLength={100} autoComplete="name" placeholder="Digite seu nome" className={fieldClass} value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} aria-invalid={Boolean(errors.nome)} aria-describedby={errors.nome ? "restaurant-name-error" : undefined} />
+                    {errors.nome && <p id="restaurant-name-error" className="mt-1 text-xs text-destructive">{errors.nome}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium" htmlFor="restaurant-whatsapp">WhatsApp com DDD <span className="text-primary">*</span></label>
+                    <input id="restaurant-whatsapp" required inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000" className={fieldClass} value={form.whatsapp} onChange={(event) => setForm({ ...form, whatsapp: maskPhone(event.target.value) })} aria-invalid={Boolean(errors.whatsapp)} aria-describedby={errors.whatsapp ? "restaurant-whatsapp-error" : undefined} />
+                    {errors.whatsapp && <p id="restaurant-whatsapp-error" className="mt-1 text-xs text-destructive">{errors.whatsapp}</p>}
+                  </div>
                 </div>
-                <label className="sr-only" htmlFor="restaurant-business">Nome do restaurante ou delivery</label>
-                <input id="restaurant-business" required placeholder="Nome do restaurante ou delivery" className={fieldClass} value={form.negocio} onChange={(event) => setForm({ ...form, negocio: event.target.value })} />
-                <label className="sr-only" htmlFor="restaurant-instagram">Instagram do negócio</label>
-                <input id="restaurant-instagram" required placeholder="@ do Instagram" className={fieldClass} value={form.instagram} onChange={(event) => setForm({ ...form, instagram: event.target.value.replace(/\s/g, "") })} />
-                <div className="grid gap-3.5 sm:grid-cols-2">
-                  <label className="sr-only" htmlFor="restaurant-platform">Plataforma principal</label>
-                  <select id="restaurant-platform" required className={fieldClass} value={form.plataforma} onChange={(event) => setForm({ ...form, plataforma: event.target.value })}>
-                    <option value="">Plataforma principal</option>
-                    <option>iFood</option>
-                    <option>99Food</option>
-                    <option>Rappi</option>
-                    <option>Delivery próprio</option>
-                    <option>Outra</option>
-                  </select>
-                  <label className="sr-only" htmlFor="restaurant-revenue">Faturamento mensal</label>
-                  <select id="restaurant-revenue" required className={fieldClass} value={form.faturamento} onChange={(event) => setForm({ ...form, faturamento: event.target.value })}>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="restaurant-business">Nome do restaurante ou delivery <span className="font-normal text-muted-foreground">(opcional)</span></label>
+                  <input id="restaurant-business" maxLength={120} placeholder="Digite o nome do negócio" className={fieldClass} value={form.negocio} onChange={(event) => setForm({ ...form, negocio: event.target.value })} aria-invalid={Boolean(errors.negocio)} aria-describedby={errors.negocio ? "restaurant-business-error" : undefined} />
+                  {errors.negocio && <p id="restaurant-business-error" className="mt-1 text-xs text-destructive">{errors.negocio}</p>}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="restaurant-revenue">Faturamento mensal <span className="text-primary">*</span></label>
+                  <select id="restaurant-revenue" required className={fieldClass} value={form.faturamento} onChange={(event) => setForm({ ...form, faturamento: event.target.value })} aria-invalid={Boolean(errors.faturamento)} aria-describedby={errors.faturamento ? "restaurant-revenue-error" : undefined}>
                     <option value="">Faturamento mensal</option>
                     <option>Até R$ 30 mil</option>
                     <option>R$ 30 a 60 mil</option>
                     <option>R$ 60 a 100 mil</option>
                     <option>Acima de R$ 100 mil</option>
                   </select>
+                  {errors.faturamento && <p id="restaurant-revenue-error" className="mt-1 text-xs text-destructive">{errors.faturamento}</p>}
                 </div>
                 <Button type="submit" className="mt-1 h-13 w-full bg-gradient-gold py-4 text-base font-bold text-primary-foreground hover:opacity-90">
                   Receber minha análise <ArrowRight />
