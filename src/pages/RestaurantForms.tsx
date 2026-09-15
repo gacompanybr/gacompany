@@ -2,21 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Check, MessageCircle, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/logo.png.asset.json";
-import ifoodLogo from "@/assets/delivery-platforms/ifood.svg.asset.json";
-import uberEatsLogo from "@/assets/delivery-platforms/uber-eats.svg.asset.json";
-import rappiLogo from "@/assets/delivery-platforms/rappi.svg.asset.json";
 import { initializeMetaPixel, trackMetaLead } from "@/lib/metaPixel";
 
 const WHATSAPP = "5512988334006";
 
 const platforms = [
-  { name: "iFood", image: ifoodLogo.url },
-  { name: "99Food" },
-  { name: "Uber Eats", image: uberEatsLogo.url },
-  { name: "Rappi", image: rappiLogo.url },
+  { name: "iFood", accent: true },
+  { name: "99Food", accent: true },
+  { name: "Uber Eats" },
+  { name: "Rappi", accent: true },
   { name: "Delivery Much" },
-  { name: "aiqfome" },
+  { name: "aiqfome", accent: true },
 ];
 
 const fieldClass =
@@ -34,17 +30,9 @@ function PlatformStrip() {
             className="flex h-7 w-24 shrink-0 items-center justify-center opacity-70 grayscale transition hover:opacity-100 hover:grayscale-0"
             aria-hidden={index >= platforms.length}
           >
-            {platform.image ? (
-              <img
-                src={platform.image}
-                alt={index < platforms.length ? platform.name : ""}
-                className="max-h-7 max-w-24 object-contain"
-              />
-            ) : (
-              <span className="whitespace-nowrap font-heading text-sm font-bold text-foreground">
-                {platform.name}
-              </span>
-            )}
+            <span className={`whitespace-nowrap font-heading text-sm font-bold ${platform.accent ? "text-primary" : "text-foreground"}`}>
+              {platform.name}
+            </span>
           </div>
         ))}
       </div>
@@ -101,7 +89,7 @@ const RestaurantForms = () => {
       <header className="relative z-10 border-b border-border/70">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link to="/" aria-label="GA Company — página inicial">
-            <img src={logo.url} alt="GA Company" className="h-8 w-auto sm:h-9" />
+            <img src="/icon-192.png" alt="GA Company" className="h-9 w-9 object-contain sm:h-10 sm:w-10" />
           </Link>
           <a
             href={`https://wa.me/${WHATSAPP}`}
