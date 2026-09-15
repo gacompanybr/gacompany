@@ -8,4 +8,4 @@
 - [x] Adicionar central de notificações e som
 - [x] Tornar o painel instalável e ativar push no celular
 - [x] Testar segurança, desktop e celular
-- [ ] Adicionar áudio pontual por campanha no SDR com Google Cloud TTS
+- [x] Adicionar áudio pontual por campanha no SDR com Google Cloud TTS

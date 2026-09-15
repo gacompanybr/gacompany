@@ -14,6 +14,7 @@ const EVO_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const GOOGLE_CLOUD_TTS_API_KEY = Deno.env.get("GOOGLE_CLOUD_TTS_API_KEY") ?? "";
 const N8N_BASE = (Deno.env.get("N8N_BASE_URL") ?? "").replace(/\/+$/, "");
 const N8N_KEY = Deno.env.get("N8N_API_KEY") ?? "";
 
@@ -895,6 +896,52 @@ async function sendOnce(instance: string, targets: string[], text: string, ctx?:
   return false;
 }
 
+async function synthesizeSpeech(text: string): Promise<string | null> {
+  if (!GOOGLE_CLOUD_TTS_API_KEY || !text.trim()) return null;
+  try {
+    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(GOOGLE_CLOUD_TTS_API_KEY)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: { text: text.trim() },
+        voice: { languageCode: "pt-BR", name: "pt-BR-Neural2-B" },
+        audioConfig: { audioEncoding: "OGG_OPUS", speakingRate: 1.04, pitch: 0 },
+      }),
+    });
+    if (!response.ok) {
+      console.error("[TTS] Google fail", response.status, (await response.text()).slice(0, 300));
+      return null;
+    }
+    const body = await response.json();
+    return typeof body?.audioContent === "string" && body.audioContent ? body.audioContent : null;
+  } catch (e) {
+    console.error("[TTS] Google exception", e);
+    return null;
+  }
+}
+
+async function sendAudioOnce(instance: string, targets: string[], text: string, ctx?: SendCtx): Promise<boolean> {
+  const audio = await synthesizeSpeech(text);
+  if (!audio) return false;
+  for (const target of targets) {
+    const response = await fetch(`${EVO_URL}/message/sendWhatsAppAudio/${instance}`, {
+      method: "POST",
+      headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ number: target, audio: `data:audio/ogg;codecs=opus;base64,${audio}` }),
+    });
+    const responseText = await response.text();
+    let responseJson: any = null;
+    try { responseJson = JSON.parse(responseText); } catch { /* keep text */ }
+    console.log("sendAudio", JSON.stringify({ instance, target, status: response.status, ok: response.ok }));
+    if (response.ok) {
+      await logSystemSentMessage(extractSentMessageIds(responseJson), instance, { ...ctx, phone: ctx?.phone ?? target });
+      return true;
+    }
+    console.error("sendAudio fail", response.status, responseText.slice(0, 300));
+  }
+  return false;
+}
+
 
 // Delay aleatório entre 0.8 e 1.5 segundos para parecer humano sem travar
 function randomSplitDelayMs(): number {
@@ -913,6 +960,28 @@ async function sendText(instance: string, targets: string[], text: string | stri
     if (i < parts.length - 1) {
       await new Promise((resolve) => setTimeout(resolve, randomSplitDelayMs()));
     }
+  }
+  return { sent, failed };
+}
+
+async function sendSdrReply(
+  instance: string,
+  targets: string[],
+  parts: string[],
+  campaign: any,
+  ctx?: SendCtx,
+): Promise<{ sent: string[]; failed: string[] }> {
+  const sent: string[] = [];
+  const failed: string[] = [];
+  const threshold = Number(campaign?.audio_long_message_threshold ?? 420);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const shouldUseAudio = campaign?.audio_enabled === true && campaign?.audio_on_long_message === true && part.length >= threshold;
+    let ok = shouldUseAudio ? await sendAudioOnce(instance, targets, part, ctx) : false;
+    if (!ok) ok = await sendOnce(instance, targets, part, ctx);
+    if (ok) sent.push(shouldUseAudio ? `[ÁUDIO] ${part}` : part);
+    else failed.push(part);
+    if (i < parts.length - 1) await new Promise((resolve) => setTimeout(resolve, randomSplitDelayMs()));
   }
   return { sent, failed };
 }
@@ -1109,7 +1178,7 @@ async function processPayload(payload: any) {
     if (phoneSuffixList.length) {
       const { data: leads } = await admin
         .from("sdr_leads")
-        .select("*, sdr_campaigns!inner(status)")
+        .select("*, sdr_campaigns!inner(status, audio_enabled, audio_on_intro, audio_on_long_message, audio_long_message_threshold)")
         .eq("portfolio_id", portfolioId)
         .not("status", "in", "(sem_resposta,rejeitou)")
         .order("ultima_mensagem_em", { ascending: false })
@@ -1144,7 +1213,7 @@ async function processPayload(payload: any) {
       if (linked?.sdr_lead_id) {
         const { data: leadByConversation } = await admin
           .from("sdr_leads")
-          .select("*, sdr_campaigns(status)")
+          .select("*, sdr_campaigns(status, audio_enabled, audio_on_intro, audio_on_long_message, audio_long_message_threshold)")
           .eq("id", linked.sdr_lead_id)
           .maybeSingle();
         sdrLead = leadByConversation ?? null;
@@ -1558,7 +1627,9 @@ async function processPayload(payload: any) {
       continue;
     }
 
-    const { sent, failed } = await sendText(instance, sendTargets, partsToSend, { portfolioId, phone: storagePhone });
+    const { sent, failed } = sdrLead
+      ? await sendSdrReply(instance, sendTargets, partsToSend, sdrLead.sdr_campaigns, { portfolioId, phone: storagePhone })
+      : await sendText(instance, sendTargets, partsToSend, { portfolioId, phone: storagePhone });
     // Só persistimos no histórico o que foi REALMENTE entregue. Mensagens
     // falhadas poluíam o contexto da próxima resposta (a IA "lia" como se
     // já tivesse falado aquilo). Falhas viram só log.
