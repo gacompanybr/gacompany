@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2, Play, Pause, Square, RotateCw, Download, Trash2, Bell } from "lucide-react";
+import { Loader2, Play, Pause, Square, RotateCw, Download, Trash2, Bell, Mic2 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { SdrUpload } from "./SdrUpload";
@@ -20,6 +20,10 @@ type Campaign = {
   status: "draft" | "running" | "paused" | "finished";
   rate_per_hour: number;
   total_leads: number;
+  audio_enabled: boolean;
+  audio_on_intro: boolean;
+  audio_on_long_message: boolean;
+  audio_long_message_threshold: number;
   created_at: string;
   finished_at: string | null;
 };
@@ -237,6 +241,14 @@ export function SdrTab({ portfolioId }: { portfolioId: string }) {
           <p className="text-xs text-muted-foreground">
             {active.total_leads} leads · {active.rate_per_hour}/h
           </p>
+          {active.audio_enabled && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Mic2 size={12} /> Áudio: {[
+                active.audio_on_intro ? "introdução" : null,
+                active.audio_on_long_message ? `textos com ${active.audio_long_message_threshold}+ caracteres` : null,
+              ].filter(Boolean).join(" e ") || "sem regra ativa"}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {active.status === "draft" && (

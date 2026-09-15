@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Upload, Link2, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Upload, Link2, FileSpreadsheet, AlertCircle, CheckCircle2, Mic2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 
@@ -50,6 +51,10 @@ export function SdrUpload({
   const [busy, setBusy] = useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [ratePerHour, setRatePerHour] = useState(30);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioOnIntro, setAudioOnIntro] = useState(true);
+  const [audioOnLongMessage, setAudioOnLongMessage] = useState(true);
+  const [audioLongMessageThreshold, setAudioLongMessageThreshold] = useState(420);
 
   function ingest(json: Row[]) {
     if (!json.length) { toast.error("Planilha vazia"); return; }
@@ -134,7 +139,16 @@ export function SdrUpload({
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke("sdr-upload", {
-        body: { portfolioId, nome: campaignName || `Campanha ${new Date().toLocaleDateString("pt-BR")}`, ratePerHour, rows: payload },
+        body: {
+          portfolioId,
+          nome: campaignName || `Campanha ${new Date().toLocaleDateString("pt-BR")}`,
+          ratePerHour,
+          audioEnabled,
+          audioOnIntro,
+          audioOnLongMessage,
+          audioLongMessageThreshold,
+          rows: payload,
+        },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -278,6 +292,49 @@ export function SdrUpload({
               <Label>Máximo de disparos por hora</Label>
               <Input type="number" min={1} max={500} value={ratePerHour} onChange={(e) => setRatePerHour(Number(e.target.value) || 30)} />
             </div>
+          </div>
+
+          <div className="border-t border-border pt-4 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-2">
+                <Mic2 size={17} className="mt-0.5 text-primary" />
+                <div>
+                  <Label htmlFor="sdr-audio-enabled" className="font-semibold cursor-pointer">Áudios pontuais</Label>
+                  <p className="text-xs text-muted-foreground">Usa áudio somente nas situações escolhidas. O restante continua em texto.</p>
+                </div>
+              </div>
+              <Switch id="sdr-audio-enabled" checked={audioEnabled} onCheckedChange={setAudioEnabled} />
+            </div>
+
+            {audioEnabled && (
+              <div className="grid grid-cols-1 gap-3 rounded-md border border-border p-3 md:grid-cols-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="sdr-audio-intro" className="text-sm cursor-pointer">Áudio na introdução</Label>
+                  <Switch id="sdr-audio-intro" checked={audioOnIntro} onCheckedChange={setAudioOnIntro} />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="sdr-audio-long" className="text-sm cursor-pointer">Áudio quando o texto for longo</Label>
+                  <Switch id="sdr-audio-long" checked={audioOnLongMessage} onCheckedChange={setAudioOnLongMessage} />
+                </div>
+                {audioOnLongMessage && (
+                  <div className="md:col-span-2">
+                    <Label htmlFor="sdr-audio-threshold" className="text-xs">Considerar longo a partir de</Label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Input
+                        id="sdr-audio-threshold"
+                        type="number"
+                        min={200}
+                        max={2000}
+                        value={audioLongMessageThreshold}
+                        onChange={(e) => setAudioLongMessageThreshold(Math.max(200, Math.min(2000, Number(e.target.value) || 420)))}
+                        className="max-w-28"
+                      />
+                      <span className="text-xs text-muted-foreground">caracteres</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Button onClick={submit} disabled={busy || !allRequiredMapped} className="w-full">
