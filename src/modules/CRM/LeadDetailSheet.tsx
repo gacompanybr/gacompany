@@ -18,10 +18,9 @@ import { ORIGEM_LABELS, type CrmLead, type CrmInteracao, type LeadOrigem } from 
 const TIPO_ICON = { nota: FileText, ligacao: Phone, whatsapp: MessageSquare, email: Mail, reuniao: Users };
 
 export function LeadDetailSheet({
-  lead, portfolioId, open, onOpenChange,
+  lead, open, onOpenChange,
 }: {
   lead: CrmLead | null;
-  portfolioId: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {

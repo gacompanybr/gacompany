@@ -184,7 +184,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
         </div>
       )}
 
-      <LeadDetailSheet lead={selected} portfolioId={selected?.portfolio_id ?? portfolioId ?? ""} open={sheetOpen} onOpenChange={setSheetOpen} />
+      <LeadDetailSheet lead={selected} open={sheetOpen} onOpenChange={setSheetOpen} />
     </div>
   );
 }
