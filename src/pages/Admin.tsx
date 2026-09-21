@@ -34,6 +34,13 @@ const TITLES: Record<AdminTab, string> = {
   config: "Configurações",
 };
 
+const TAB_PERMISSIONS: Record<AdminTab, string> = {
+  dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view",
+  scrapper: "clients.view", disparos: "clients.view", agente_ia: "clients.view", equipe: "team.view",
+  tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
+  integracoes: "integrations.view", config: "settings.manage",
+};
+
 const ADMIN_TAB_KEY = "ga:admin:tab";
 
 export default function Admin() {
@@ -43,25 +50,21 @@ export default function Admin() {
   });
   const { user, signOut, hasPermission, isAdmin } = useAuth();
 
-  const tabPermissions: Record<AdminTab, string> = {
-    dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view",
-    scrapper: "clients.view", disparos: "clients.view", agente_ia: "clients.view", equipe: "team.view",
-    tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
-    integracoes: "integrations.view", config: "settings.manage",
-  };
   const canOpenTab = (key: AdminTab) => key === "dashboard"
     ? isAdmin || hasPermission("finance.view")
-    : hasPermission(tabPermissions[key]);
-  const hasVisibleTab = (Object.keys(tabPermissions) as AdminTab[]).some(canOpenTab);
+    : hasPermission(TAB_PERMISSIONS[key]);
+  const hasVisibleTab = (Object.keys(TAB_PERMISSIONS) as AdminTab[]).some(canOpenTab);
 
   useEffect(() => {
     if (canOpenTab(tab)) return;
-    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find(canOpenTab);
+    const fallback = (Object.keys(TAB_PERMISSIONS) as AdminTab[]).find((key) => key === "dashboard"
+      ? isAdmin || hasPermission("finance.view")
+      : hasPermission(TAB_PERMISSIONS[key]));
     if (fallback) setTab(fallback);
   }, [tab, hasPermission, isAdmin]);
 
   useEffect(() => {
-    try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch {}
+    try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch { /* armazenamento indisponível */ }
   }, [tab]);
 
   return (
