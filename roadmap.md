@@ -16,3 +16,4 @@
 - [x] Disponibilizar Scrapper, Disparos e Agente IA diretamente no menu Operação
 - [x] Permitir entrada de todo usuário cadastrado e restringir apenas as abas conforme o cargo
 - [x] Permitir cadastrar leads no CRM sem selecionar um cliente
+- [x] Permitir editar dados dos leads e limitar as colunas do CRM com rolagem própria

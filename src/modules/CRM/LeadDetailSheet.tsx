@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,12 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Trash2, MessageSquare, Phone, Mail, Users, FileText } from "lucide-react";
-import { ORIGEM_LABELS, type CrmLead, type CrmInteracao } from "./types";
+import { Save, Trash2, MessageSquare, Phone, Mail, Users, FileText } from "lucide-react";
+import { ORIGEM_LABELS, type CrmLead, type CrmInteracao, type LeadOrigem } from "./types";
 
 const TIPO_ICON = { nota: FileText, ligacao: Phone, whatsapp: MessageSquare, email: Mail, reuniao: Users };
 
@@ -29,6 +28,20 @@ export function LeadDetailSheet({
   const qc = useQueryClient();
   const [tipo, setTipo] = useState<CrmInteracao["tipo"]>("nota");
   const [descricao, setDescricao] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
+  const [origem, setOrigem] = useState<LeadOrigem>("manual");
+  const [valor, setValor] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+
+  useEffect(() => {
+    if (!lead) return;
+    setTelefone(lead.telefone ?? "");
+    setEmail(lead.email ?? "");
+    setOrigem(lead.origem);
+    setValor(lead.valor_estimado === null ? "" : String(lead.valor_estimado));
+    setObservacoes(lead.observacoes ?? "");
+  }, [lead]);
 
   const { data: interacoes = [] } = useQuery({
     queryKey: ["crm-interacoes", lead?.id],
@@ -61,6 +74,29 @@ export function LeadDetailSheet({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateLead = useMutation({
+    mutationFn: async () => {
+      if (!lead) return;
+      const parsedValue = valor.trim() === "" ? null : Number(valor);
+      if (parsedValue !== null && (!Number.isFinite(parsedValue) || parsedValue < 0)) {
+        throw new Error("Informe um valor estimado válido");
+      }
+      const { error } = await supabase.from("crm_leads").update({
+        telefone: telefone.trim() || null,
+        email: email.trim() || null,
+        origem,
+        valor_estimado: parsedValue,
+        observacoes: observacoes.trim() || null,
+      }).eq("id", lead.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      toast.success("Lead atualizado");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const delLead = useMutation({
     mutationFn: async () => {
       if (!lead) return;
@@ -68,7 +104,7 @@ export function LeadDetailSheet({
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["crm-leads", portfolioId] });
+      qc.invalidateQueries({ queryKey: ["crm-leads"] });
       toast.success("Lead excluído");
       onOpenChange(false);
     },
@@ -85,31 +121,68 @@ export function LeadDetailSheet({
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="text-muted-foreground text-xs">Telefone</div>
-              <div>{lead.telefone || "—"}</div>
+          <div className="space-y-3">
+            <h4 className="font-semibold text-sm">Dados do lead</h4>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="crm-lead-phone">Telefone</Label>
+                <Input
+                  id="crm-lead-phone"
+                  value={telefone}
+                  onChange={(event) => setTelefone(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="crm-lead-email">Email</Label>
+                <Input
+                  id="crm-lead-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label>Origem</Label>
+                <Select value={origem} onValueChange={(value) => setOrigem(value as LeadOrigem)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(ORIGEM_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="crm-lead-value">Valor estimado (R$)</Label>
+                <Input
+                  id="crm-lead-value"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={valor}
+                  onChange={(event) => setValor(event.target.value)}
+                />
+              </div>
             </div>
             <div>
-              <div className="text-muted-foreground text-xs">Email</div>
-              <div className="truncate">{lead.email || "—"}</div>
+              <Label htmlFor="crm-lead-notes">Observações</Label>
+              <Textarea
+                id="crm-lead-notes"
+                rows={3}
+                value={observacoes}
+                onChange={(event) => setObservacoes(event.target.value)}
+              />
             </div>
-            <div>
-              <div className="text-muted-foreground text-xs">Origem</div>
-              <Badge variant="secondary">{ORIGEM_LABELS[lead.origem]}</Badge>
-            </div>
-            <div>
-              <div className="text-muted-foreground text-xs">Valor estimado</div>
-              <div>{lead.valor_estimado ? `R$ ${Number(lead.valor_estimado).toLocaleString("pt-BR")}` : "—"}</div>
-            </div>
+            <Button
+              className="w-full gap-2"
+              onClick={() => updateLead.mutate()}
+              disabled={updateLead.isPending}
+            >
+              <Save size={15} /> {updateLead.isPending ? "Salvando..." : "Salvar alterações"}
+            </Button>
           </div>
-
-          {lead.observacoes && (
-            <div>
-              <div className="text-muted-foreground text-xs mb-1">Observações</div>
-              <p className="text-sm">{lead.observacoes}</p>
-            </div>
-          )}
 
           <div className="border-t pt-4">
             <h4 className="font-semibold mb-2 text-sm">Nova interação</h4>
