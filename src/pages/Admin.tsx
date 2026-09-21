@@ -34,6 +34,13 @@ const TITLES: Record<AdminTab, string> = {
   config: "Configurações",
 };
 
+const TAB_PERMISSIONS: Record<AdminTab, string> = {
+  dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view",
+  scrapper: "clients.view", disparos: "clients.view", agente_ia: "clients.view", equipe: "team.view",
+  tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
+  integracoes: "integrations.view", config: "settings.manage",
+};
+
 const ADMIN_TAB_KEY = "ga:admin:tab";
 
 export default function Admin() {
@@ -43,22 +50,24 @@ export default function Admin() {
   });
   const { user, signOut, hasPermission, isAdmin } = useAuth();
 
-  const tabPermissions: Record<AdminTab, string> = {
-    dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view",
-    scrapper: "clients.view", disparos: "clients.view", agente_ia: "clients.view", equipe: "team.view",
-    tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
-    integracoes: "integrations.view", config: "settings.manage",
-  };
+  const canOpenTab = (key: AdminTab) => key === "dashboard"
+    ? isAdmin || hasPermission("finance.view")
+    : hasPermission(TAB_PERMISSIONS[key]);
+  const hasVisibleTab = (Object.keys(TAB_PERMISSIONS) as AdminTab[]).some(canOpenTab);
 
   useEffect(() => {
-    const canOpen = (key: AdminTab) => key === "dashboard" ? (isAdmin || hasPermission("finance.view")) : hasPermission(tabPermissions[key]);
-    if (canOpen(tab)) return;
-    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find(canOpen);
+    const currentAllowed = tab === "dashboard"
+      ? isAdmin || hasPermission("finance.view")
+      : hasPermission(TAB_PERMISSIONS[tab]);
+    if (currentAllowed) return;
+    const fallback = (Object.keys(TAB_PERMISSIONS) as AdminTab[]).find((key) => key === "dashboard"
+      ? isAdmin || hasPermission("finance.view")
+      : hasPermission(TAB_PERMISSIONS[key]));
     if (fallback) setTab(fallback);
   }, [tab, hasPermission, isAdmin]);
 
   useEffect(() => {
-    try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch {}
+    try { localStorage.setItem(ADMIN_TAB_KEY, tab); } catch { /* armazenamento indisponível */ }
   }, [tab]);
 
   return (
@@ -84,6 +93,11 @@ export default function Admin() {
           </header>
 
           <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2.5 sm:p-4 lg:p-6">
+             {!hasVisibleTab && (
+               <Card className="p-8 text-center text-muted-foreground">
+                 Seu acesso está ativo, mas seu cargo ainda não possui áreas liberadas. Fale com um administrador.
+               </Card>
+             )}
              {tab === "dashboard" && (isAdmin || hasPermission("finance.view")) && <DashboardTab />}
              {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
              {tab === "crm" && hasPermission("clients.view") && <CRMModule />}

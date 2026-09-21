@@ -17,14 +17,14 @@ const schema = z.object({
 });
 
 export default function PainelAuth() {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, permissions } = useAuth();
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   if (loading) return null;
   if (user) {
-    return <Navigate to={isAdmin ? "/paineladmin/app" : "/painel/app"} replace />;
+    return <Navigate to={isAdmin || permissions.size > 0 ? "/paineladmin/app" : "/painel/app"} replace />;
   }
 
   async function handleSignIn() {
