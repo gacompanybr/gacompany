@@ -3,6 +3,10 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar, type AdminTab } from "@/components/admin/AdminSidebar";
 import { ClientesTab } from "@/components/admin/ClientesTab";
 import CRMModule from "@/modules/CRM";
+import ScrapperModule from "@/modules/Scrapper";
+import DisparoModule from "@/modules/Disparo";
+import WhatsappAgentModule from "@/modules/WhatsappAgent";
+import { AdminClientModule } from "@/components/admin/AdminClientModule";
 import { EquipeTab } from "@/components/admin/EquipeTab";
 import { FinanceiroTab } from "@/components/admin/FinanceiroTab";
 import { DashboardTab } from "@/components/admin/DashboardTab";
@@ -19,6 +23,9 @@ const TITLES: Record<AdminTab, string> = {
   dashboard: "Dashboard",
   clientes: "Clientes",
   crm: "CRM",
+  scrapper: "Scrapper",
+  disparos: "Disparos",
+  agente_ia: "Agente IA",
   equipe: "Equipe",
   tarefas: "Tarefas",
   calendario: "Calendário",
@@ -37,7 +44,8 @@ export default function Admin() {
   const { user, signOut, hasPermission, isAdmin } = useAuth();
 
   const tabPermissions: Record<AdminTab, string> = {
-    dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view", equipe: "team.view",
+    dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view",
+    scrapper: "clients.view", disparos: "clients.view", agente_ia: "clients.view", equipe: "team.view",
     tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
     integracoes: "integrations.view", config: "settings.manage",
   };
@@ -79,6 +87,21 @@ export default function Admin() {
              {tab === "dashboard" && (isAdmin || hasPermission("finance.view")) && <DashboardTab />}
              {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
              {tab === "crm" && hasPermission("clients.view") && <CRMModule />}
+             {tab === "scrapper" && hasPermission("clients.view") && (
+               <AdminClientModule service="scrapper" storageKey="ga:admin:scrapper-client">
+                 {(portfolioId) => <ScrapperModule portfolioId={portfolioId} />}
+               </AdminClientModule>
+             )}
+             {tab === "disparos" && hasPermission("clients.view") && (
+               <AdminClientModule service="disparo" storageKey="ga:admin:disparos-client">
+                 {(portfolioId) => <DisparoModule portfolioId={portfolioId} />}
+               </AdminClientModule>
+             )}
+             {tab === "agente_ia" && hasPermission("clients.view") && (
+               <AdminClientModule service="whatsapp_agent" storageKey="ga:admin:agente-ia-client">
+                 {(portfolioId) => <WhatsappAgentModule portfolioId={portfolioId} />}
+               </AdminClientModule>
+             )}
              {tab === "equipe" && hasPermission("team.view") && <EquipeTab />}
              {tab === "tarefas" && hasPermission("tasks.view") && <TarefasTab />}
              {tab === "calendario" && hasPermission("calendar.view") && <CalendarioTab />}
