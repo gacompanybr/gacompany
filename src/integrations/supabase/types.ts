@@ -454,7 +454,7 @@ export type Database = {
           nome: string
           observacoes: string | null
           origem: string
-          portfolio_id: string
+          portfolio_id: string | null
           responsavel_id: string | null
           status: string
           telefone: string | null
@@ -468,7 +468,7 @@ export type Database = {
           nome: string
           observacoes?: string | null
           origem?: string
-          portfolio_id: string
+          portfolio_id?: string | null
           responsavel_id?: string | null
           status?: string
           telefone?: string | null
@@ -482,7 +482,7 @@ export type Database = {
           nome?: string
           observacoes?: string | null
           origem?: string
-          portfolio_id?: string
+          portfolio_id?: string | null
           responsavel_id?: string | null
           status?: string
           telefone?: string | null

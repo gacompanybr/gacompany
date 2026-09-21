@@ -40,9 +40,8 @@ export function NovoLeadDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       if (!nome.trim()) throw new Error("Nome é obrigatório");
-      if (!selectedPortfolioId) throw new Error("Selecione o cliente");
       const { error } = await supabase.from("crm_leads").insert({
-        portfolio_id: selectedPortfolioId,
+        portfolio_id: selectedPortfolioId || null,
         nome: nome.trim(),
         telefone: telefone.trim() || null,
         email: email.trim() || null,
@@ -71,10 +70,14 @@ export function NovoLeadDialog({
         <div className="space-y-3">
           {!portfolioId && (
             <div>
-              <Label>Cliente *</Label>
-              <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
-                <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
+              <Label>Cliente (opcional)</Label>
+              <Select
+                value={selectedPortfolioId || "sem-cliente"}
+                onValueChange={(value) => setSelectedPortfolioId(value === "sem-cliente" ? "" : value)}
+              >
+                <SelectTrigger><SelectValue placeholder="Sem cliente" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="sem-cliente">Sem cliente</SelectItem>
                   {portfolios.map((portfolio) => (
                     <SelectItem key={portfolio.id} value={portfolio.id}>{portfolio.name}</SelectItem>
                   ))}
