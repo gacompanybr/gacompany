@@ -56,7 +56,10 @@ export default function Admin() {
   const hasVisibleTab = (Object.keys(TAB_PERMISSIONS) as AdminTab[]).some(canOpenTab);
 
   useEffect(() => {
-    if (canOpenTab(tab)) return;
+    const currentAllowed = tab === "dashboard"
+      ? isAdmin || hasPermission("finance.view")
+      : hasPermission(TAB_PERMISSIONS[tab]);
+    if (currentAllowed) return;
     const fallback = (Object.keys(TAB_PERMISSIONS) as AdminTab[]).find((key) => key === "dashboard"
       ? isAdmin || hasPermission("finance.view")
       : hasPermission(TAB_PERMISSIONS[key]));
