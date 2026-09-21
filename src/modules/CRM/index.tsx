@@ -131,7 +131,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
             return (
               <div
                 key={col.key}
-                className="bg-muted/40 rounded-lg p-3 min-h-[400px]"
+                className="flex h-[min(58vh,620px)] min-h-[360px] flex-col overflow-hidden rounded-lg bg-muted/40 p-3"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onDrop(col.key)}
               >
@@ -139,7 +139,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
                   <h3 className="font-semibold text-sm">{col.label}</h3>
                   <Badge variant="outline" className="text-xs">{items.length}</Badge>
                 </div>
-                <div className="space-y-2">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
                   {items.map((l) => (
                     <Card
                       key={l.id}
@@ -184,7 +184,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
         </div>
       )}
 
-      <LeadDetailSheet lead={selected} portfolioId={selected?.portfolio_id ?? portfolioId ?? ""} open={sheetOpen} onOpenChange={setSheetOpen} />
+      <LeadDetailSheet lead={selected} open={sheetOpen} onOpenChange={setSheetOpen} />
     </div>
   );
 }
