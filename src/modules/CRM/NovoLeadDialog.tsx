@@ -15,7 +15,13 @@ import {
 import { Plus } from "lucide-react";
 import { ORIGEM_LABELS, type LeadOrigem } from "./types";
 
-export function NovoLeadDialog({ portfolioId }: { portfolioId: string }) {
+export function NovoLeadDialog({
+  portfolioId,
+  portfolios = [],
+}: {
+  portfolioId?: string;
+  portfolios?: { id: string; name: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -23,17 +29,20 @@ export function NovoLeadDialog({ portfolioId }: { portfolioId: string }) {
   const [origem, setOrigem] = useState<LeadOrigem>("manual");
   const [valor, setValor] = useState("");
   const [obs, setObs] = useState("");
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState(portfolioId ?? "");
   const qc = useQueryClient();
 
   const reset = () => {
     setNome(""); setTelefone(""); setEmail(""); setOrigem("manual"); setValor(""); setObs("");
+    setSelectedPortfolioId(portfolioId ?? "");
   };
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!nome.trim()) throw new Error("Nome é obrigatório");
+      if (!selectedPortfolioId) throw new Error("Selecione o cliente");
       const { error } = await supabase.from("crm_leads").insert({
-        portfolio_id: portfolioId,
+        portfolio_id: selectedPortfolioId,
         nome: nome.trim(),
         telefone: telefone.trim() || null,
         email: email.trim() || null,
@@ -46,7 +55,7 @@ export function NovoLeadDialog({ portfolioId }: { portfolioId: string }) {
     },
     onSuccess: () => {
       toast.success("Lead criado");
-      qc.invalidateQueries({ queryKey: ["crm-leads", portfolioId] });
+      qc.invalidateQueries({ queryKey: ["crm-leads"] });
       reset(); setOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -60,6 +69,19 @@ export function NovoLeadDialog({ portfolioId }: { portfolioId: string }) {
       <DialogContent>
         <DialogHeader><DialogTitle>Novo lead</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          {!portfolioId && (
+            <div>
+              <Label>Cliente *</Label>
+              <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
+                <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
+                <SelectContent>
+                  {portfolios.map((portfolio) => (
+                    <SelectItem key={portfolio.id} value={portfolio.id}>{portfolio.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <Label>Nome *</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
