@@ -49,11 +49,14 @@ export default function Admin() {
     tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
     integracoes: "integrations.view", config: "settings.manage",
   };
+  const canOpenTab = (key: AdminTab) => key === "dashboard"
+    ? isAdmin || hasPermission("finance.view")
+    : hasPermission(tabPermissions[key]);
+  const hasVisibleTab = (Object.keys(tabPermissions) as AdminTab[]).some(canOpenTab);
 
   useEffect(() => {
-    const canOpen = (key: AdminTab) => key === "dashboard" ? (isAdmin || hasPermission("finance.view")) : hasPermission(tabPermissions[key]);
-    if (canOpen(tab)) return;
-    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find(canOpen);
+    if (canOpenTab(tab)) return;
+    const fallback = (Object.keys(tabPermissions) as AdminTab[]).find(canOpenTab);
     if (fallback) setTab(fallback);
   }, [tab, hasPermission, isAdmin]);
 
@@ -84,6 +87,11 @@ export default function Admin() {
           </header>
 
           <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2.5 sm:p-4 lg:p-6">
+             {!hasVisibleTab && (
+               <Card className="p-8 text-center text-muted-foreground">
+                 Seu acesso está ativo, mas seu cargo ainda não possui áreas liberadas. Fale com um administrador.
+               </Card>
+             )}
              {tab === "dashboard" && (isAdmin || hasPermission("finance.view")) && <DashboardTab />}
              {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
              {tab === "crm" && hasPermission("clients.view") && <CRMModule />}

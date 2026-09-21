@@ -1,38 +1,12 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export function RequireAdmin({ children }: { children: ReactNode }) {
-  const { user, isAdmin, permissions, loading, getUserPortfolios } = useAuth();
-  const [redirect, setRedirect] = useState<string | null>(null);
-  const [resolving, setResolving] = useState(true);
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    if (loading) return;
-
-    let active = true;
-
-    async function resolve() {
-      if (!user) {
-        if (active) { setRedirect("/paineladmin"); setResolving(false); }
-        return;
-      }
-      if (isAdmin || permissions.size > 0) {
-        if (active) { setRedirect(null); setResolving(false); }
-        return;
-      }
-      const ps = await getUserPortfolios();
-      if (!active) return;
-      setRedirect(ps[0] ? `/workspace/${ps[0].id}` : "/painel/app");
-      setResolving(false);
-    }
-
-    resolve();
-    return () => { active = false; };
-  }, [loading, user, isAdmin, permissions, getUserPortfolios]);
-
-  if (loading || resolving) {
+  if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-2">
         <Loader2 className="animate-spin text-primary" size={24} />
@@ -41,6 +15,6 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
     );
   }
 
-  if (redirect) return <Navigate to={redirect} replace />;
+  if (!user) return <Navigate to="/paineladmin" replace />;
   return <>{children}</>;
 }

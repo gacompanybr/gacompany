@@ -17,19 +17,13 @@ const schema = z.object({
 });
 
 export default function PainelAdminAuth() {
-  const { user, loading, isAdmin, permissions } = useAuth();
+  const { user, loading } = useAuth();
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   if (loading) return null;
-  if (user && (isAdmin || permissions.size > 0)) return <Navigate to="/paineladmin/app" replace />;
-  if (user && !isAdmin && permissions.size === 0) {
-    // Logado mas sem permissão: força logout
-    supabase.auth.signOut().then(() => {
-      toast.error("Esta conta não tem permissão administrativa.");
-    });
-  }
+  if (user) return <Navigate to="/paineladmin/app" replace />;
 
   async function handleSignIn() {
     const parsed = schema.safeParse({ email, password });

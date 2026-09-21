@@ -14,4 +14,4 @@
 - [x] Usar logos enviadas na faixa de parceiros e incluir os clientes abaixo do formulário
 - [x] Disponibilizar o CRM consolidado diretamente no menu Operação
 - [x] Disponibilizar Scrapper, Disparos e Agente IA diretamente no menu Operação
-- [ ] Permitir entrada de todo usuário cadastrado e restringir apenas as abas conforme o cargo
+- [x] Permitir entrada de todo usuário cadastrado e restringir apenas as abas conforme o cargo
