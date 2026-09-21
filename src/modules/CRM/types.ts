@@ -3,7 +3,7 @@ export type LeadOrigem = "manual" | "whatsapp" | "meta_ads" | "google_ads" | "in
 
 export interface CrmLead {
   id: string;
-  portfolio_id: string;
+  portfolio_id: string | null;
   nome: string;
   telefone: string | null;
   email: string | null;

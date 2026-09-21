@@ -152,7 +152,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
                         <div className="font-medium text-sm truncate">{l.nome}</div>
                         {!portfolioId && (
                           <div className="text-xs text-muted-foreground truncate">
-                            {portfolioNames.get(l.portfolio_id) ?? "Cliente"}
+                            {l.portfolio_id ? (portfolioNames.get(l.portfolio_id) ?? "Cliente") : "Sem cliente"}
                           </div>
                         )}
                         <div className="flex items-center gap-1 flex-wrap">

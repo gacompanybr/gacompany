@@ -15,3 +15,4 @@
 - [x] Disponibilizar o CRM consolidado diretamente no menu Operação
 - [x] Disponibilizar Scrapper, Disparos e Agente IA diretamente no menu Operação
 - [x] Permitir entrada de todo usuário cadastrado e restringir apenas as abas conforme o cargo
+- [x] Permitir cadastrar leads no CRM sem selecionar um cliente
