@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar, type AdminTab } from "@/components/admin/AdminSidebar";
 import { ClientesTab } from "@/components/admin/ClientesTab";
+import CRMModule from "@/modules/CRM";
 import { EquipeTab } from "@/components/admin/EquipeTab";
 import { FinanceiroTab } from "@/components/admin/FinanceiroTab";
 import { DashboardTab } from "@/components/admin/DashboardTab";
@@ -17,6 +18,7 @@ import { NotificationCenter } from "@/components/notifications/NotificationCente
 const TITLES: Record<AdminTab, string> = {
   dashboard: "Dashboard",
   clientes: "Clientes",
+  crm: "CRM",
   equipe: "Equipe",
   tarefas: "Tarefas",
   calendario: "Calendário",
@@ -35,7 +37,7 @@ export default function Admin() {
   const { user, signOut, hasPermission, isAdmin } = useAuth();
 
   const tabPermissions: Record<AdminTab, string> = {
-    dashboard: "dashboard.view", clientes: "clients.view", equipe: "team.view",
+    dashboard: "dashboard.view", clientes: "clients.view", crm: "clients.view", equipe: "team.view",
     tarefas: "tasks.view", calendario: "calendar.view", financeiro: "finance.view",
     integracoes: "integrations.view", config: "settings.manage",
   };
@@ -76,6 +78,7 @@ export default function Admin() {
           <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2.5 sm:p-4 lg:p-6">
              {tab === "dashboard" && (isAdmin || hasPermission("finance.view")) && <DashboardTab />}
              {tab === "clientes" && hasPermission("clients.view") && <ClientesTab />}
+             {tab === "crm" && hasPermission("clients.view") && <CRMModule />}
              {tab === "equipe" && hasPermission("team.view") && <EquipeTab />}
              {tab === "tarefas" && hasPermission("tasks.view") && <TarefasTab />}
              {tab === "calendario" && hasPermission("calendar.view") && <CalendarioTab />}

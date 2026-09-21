@@ -5,30 +5,58 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { NovoLeadDialog } from "./NovoLeadDialog";
 import { LeadDetailSheet } from "./LeadDetailSheet";
 import {
   ORIGEM_LABELS, STATUS_COLUNAS, type CrmLead, type LeadStatus,
 } from "./types";
 
-export default function CRMModule({ portfolioId }: { portfolioId: string }) {
+type CrmPortfolio = { id: string; name: string };
+
+export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<CrmLead | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [portfolioFilter, setPortfolioFilter] = useState("all");
+
+  const { data: portfolios = [] } = useQuery({
+    queryKey: ["crm-portfolios", portfolioId ?? "all"],
+    queryFn: async () => {
+      let query = supabase.from("portfolios").select("id, name").order("name");
+      if (portfolioId) query = query.eq("id", portfolioId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as CrmPortfolio[];
+    },
+  });
+
+  const portfolioNames = useMemo(
+    () => new Map(portfolios.map((portfolio) => [portfolio.id, portfolio.name])),
+    [portfolios],
+  );
 
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ["crm-leads", portfolioId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("crm_leads")
         .select("*")
-        .eq("portfolio_id", portfolioId)
         .order("created_at", { ascending: false });
+      if (portfolioId) query = query.eq("portfolio_id", portfolioId);
+      const { data, error } = await query;
       if (error) throw error;
       return data as CrmLead[];
     },
   });
+
+  const visibleLeads = useMemo(
+    () => portfolioFilter === "all" ? leads : leads.filter((lead) => lead.portfolio_id === portfolioFilter),
+    [leads, portfolioFilter],
+  );
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: LeadStatus }) => {
@@ -40,22 +68,22 @@ export default function CRMModule({ portfolioId }: { portfolioId: string }) {
   });
 
   const metricas = useMemo(() => {
-    const total = leads.length;
+    const total = visibleLeads.length;
     const now = new Date();
     const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
-    const mes = leads.filter((l) => new Date(l.created_at) >= inicioMes).length;
-    const fechados = leads.filter((l) => l.status === "fechado").length;
+    const mes = visibleLeads.filter((l) => new Date(l.created_at) >= inicioMes).length;
+    const fechados = visibleLeads.filter((l) => l.status === "fechado").length;
     const conv = total > 0 ? ((fechados / total) * 100).toFixed(1) : "0";
-    const pipeline = leads
+    const pipeline = visibleLeads
       .filter((l) => l.status !== "perdido" && l.status !== "fechado")
       .reduce((acc, l) => acc + (Number(l.valor_estimado) || 0), 0);
     return { total, mes, conv, pipeline };
-  }, [leads]);
+  }, [visibleLeads]);
 
   const onDragStart = (id: string) => setDraggingId(id);
   const onDrop = (status: LeadStatus) => {
     if (!draggingId) return;
-    const l = leads.find((x) => x.id === draggingId);
+    const l = visibleLeads.find((x) => x.id === draggingId);
     if (l && l.status !== status) updateStatus.mutate({ id: draggingId, status });
     setDraggingId(null);
   };
@@ -67,7 +95,22 @@ export default function CRMModule({ portfolioId }: { portfolioId: string }) {
           <h2 className="text-2xl font-bold">CRM</h2>
           <p className="text-sm text-muted-foreground">Funil de vendas e gestão de leads.</p>
         </div>
-        <NovoLeadDialog portfolioId={portfolioId} />
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          {!portfolioId && (
+            <Select value={portfolioFilter} onValueChange={setPortfolioFilter}>
+              <SelectTrigger className="min-w-0 flex-1 sm:w-[220px]">
+                <SelectValue placeholder="Todos os clientes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os clientes</SelectItem>
+                {portfolios.map((portfolio) => (
+                  <SelectItem key={portfolio.id} value={portfolio.id}>{portfolio.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <NovoLeadDialog portfolioId={portfolioId} portfolios={portfolios} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -84,7 +127,7 @@ export default function CRMModule({ portfolioId }: { portfolioId: string }) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {STATUS_COLUNAS.map((col) => {
-            const items = leads.filter((l) => l.status === col.key);
+            const items = visibleLeads.filter((l) => l.status === col.key);
             return (
               <div
                 key={col.key}
@@ -107,6 +150,11 @@ export default function CRMModule({ portfolioId }: { portfolioId: string }) {
                     >
                       <CardContent className="p-3 space-y-1.5">
                         <div className="font-medium text-sm truncate">{l.nome}</div>
+                        {!portfolioId && (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {portfolioNames.get(l.portfolio_id) ?? "Cliente"}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 flex-wrap">
                           <Badge variant="secondary" className="text-[10px] h-5">
                             {ORIGEM_LABELS[l.origem]}
@@ -136,7 +184,7 @@ export default function CRMModule({ portfolioId }: { portfolioId: string }) {
         </div>
       )}
 
-      <LeadDetailSheet lead={selected} portfolioId={portfolioId} open={sheetOpen} onOpenChange={setSheetOpen} />
+      <LeadDetailSheet lead={selected} portfolioId={selected?.portfolio_id ?? portfolioId ?? ""} open={sheetOpen} onOpenChange={setSheetOpen} />
     </div>
   );
 }

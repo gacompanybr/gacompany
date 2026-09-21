@@ -1,4 +1,4 @@
-import { Building2, Users, Settings, LogOut, Wallet, LayoutDashboard, Calendar, CheckSquare, Plug } from "lucide-react";
+import { Building2, Users, Settings, LogOut, Wallet, LayoutDashboard, Calendar, CheckSquare, Plug, ContactRound } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader,
@@ -10,6 +10,7 @@ import gaLogo from "@/assets/logo.png.asset.json";
 export type AdminTab =
   | "dashboard"
   | "clientes"
+  | "crm"
   | "equipe"
   | "tarefas"
   | "calendario"
@@ -26,6 +27,7 @@ const GROUPS: { label: string; items: { key: AdminTab; label: string; icon: any;
     label: "Operação",
     items: [
       { key: "clientes", label: "Clientes", icon: Building2, permission: "clients.view" },
+      { key: "crm", label: "CRM", icon: ContactRound, permission: "clients.view" },
       { key: "equipe", label: "Equipe", icon: Users, permission: "team.view" },
       { key: "tarefas", label: "Tarefas", icon: CheckSquare, permission: "tasks.view" },
       { key: "calendario", label: "Calendário", icon: Calendar, permission: "calendar.view" },
