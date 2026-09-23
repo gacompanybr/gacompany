@@ -123,7 +123,10 @@ export function listCatalogCategories(products: CatalogProduct[]): string[] {
 
 export function searchCatalogProducts(products: CatalogProduct[], requestedCategory: string) {
   const categoria = normalizeCatalogValue(requestedCategory);
-  const allMatches = products.filter((product) => normalizeCatalogValue(product.categoria) === categoria);
+  const allMatches = products.filter((product) => {
+    const productCategory = normalizeCatalogValue(product.categoria);
+    return productCategory === categoria || productCategory === `${categoria}s` || `${productCategory}s` === categoria;
+  });
   const matches = allMatches
     .slice(0, 60)
     .map(({ codigo, nome, marca, especificacoes, preco, unidade, estoque }) => ({

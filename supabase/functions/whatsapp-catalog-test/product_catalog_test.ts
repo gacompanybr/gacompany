@@ -68,6 +68,22 @@ Deno.test("busca categoria normalizada e limita produtos a 60", () => {
   assertEquals(result.produtos.length, 60);
 });
 
+Deno.test("busca categoria no singular quando a planilha usa plural", () => {
+  const products = [{
+    codigo: "100111",
+    categoria: "Chuveiros",
+    nome: "Chuveiro Acqua Storm Ultra 220V",
+    marca: "Lorenzetti",
+    especificacoes: "6800W, eletrônico",
+    preco: "R$ 746,52",
+    unidade: "unidade",
+    estoque: "15",
+  }];
+  const result = searchCatalogProducts(products, "chuveiro");
+  assertEquals(result.total, 1);
+  assertEquals(result.produtos[0]?.codigo, "100111");
+});
+
 Deno.test("lista categorias quando não encontra produtos", () => {
   const products = [{
     codigo: "1",
