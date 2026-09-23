@@ -1,4 +1,4 @@
-import Papa from "npm:papaparse@5.4.1";
+import { parse } from "npm:csv-parse@5.6.0/sync";
 
 export const REQUIRED_CATALOG_COLUMNS = [
   "codigo",
@@ -55,15 +55,19 @@ export function extractGoogleSheetCsvUrl(sheetUrl: string): string {
 }
 
 export function parseCatalogCsv(csv: string): CatalogProduct[] {
-  const parsed = Papa.parse<string[]>(csv, {
-    delimiter: "",
-    skipEmptyLines: "greedy",
-  });
-  if (parsed.errors.length && !parsed.data.length) {
+  let rows: string[][];
+  try {
+    const firstLine = csv.split(/\r?\n/, 1)[0] ?? "";
+    const delimiter = firstLine.split(";").length > firstLine.split(",").length ? ";" : ",";
+    rows = parse(csv, {
+      delimiter,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      bom: true,
+    }) as string[][];
+  } catch {
     throw new CatalogError("Não foi possível ler o CSV da planilha.", "invalid_csv");
   }
-
-  const rows = parsed.data;
   const rawHeaders = rows[0] ?? [];
   const headerIndexes = new Map<string, number>();
   rawHeaders.forEach((header, index) => {
