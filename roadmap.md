@@ -18,3 +18,4 @@
 - [x] Permitir cadastrar leads no CRM sem selecionar um cliente
 - [x] Permitir editar dados dos leads e limitar as colunas do CRM com rolagem própria
 - [x] Adicionar catálogo do Google Sheets ao Agente IA sem alterar agentes sem planilha
+- [x] Reconhecer singular e plural nas categorias do catálogo do Agente IA
