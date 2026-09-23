@@ -2509,6 +2509,7 @@ export type Database = {
       }
       whatsapp_agents: {
         Row: {
+          catalogo_url: string | null
           created_at: string
           dias_semana: Json
           faqs: Json
@@ -2539,6 +2540,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          catalogo_url?: string | null
           created_at?: string
           dias_semana?: Json
           faqs?: Json
@@ -2569,6 +2571,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          catalogo_url?: string | null
           created_at?: string
           dias_semana?: Json
           faqs?: Json
