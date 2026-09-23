@@ -119,8 +119,8 @@ export function listCatalogCategories(products: CatalogProduct[]): string[] {
 
 export function searchCatalogProducts(products: CatalogProduct[], requestedCategory: string) {
   const categoria = normalizeCatalogValue(requestedCategory);
-  const matches = products
-    .filter((product) => normalizeCatalogValue(product.categoria) === categoria)
+  const allMatches = products.filter((product) => normalizeCatalogValue(product.categoria) === categoria);
+  const matches = allMatches
     .slice(0, 60)
     .map(({ codigo, nome, marca, especificacoes, preco, unidade, estoque }) => ({
       codigo,
@@ -133,6 +133,6 @@ export function searchCatalogProducts(products: CatalogProduct[], requestedCateg
     }));
 
   return matches.length
-    ? { categoria, total: matches.length, produtos: matches }
+    ? { categoria, total: allMatches.length, produtos: matches }
     : { categoria, total: 0, produtos: [], categorias_disponiveis: listCatalogCategories(products) };
 }
