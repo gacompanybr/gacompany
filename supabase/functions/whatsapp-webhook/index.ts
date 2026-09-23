@@ -3,6 +3,7 @@
 // de um job DUP (espelhamento de ofertas para a data table do n8n).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateAffiliateLink, isMercadoLivreUrl, parseOfferMessage } from "../_shared/ml-affiliate.ts";
+import { fetchProductCatalog, searchCatalogProducts } from "../_shared/product-catalog.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1510,30 +1511,105 @@ async function processPayload(payload: any) {
     // resposta visível no meio da frase.
     const maxTokens = Math.min(Math.max(Number(agent.max_tokens ?? 1200), 500), 3000);
 
-    async function callAi(mt: number) {
+    const catalogoUrl = typeof agent.catalogo_url === "string" ? agent.catalogo_url.trim() : "";
+    const baseAiMessages = [
+      { role: "system", content: systemPrompt },
+      { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
+      ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
+    ];
+    const productSearchTool = {
+      type: "function",
+      function: {
+        name: "buscar_produtos",
+        description: "Busca produtos no catálogo da loja por categoria. Retorna os produtos da categoria com código, nome, marca, especificações, preço, unidade e estoque.",
+        parameters: {
+          type: "object",
+          properties: {
+            categoria: {
+              type: "string",
+              description: "Categoria em minúsculo e sem acento, ex.: chuveiro, tinta, tijolo_bloco",
+            },
+          },
+          required: ["categoria"],
+          additionalProperties: false,
+        },
+      },
+    };
+
+    async function callAi(mt: number, messages = baseAiMessages, toolsEnabled = false) {
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages,
+        temperature: agent.temperatura ?? 0.7,
+        max_tokens: mt,
+      };
+      if (toolsEnabled) requestBody.tools = [productSearchTool];
       return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
-            ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
-          ],
-          temperature: agent.temperatura ?? 0.7,
-          max_tokens: mt,
-        }),
+        body: JSON.stringify(requestBody),
       });
     }
 
-    let aiResp = await callAi(maxTokens);
+    let toolMessages: any[] = [...baseAiMessages];
+    let aiResp = await callAi(maxTokens, toolMessages, Boolean(catalogoUrl));
     if (!aiResp.ok) {
       console.error("AI gateway error", aiResp.status, await aiResp.text());
       continue;
     }
 
     let aiJson = await aiResp.json();
+    if (catalogoUrl) {
+      let toolRounds = 0;
+      while (toolRounds < 3) {
+        const assistantMessage = aiJson.choices?.[0]?.message;
+        const toolCalls = Array.isArray(assistantMessage?.tool_calls) ? assistantMessage.tool_calls : [];
+        if (!toolCalls.length) break;
+
+        toolRounds += 1;
+        toolMessages.push({
+          role: "assistant",
+          content: assistantMessage.content ?? null,
+          tool_calls: toolCalls,
+        });
+
+        for (const toolCall of toolCalls) {
+          let toolResult: unknown = { erro: "Ferramenta não reconhecida." };
+          if (toolCall?.function?.name === "buscar_produtos") {
+            try {
+              const args = JSON.parse(toolCall.function.arguments ?? "{}");
+              const categoria = typeof args?.categoria === "string" ? args.categoria : "";
+              if (!categoria.trim()) {
+                toolResult = { erro: "Categoria obrigatória." };
+              } else {
+                const products = await fetchProductCatalog(catalogoUrl);
+                toolResult = searchCatalogProducts(products, categoria);
+              }
+            } catch (error) {
+              toolResult = { erro: error instanceof Error ? error.message : "Falha ao buscar produtos." };
+            }
+          }
+          console.log("[CATALOGO] ferramenta executada", JSON.stringify({
+            portfolioId,
+            rodada: toolRounds,
+            ferramenta: toolCall?.function?.name,
+            resultado: toolResult,
+          }));
+          toolMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(toolResult),
+          });
+        }
+
+        aiResp = await callAi(maxTokens, toolMessages, toolRounds < 3);
+        if (!aiResp.ok) {
+          console.error("AI gateway error after catalog tool", aiResp.status, await aiResp.text());
+          break;
+        }
+        aiJson = await aiResp.json();
+      }
+    }
     let reply: string = aiJson.choices?.[0]?.message?.content?.trim() ?? "";
 
     // Detecta resposta cortada: finish_reason=length ou texto sem pontuação final.
@@ -1543,7 +1619,7 @@ async function processPayload(payload: any) {
     if (looksTruncated && maxTokens < 3000) {
       const retryTokens = Math.min(3000, Math.max(maxTokens * 2, 2000));
       console.warn("[TRUNCATED] resposta parece cortada — refazendo com max_tokens maior", { finishReason, was: maxTokens, retry: retryTokens, preview: reply.slice(-80) });
-      const retry = await callAi(retryTokens);
+      const retry = await callAi(retryTokens, catalogoUrl ? toolMessages : baseAiMessages, false);
       if (retry.ok) {
         const retryJson = await retry.json();
         const retryReply: string = retryJson.choices?.[0]?.message?.content?.trim() ?? "";
