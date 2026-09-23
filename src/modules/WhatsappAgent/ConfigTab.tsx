@@ -61,7 +61,7 @@ export function ConfigTab({
         </div>
         <div>
           <Label>Tom de voz</Label>
-          <Select value={agent.tom_de_voz} onValueChange={(v) => onChange({ tom_de_voz: v as any })}>
+          <Select value={agent.tom_de_voz} onValueChange={(v) => onChange({ tom_de_voz: v as WhatsappAgent["tom_de_voz"] })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {TOM_OPTIONS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -178,7 +178,7 @@ export function ConfigTab({
         </div>
         <div>
           <Label>Modelo</Label>
-          <Select value={agent.modelo_ia} onValueChange={(v) => onChange({ modelo_ia: v as any })}>
+          <Select value={agent.modelo_ia} onValueChange={(v) => onChange({ modelo_ia: v as WhatsappAgent["modelo_ia"] })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="gemini">Google Gemini Flash (rápido e econômico - recomendado)</SelectItem>
