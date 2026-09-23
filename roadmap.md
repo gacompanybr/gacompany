@@ -17,3 +17,4 @@
 - [x] Permitir entrada de todo usuário cadastrado e restringir apenas as abas conforme o cargo
 - [x] Permitir cadastrar leads no CRM sem selecionar um cliente
 - [x] Permitir editar dados dos leads e limitar as colunas do CRM com rolagem própria
+- [ ] Adicionar catálogo do Google Sheets ao Agente IA sem alterar agentes sem planilha

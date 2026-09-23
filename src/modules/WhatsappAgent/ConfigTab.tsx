@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,13 +8,45 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Info } from "lucide-react";
+import { CheckCircle2, Info, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { TOM_OPTIONS, DIAS, type WhatsappAgent } from "./types";
 import { ReportGroupCard } from "./ReportGroupCard";
 
 export function ConfigTab({
   agent, onChange,
 }: { agent: WhatsappAgent; onChange: (patch: Partial<WhatsappAgent>) => void }) {
+  const [testingCatalog, setTestingCatalog] = useState(false);
+  const [catalogResult, setCatalogResult] = useState<{ total: number; categorias: string[] } | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+
+  async function testCatalog() {
+    const catalogoUrl = agent.catalogo_url?.trim();
+    if (!catalogoUrl) {
+      setCatalogResult(null);
+      setCatalogError("Informe o link da planilha.");
+      return;
+    }
+    setTestingCatalog(true);
+    setCatalogResult(null);
+    setCatalogError("");
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-catalog-test", {
+        body: { portfolioId: agent.portfolio_id, catalogoUrl },
+      });
+      if (error || data?.error) {
+        const details = error && "context" in error && error.context instanceof Response
+          ? await error.context.clone().json().catch(() => null)
+          : null;
+        setCatalogError(data?.error ?? details?.error ?? error?.message ?? "Não foi possível testar a planilha.");
+        return;
+      }
+      setCatalogResult({ total: Number(data.total ?? 0), categorias: Array.isArray(data.categorias) ? data.categorias : [] });
+    } finally {
+      setTestingCatalog(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card className="p-5 space-y-4">
@@ -51,6 +85,41 @@ export function ConfigTab({
             onChange={(e) => onChange({ mensagem_boas_vindas: e.target.value })}
           />
         </div>
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <div>
+          <Label htmlFor="catalogo-url">Planilha de produtos (link do Google Sheets)</Label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Compartilhe a planilha como 'Qualquer pessoa com o link: Leitor'. Colunas: codigo, categoria, nome, marca, especificacoes, preco, unidade, estoque.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            id="catalogo-url"
+            type="url"
+            value={agent.catalogo_url ?? ""}
+            onChange={(event) => {
+              onChange({ catalogo_url: event.target.value || null });
+              setCatalogResult(null);
+              setCatalogError("");
+            }}
+            placeholder="https://docs.google.com/spreadsheets/d/..."
+          />
+          <Button type="button" variant="outline" className="shrink-0 gap-2" onClick={testCatalog} disabled={testingCatalog}>
+            {testingCatalog && <Loader2 className="animate-spin" size={14} />}
+            Testar planilha
+          </Button>
+        </div>
+        {catalogResult && (
+          <div className="flex items-start gap-2 text-sm text-foreground" role="status">
+            <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-primary" />
+            <p>
+              {catalogResult.total} produto{catalogResult.total === 1 ? "" : "s"}. Categorias: {catalogResult.categorias.join(", ") || "nenhuma"}.
+            </p>
+          </div>
+        )}
+        {catalogError && <p className="text-sm text-destructive" role="alert">{catalogError}</p>}
       </Card>
 
       <Card className="p-5 space-y-4">
