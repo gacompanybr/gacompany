@@ -928,7 +928,7 @@ async function sendAudioOnce(instance: string, targets: string[], text: string, 
     const response = await fetch(`${EVO_URL}/message/sendWhatsAppAudio/${instance}`, {
       method: "POST",
       headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ number: target, audio: `data:audio/ogg;codecs=opus;base64,${audio}` }),
+      body: JSON.stringify({ number: target, audio }),
     });
     const responseText = await response.text();
     let responseJson: any = null;
