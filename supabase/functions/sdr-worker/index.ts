@@ -94,7 +94,9 @@ async function evoSendAudio(instance: string, number: string, text: string, port
     const r = await fetch(`${EVO_URL}/message/sendWhatsAppAudio/${instance}`, {
       method: "POST",
       headers: { apikey: EVO_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ number, audio: `data:audio/ogg;codecs=opus;base64,${audio}` }),
+      // Evolution aceita o conteúdo base64 puro neste endpoint. O prefixo data URI
+      // faz a mídia ser rejeitada como "Owned media" inválida.
+      body: JSON.stringify({ number, audio }),
     });
     if (r.ok) {
       try {
