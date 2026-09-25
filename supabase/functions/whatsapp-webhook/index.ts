@@ -905,8 +905,8 @@ async function synthesizeSpeech(text: string): Promise<string | null> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         input: { text: text.trim() },
-        voice: { languageCode: "pt-BR", name: "pt-BR-Chirp3-HD-Aoede" },
-        audioConfig: { audioEncoding: "OGG_OPUS" },
+        voice: { languageCode: "pt-BR", name: "pt-BR-Chirp3-HD-Leda" },
+        audioConfig: { audioEncoding: "OGG_OPUS", speakingRate: 1.06 },
       }),
     });
     if (!response.ok) {
