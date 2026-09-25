@@ -71,8 +71,8 @@ async function synthesizeSpeech(text: string): Promise<string | null> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         input: { text: text.trim() },
-        voice: { languageCode: "pt-BR", name: "pt-BR-Chirp3-HD-Aoede" },
-        audioConfig: { audioEncoding: "OGG_OPUS" },
+        voice: { languageCode: "pt-BR", name: "pt-BR-Chirp3-HD-Leda" },
+        audioConfig: { audioEncoding: "OGG_OPUS", speakingRate: 1.06 },
       }),
     });
     if (!r.ok) {
@@ -261,12 +261,14 @@ function buildIdentidade(nomeAtendente: string | null): string {
 
 const PLACEHOLDER_RE = /\[[^\]]{1,40}\]|\{[^}]{1,40}\}/;
 
-async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtendente: string | null): Promise<string> {
+async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtendente: string | null, audioIntro = false): Promise<string> {
   const prompt =
     `Você é um SDR da GA Company. ${buildIdentidade(nomeAtendente)}\n` +
     `Gere uma abertura natural de WhatsApp para ${nome} do segmento ${nicho}.\n` +
     `Use este motivo como base (contexto interno, NÃO repita literal): ${motivo}.\n` +
-    `Quebre em 3 a 4 mensagens curtas de 1-2 linhas cada, separadas por |||.\n` +
+    (audioIntro
+      ? `A PRIMEIRA mensagem será um áudio: escreva uma fala única e fluida, com cerca de 50 a 75 palavras (aproximadamente 20 a 30 segundos). Comece se apresentando com o nome correto e GA Company, diga de forma concreta por que entrou em contato com esse negócio e faça uma pergunta leve que convide à conversa. Use frases de conversa, com pontuação natural para respirar; não use listas, siglas, emoji, frases telegráficas nem repita o nome da empresa. Não invente resultados, números ou fatos sobre o lead. Depois, escreva 1 ou 2 mensagens curtas em texto que complementem, sem repetir o áudio. Separe as mensagens com |||.\n`
+      : `Quebre em 3 a 4 mensagens curtas de 1-2 linhas cada, separadas por |||.\n`) +
     `FOCO OBRIGATÓRIO (escolha 1 ou 2 ângulos que façam sentido pro nicho — NUNCA use "tráfego pago", "anúncios" ou "ads" como gancho principal):\n` +
     `  • aumentar faturamento / vender mais\n` +
     `  • estruturar e escalar a empresa\n` +
@@ -282,7 +284,7 @@ async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtende
         model: "google/gemini-2.5-flash",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8,
-        max_tokens: 350,
+        max_tokens: audioIntro ? 450 : 350,
       }),
     });
     if (!r.ok) throw new Error(`ai ${r.status}`);
@@ -295,6 +297,10 @@ async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtende
   }
   // Fallback determinístico
   const eu = nomeAtendente?.trim() ? `Sou ${nomeAtendente.trim()} da GA Company` : `Aqui é da GA Company`;
+  if (audioIntro) return [
+    `Oi, ${nome}! Tudo bem? ${eu}. Estou falando com você porque trabalho com negócios do segmento de ${nicho} e queria entender como vocês estão atraindo clientes hoje. A gente ajuda a organizar a presença digital e o atendimento para não deixar oportunidades passarem. Como isso funciona aí no dia a dia?`,
+    `Se fizer sentido, podemos conversar por 15 minutos e ver juntos se existe alguma oportunidade para vocês.`,
+  ].join("|||");
   return [
     `Oi ${nome}! Tudo bem?`,
     `${eu} — a gente ajuda ${nicho} a vender mais, estruturar o digital e escalar sem depender só do boca a boca.`,
@@ -524,7 +530,7 @@ async function processCampaign(campaign: any) {
       }
 
       const nameResolved = await resolveName(instance, lead);
-      const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente);
+      const text = await aiOpening(nameResolved, lead.nicho, lead.motivo_contato, nomeAtendente, campaign.audio_enabled === true && campaign.audio_on_intro === true);
       await sleep(rand(8000, 16000));
       const { sent, failed, invalidNumber, audioSent } = await sendOpeningWithAudio(instance, lead.telefone, text, campaign, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
       const loggedSent = sent.map((message) => audioSent.includes(message) ? `[ÁUDIO] ${message}` : message);

@@ -20,3 +20,4 @@
 - [x] Adicionar catálogo do Google Sheets ao Agente IA sem alterar agentes sem planilha
 - [x] Reconhecer singular e plural nas categorias do catálogo do Agente IA
 - [x] Trocar a voz de áudio do SDR para uma voz feminina conversada em português brasileiro
+- [x] Suavizar a fala do SDR com uma abertura em áudio mais fluida e voz feminina ajustada
