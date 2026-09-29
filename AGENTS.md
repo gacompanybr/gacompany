@@ -1,3 +1,3 @@
 # Project Architecture Rules
 
-- Mercado Livre scraping remains HTML-based, runs eight times daily, fetches sequentially, stops on CAPTCHA, and supports an optional `ML_SCRAPER_PROXY_URL`; this reduces repeated IP blocking without changing downstream affiliate or dispatch logic.
+- Mercado Livre scraping remains HTML-based on the VPS, runs eight times daily, rotates one category and one page per run, stops on CAPTCHA, and supports optional `ML_SCRAPER_PROXY_URL`; this preserves downstream affiliate and dispatch logic while minimizing blocking signals.

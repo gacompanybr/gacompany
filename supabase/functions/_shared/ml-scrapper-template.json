@@ -590,7 +590,7 @@
           "parameters": [
             {
               "name": "User-Agent",
-              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
             },
             {
               "name": "Cookie",
@@ -598,11 +598,51 @@
             },
             {
               "name": "Accept",
-              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
             },
             {
               "name": "Accept-Language",
-              "value": "pt-BR,pt;q=0.9,en;q=0.8"
+              "value": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+            },
+            {
+              "name": "Accept-Encoding",
+              "value": "gzip, deflate, br"
+            },
+            {
+              "name": "Upgrade-Insecure-Requests",
+              "value": "1"
+            },
+            {
+              "name": "Sec-CH-UA",
+              "value": "\"Chromium\";v=\"141\", \"Not?A_Brand\";v=\"24\""
+            },
+            {
+              "name": "Sec-CH-UA-Mobile",
+              "value": "?0"
+            },
+            {
+              "name": "Sec-CH-UA-Platform",
+              "value": "\"Windows\""
+            },
+            {
+              "name": "Sec-Fetch-Dest",
+              "value": "document"
+            },
+            {
+              "name": "Sec-Fetch-Mode",
+              "value": "navigate"
+            },
+            {
+              "name": "Sec-Fetch-Site",
+              "value": "none"
+            },
+            {
+              "name": "Sec-Fetch-User",
+              "value": "?1"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.mercadolivre.com.br/"
             }
           ]
         },
@@ -611,7 +651,7 @@
           "batching": {
             "batch": {
               "batchSize": 1,
-              "batchInterval": 5000
+              "batchInterval": 6500
             }
           },
           "response": {
@@ -635,7 +675,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ===== Helpers =====\nfunction buildPaginatedUrl(baseUrl, page) {\n  // Remove fragmento (#...) e espacos: o que vem depois de # nao vai pro servidor\n  // e fazia o page=N/_Desde_N cair dentro do fragmento, quebrando a paginacao.\n  baseUrl = String(baseUrl).trim().split(\"#\")[0];\n  // /lista.mercadolivre.com.br usa offset (_Desde_N), 48 items por página\n  if (baseUrl.includes('lista.mercadolivre.com.br')) {\n    if (page <= 1) return baseUrl;\n    const offset = (page - 1) * 48 + 1;\n    const seg = `_Desde_${offset}`;\n    // ML tem ordem canonica fixa: ..._CustoFrete_Gratis _Desde_N _DiscountRange_30-100 _NoIndex_True\n    // Inserir o _Desde_N FORA dessa ordem faz o ML responder 200 com aviso de redirect\n    // no corpo (sem produtos). Entao inserimos logo ANTES do _DiscountRange (ou _NoIndex).\n    if (baseUrl.includes('_DiscountRange')) {\n      return baseUrl.replace('_DiscountRange', `${seg}_DiscountRange`);\n    }\n    if (baseUrl.includes('_NoIndex')) {\n      return baseUrl.replace('_NoIndex', `${seg}_NoIndex`);\n    }\n    if (baseUrl.includes('_')) {\n      return baseUrl.replace(/_([A-Z])/, `${seg}_$1`);\n    }\n    return `${baseUrl}${seg}`;\n  }\n\n  // /ofertas, /c/, busca normal — paginação via ?page=N\n  if (page <= 1) return baseUrl;\n  const sep = baseUrl.includes('?') ? '&' : '?';\n  return `${baseUrl}${sep}page=${page}`;\n}\n\n// ===== Estado do LOOP de tentativas (retry pra atingir o piso de produtos) =====\n// Cada vez que o workflow volta aqui (porque não atingiu o piso na tentativa anterior),\n// avança um bloco de páginas novo, pra não repetir o que já foi varrido antes.\nconst staticData = $getWorkflowStaticData('global'); // 'global' = compartilhado entre TODOS os nodes (precisa ser visto pelo 'Acumular Resultados')\n\n// ===== Reset de estado a cada EXECUCAO nova (agendada/manual) =====\n// O Static Data sobrevive entre execucoes. Sem zerar, 'tentativa' e 'acumulados'\n// vazariam de um dia pro outro, fazendo o pageOffset crescer pra paginas inexistentes.\n// So zera quando a execucao mudou; dentro do mesmo run (retry) mantem o acumulado.\nconst _execId = $execution?.id ?? null;\nif (staticData._execId !== _execId) {\n  staticData._execId = _execId;\n  staticData.tentativa = 0;\n  staticData.acumulados = [];\n  staticData.esgotadas = {};\n}\nconst tentativa = Number(staticData.tentativa || 0);\n\n// ===== Config =====\n// Lê SEMPRE do node CONFIG ML (não do input direto), pois este node também é\n// alimentado pelo \"IF - Precisa Mais?\" nas voltas do loop, cujo input não traz a config.\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\n\nconst settings = (() => {\n  const s = cfg.ml_queries;\n  if (s !== null && typeof s === 'object' && !Array.isArray(s)) return s.settings || s;\n  if (typeof s === 'string') {\n    try { const p = JSON.parse(s); return p.settings || p; } catch (e) {}\n  }\n  return {};\n})();\n\nconst pages = Math.max(1, Number(settings.pages || 5));\n// VELOCIDADE: cada tentativa varre no MAXIMO 5 paginas por categoria. O loop de\n// tentativas (pageOffset) continua avancando os blocos seguintes, entao o alcance\n// total de paginas e o mesmo — mas o piso de produtos e checado muito mais cedo.\nconst pagesPerAttempt = Math.max(1, Math.min(5, pages));\nconst pageOffset = tentativa * pagesPerAttempt;\n\nconst excludeCategories = Array.isArray(settings.exclude_categories)\n  ? settings.exclude_categories\n  : [];\n\n// ===== Categorias (múltiplas URLs) =====\n// ml_categories é um array de objetos { nome, url }, configurado no node CONFIG ML.\n// Mantém compatibilidade: se não houver ml_categories, cai de volta no ml_base_url antigo (1 categoria só).\nlet categories = [];\ntry {\n  const raw = cfg.ml_categories;\n  if (Array.isArray(raw)) {\n    categories = raw;\n  } else if (typeof raw === 'string' && raw.trim()) {\n    categories = JSON.parse(raw);\n  }\n} catch (e) {\n  categories = [];\n}\n\nif (!Array.isArray(categories) || categories.length === 0) {\n  // Fallback ROBUSTO: nichos embutidos no proprio node.\n  // Garante o round-robin mesmo se o campo ml_categories do CONFIG vier\n  // vazio ou quebrado (era isso que derrubava tudo pro feed generico 'casa').\n  categories = [\n    { nome: \"airfryer\", url: \"https://lista.mercadolivre.com.br/air-fryer_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"cama\", url: \"https://lista.mercadolivre.com.br/jogo-de-cama-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"organizador\", url: \"https://lista.mercadolivre.com.br/organizador-de-cozinha_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"vestido\", url: \"https://lista.mercadolivre.com.br/vestido-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"conjunto\", url: \"https://lista.mercadolivre.com.br/conjunto-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"bolsa\", url: \"https://lista.mercadolivre.com.br/bolsa-feminina_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"oculos\", url: \"https://lista.mercadolivre.com.br/oculos-de-sol-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"perfume\", url: \"https://lista.mercadolivre.com.br/perfume-importado_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"creme\", url: \"https://lista.mercadolivre.com.br/creme-hidratante-corporal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"legging\", url: \"https://lista.mercadolivre.com.br/legging-fitness_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"fitness\", url: \"https://lista.mercadolivre.com.br/conjunto-fitness-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" }\n  ];\n}\n\n// Filtra categorias sem URL válida (ex: placeholders não preenchidos)\ncategories = categories.filter(c => c && c.url && !/^COLE_AQUI/i.test(String(c.url).trim()));\n\n// Categorias que ja responderam \"nenhuma pagina com produtos\" nesta execucao\n// (marcadas pelo node \"Extrair HTML\") sao puladas: nao gasta requisicao em pagina inexistente.\nconst esgotadas = (staticData.esgotadas && typeof staticData.esgotadas === 'object') ? staticData.esgotadas : {};\nconst categoriesAtivas = categories.filter(c => !esgotadas[String((c && c.nome) || '').trim()]);\nif (categoriesAtivas.length) categories = categoriesAtivas;\nelse if (tentativa > 0) return [];\n\n// ===== Geração dos links em ROUND-ROBIN por categoria =====\n// Ordem de saída: cat1_p1, cat2_p1, cat3_p1, ..., catN_p1, cat1_p2, cat2_p2, ...\n// Assim o scraping já visita as categorias intercaladas, página por página.\nconst out = [];\n\ntry {\n  for (let page = 1; page <= pagesPerAttempt; page++) {\n    const pageReal = page + pageOffset; // avança o bloco de páginas a cada tentativa do loop\n    for (const cat of categories) {\n      const baseUrl = String(cat.url).trim();\n      const categoryName = String(cat.nome || 'categoria').trim();\n      const link = buildPaginatedUrl(baseUrl, pageReal);\n\n      out.push({\n        json: {\n          marketplace: 'mercadolivre',\n          name: `${categoryName}_p${pageReal}`,\n          categoria: categoryName,\n          page: pageReal,\n          tentativa,\n          link,\n          min_discount:        Number(settings.min_discount ?? 10),\n          min_rating:          Number(settings.min_rating   ?? 4.0),\n          free_shipping:       settings.free_shipping ?? true,\n          sort:                settings.sort || 'discount_desc',\n          exclude_categories:  excludeCategories,\n          ml_affiliate_endpoint: cfg.ml_affiliate_endpoint,\n          ml_affiliate_tag:      cfg.ml_affiliate_tag,\n          ml_csrf_token:         cfg.ml_csrf_token,\n          ml_cookie:             cfg.ml_cookie,\n          ml_proxy_url:          cfg.ml_proxy_url || '',\n        },\n      });\n    }\n  }\n} catch (err) {\n  // Não derruba o workflow se algo bizarro acontecer aqui\n  out.push({\n    json: {\n      _error: true,\n      _error_message: err?.message ?? String(err),\n      _categories: categories,\n    },\n  });\n}\n\nreturn out;"
+        "jsCode": "// ===== Helpers =====\nfunction buildPaginatedUrl(baseUrl, page) {\n  // Remove fragmento (#...) e espacos: o que vem depois de # nao vai pro servidor\n  // e fazia o page=N/_Desde_N cair dentro do fragmento, quebrando a paginacao.\n  baseUrl = String(baseUrl).trim().split(\"#\")[0];\n  // /lista.mercadolivre.com.br usa offset (_Desde_N), 48 items por página\n  if (baseUrl.includes('lista.mercadolivre.com.br')) {\n    if (page <= 1) return baseUrl;\n    const offset = (page - 1) * 48 + 1;\n    const seg = `_Desde_${offset}`;\n    // ML tem ordem canonica fixa: ..._CustoFrete_Gratis _Desde_N _DiscountRange_30-100 _NoIndex_True\n    // Inserir o _Desde_N FORA dessa ordem faz o ML responder 200 com aviso de redirect\n    // no corpo (sem produtos). Entao inserimos logo ANTES do _DiscountRange (ou _NoIndex).\n    if (baseUrl.includes('_DiscountRange')) {\n      return baseUrl.replace('_DiscountRange', `${seg}_DiscountRange`);\n    }\n    if (baseUrl.includes('_NoIndex')) {\n      return baseUrl.replace('_NoIndex', `${seg}_NoIndex`);\n    }\n    if (baseUrl.includes('_')) {\n      return baseUrl.replace(/_([A-Z])/, `${seg}_$1`);\n    }\n    return `${baseUrl}${seg}`;\n  }\n\n  // /ofertas, /c/, busca normal — paginação via ?page=N\n  if (page <= 1) return baseUrl;\n  const sep = baseUrl.includes('?') ? '&' : '?';\n  return `${baseUrl}${sep}page=${page}`;\n}\n\n// ===== Estado do LOOP de tentativas (retry pra atingir o piso de produtos) =====\n// Cada vez que o workflow volta aqui (porque não atingiu o piso na tentativa anterior),\n// avança um bloco de páginas novo, pra não repetir o que já foi varrido antes.\nconst staticData = $getWorkflowStaticData('global'); // 'global' = compartilhado entre TODOS os nodes (precisa ser visto pelo 'Acumular Resultados')\n\n// ===== Reset de estado a cada EXECUCAO nova (agendada/manual) =====\n// O Static Data sobrevive entre execucoes. Sem zerar, 'tentativa' e 'acumulados'\n// vazariam de um dia pro outro, fazendo o pageOffset crescer pra paginas inexistentes.\n// So zera quando a execucao mudou; dentro do mesmo run (retry) mantem o acumulado.\nconst _execId = $execution?.id ?? null;\nif (staticData._execId !== _execId) {\n  staticData._execId = _execId;\n  staticData.tentativa = 0;\n  staticData.acumulados = [];\n  staticData.esgotadas = {};\n}\nconst tentativa = Number(staticData.tentativa || 0);\n\n// ===== Config =====\n// Lê SEMPRE do node CONFIG ML (não do input direto), pois este node também é\n// alimentado pelo \"IF - Precisa Mais?\" nas voltas do loop, cujo input não traz a config.\nconst cfg = ($items('CONFIG ML')?.[0]?.json) ?? {};\n\nconst settings = (() => {\n  const s = cfg.ml_queries;\n  if (s !== null && typeof s === 'object' && !Array.isArray(s)) return s.settings || s;\n  if (typeof s === 'string') {\n    try { const p = JSON.parse(s); return p.settings || p; } catch (e) {}\n  }\n  return {};\n})();\n\nconst pages = 1;\n// VELOCIDADE: cada tentativa varre no MAXIMO 5 paginas por categoria. O loop de\n// tentativas (pageOffset) continua avancando os blocos seguintes, entao o alcance\n// total de paginas e o mesmo — mas o piso de produtos e checado muito mais cedo.\nconst pagesPerAttempt = 1;\nconst pageOffset = tentativa * pagesPerAttempt;\n\nconst excludeCategories = Array.isArray(settings.exclude_categories)\n  ? settings.exclude_categories\n  : [];\n\n// ===== Categorias (múltiplas URLs) =====\n// ml_categories é um array de objetos { nome, url }, configurado no node CONFIG ML.\n// Mantém compatibilidade: se não houver ml_categories, cai de volta no ml_base_url antigo (1 categoria só).\nlet categories = [];\ntry {\n  const raw = cfg.ml_categories;\n  if (Array.isArray(raw)) {\n    categories = raw;\n  } else if (typeof raw === 'string' && raw.trim()) {\n    categories = JSON.parse(raw);\n  }\n} catch (e) {\n  categories = [];\n}\n\nif (!Array.isArray(categories) || categories.length === 0) {\n  // Fallback ROBUSTO: nichos embutidos no proprio node.\n  // Garante o round-robin mesmo se o campo ml_categories do CONFIG vier\n  // vazio ou quebrado (era isso que derrubava tudo pro feed generico 'casa').\n  categories = [\n    { nome: \"airfryer\", url: \"https://lista.mercadolivre.com.br/air-fryer_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"cama\", url: \"https://lista.mercadolivre.com.br/jogo-de-cama-casal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"organizador\", url: \"https://lista.mercadolivre.com.br/organizador-de-cozinha_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"vestido\", url: \"https://lista.mercadolivre.com.br/vestido-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"conjunto\", url: \"https://lista.mercadolivre.com.br/conjunto-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"bolsa\", url: \"https://lista.mercadolivre.com.br/bolsa-feminina_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"oculos\", url: \"https://lista.mercadolivre.com.br/oculos-de-sol-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"perfume\", url: \"https://lista.mercadolivre.com.br/perfume-importado_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"creme\", url: \"https://lista.mercadolivre.com.br/creme-hidratante-corporal_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"legging\", url: \"https://lista.mercadolivre.com.br/legging-fitness_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" },\n    { nome: \"fitness\", url: \"https://lista.mercadolivre.com.br/conjunto-fitness-feminino_CustoFrete_Gratis_DiscountRange_30-100_NoIndex_True\" }\n  ];\n}\n\n// Filtra categorias sem URL válida (ex: placeholders não preenchidos)\ncategories = categories.filter(c => c && c.url && !/^COLE_AQUI/i.test(String(c.url).trim()));\n\n// Categorias que ja responderam \"nenhuma pagina com produtos\" nesta execucao\n// (marcadas pelo node \"Extrair HTML\") sao puladas: nao gasta requisicao em pagina inexistente.\nconst esgotadas = (staticData.esgotadas && typeof staticData.esgotadas === 'object') ? staticData.esgotadas : {};\nconst categoriesAtivas = categories.filter(c => !esgotadas[String((c && c.nome) || '').trim()]);\nif (categoriesAtivas.length) categories = categoriesAtivas;\nelse if (tentativa > 0) return [];\n\n// Modo conservador: a cada nova execução avança uma categoria e consulta somente ela.\n// O cursor persiste entre os oito horários; retries internos não avançam novamente.\nif (categories.length > 1) {\n  if (tentativa === 0) {\n    staticData.mlCategoryCursor = (Number(staticData.mlCategoryCursor ?? -1) + 1) % categories.length;\n  }\n  const cursor = Number(staticData.mlCategoryCursor || 0) % categories.length;\n  categories = [categories[cursor]];\n}\n\n// ===== Geração dos links em ROUND-ROBIN por categoria =====\n// Ordem de saída: cat1_p1, cat2_p1, cat3_p1, ..., catN_p1, cat1_p2, cat2_p2, ...\n// Assim o scraping já visita as categorias intercaladas, página por página.\nconst out = [];\n\ntry {\n  for (let page = 1; page <= pagesPerAttempt; page++) {\n    const pageReal = page + pageOffset; // avança o bloco de páginas a cada tentativa do loop\n    for (const cat of categories) {\n      const baseUrl = String(cat.url).trim();\n      const categoryName = String(cat.nome || 'categoria').trim();\n      const link = buildPaginatedUrl(baseUrl, pageReal);\n\n      out.push({\n        json: {\n          marketplace: 'mercadolivre',\n          name: `${categoryName}_p${pageReal}`,\n          categoria: categoryName,\n          page: pageReal,\n          tentativa,\n          link,\n          min_discount:        Number(settings.min_discount ?? 10),\n          min_rating:          Number(settings.min_rating   ?? 4.0),\n          free_shipping:       settings.free_shipping ?? true,\n          sort:                settings.sort || 'discount_desc',\n          exclude_categories:  excludeCategories,\n          ml_affiliate_endpoint: cfg.ml_affiliate_endpoint,\n          ml_affiliate_tag:      cfg.ml_affiliate_tag,\n          ml_csrf_token:         cfg.ml_csrf_token,\n          ml_cookie:             cfg.ml_cookie,\n          ml_proxy_url:          cfg.ml_proxy_url || '',\n        },\n      });\n    }\n  }\n} catch (err) {\n  // Não derruba o workflow se algo bizarro acontecer aqui\n  out.push({\n    json: {\n      _error: true,\n      _error_message: err?.message ?? String(err),\n      _categories: categories,\n    },\n  });\n}\n\nreturn out;"
       },
       "id": "52281b87-cd71-494d-a3e7-d956675eb680",
       "name": "Montar Links ML",
@@ -692,7 +732,7 @@
             },
             {
               "name": "max_total",
-              "stringValue": "100"
+              "stringValue": "10"
             },
             {
               "name": "similarity_threshold",
@@ -700,7 +740,7 @@
             },
             {
               "name": "min_total",
-              "stringValue": "60"
+              "stringValue": "1"
             },
             {
               "name": "min_commission_value",
@@ -716,15 +756,15 @@
             },
             {
               "name": "max_total_final",
-              "stringValue": "80"
+              "stringValue": "10"
             },
             {
               "name": "max_tentativas",
-              "stringValue": "8"
+              "stringValue": "1"
             },
             {
               "name": "min_total_final",
-              "stringValue": "20"
+              "stringValue": "1"
             },
             {
               "name": "ml_base_url",
@@ -736,7 +776,7 @@
             },
             {
               "name": "final_pick",
-              "stringValue": "11"
+              "stringValue": "10"
             },
             {
               "name": "max_price",
