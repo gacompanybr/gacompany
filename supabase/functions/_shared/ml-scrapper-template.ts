@@ -565,6 +565,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   const cookie = sanitizeMlCredential(cfg.ml_cookie);
   const csrf = sanitizeMlCredential(cfg.ml_csrf_token);
   const tag = sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const proxyUrl = cleanText(Deno.env.get("ML_SCRAPER_PROXY_URL") ?? "");
   const tableId = cleanText(job.n8n_datatable_id);
 
   if (!cookie) throw new Error("Faltando: ml_cookie (Cookie do Mercado Livre)");
@@ -603,6 +604,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     if (f?.stringValue === "__ML_COOKIE__") f.stringValue = cookie;
     else if (f?.stringValue === "__ML_CSRF_TOKEN__") f.stringValue = csrf;
     else if (f?.stringValue === "__ML_AFFILIATE_TAG__") f.stringValue = tag;
+    else if (f?.stringValue === "__ML_PROXY_URL__") f.stringValue = proxyUrl;
   }
 
   const mlMinDiscount = Math.max(1, Math.min(99, Number(cfg.ml_min_discount ?? 30)));
@@ -642,6 +644,11 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   }
 
   // --- schedule opcional ---
+  const htmlRequest = findNode(wf, "Extrair HTML1");
+  if (htmlRequest?.parameters?.options) {
+    htmlRequest.parameters.options.proxy = "={{ $json.ml_proxy_url || undefined }}";
+  }
+
   const schedule = findNode(wf, "Schedule Trigger 12h");
   if (schedule) {
     const cron = buildCron(job);
