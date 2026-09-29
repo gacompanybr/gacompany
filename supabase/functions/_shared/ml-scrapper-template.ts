@@ -538,24 +538,17 @@ return out;`;
     .replace(/\nreturn out;\s*$/m, claimCode);
 }
 
-function buildCron(job: any): string | null {
+function buildCron(job: any): string {
+  if (job.force_every_minute) return "* * * * *";
   const cfg = job.config ?? {};
-  if (typeof cfg.agendamento_cron === "string" && cfg.agendamento_cron.trim()) {
-    return cfg.agendamento_cron.trim();
-  }
-  const intervalH = Math.max(1, Math.min(24, Number(job.intervalo_horas ?? cfg.intervalo_horas ?? 0)));
-  const start = Math.max(0, Math.min(23, Number(cfg.hora_inicio ?? cfg.inicio_hora ?? 0)));
-  const end = Math.max(start, Math.min(23, Number(cfg.hora_fim ?? cfg.fim_hora ?? 23)));
-  if (!intervalH) return null;
-  const hours: number[] = [];
-  for (let h = start; h <= end; h += intervalH) hours.push(h);
-  if (!hours.length) return null;
   const dowMap: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
   const dias = Array.isArray(cfg.dias_semana) ? cfg.dias_semana : [];
   const dow = dias.length && dias.length < 7
     ? dias.map((d: string) => dowMap[String(d).toLowerCase().slice(0, 3)]).filter((n: number) => n != null).sort().join(",")
     : "*";
-  return `0 0 ${hours.join(",")} * * ${dow}`;
+  // O ML passou a aplicar CAPTCHA no IP após coletas horárias. Oito janelas
+  // distribuídas diminuem a assinatura de automação sem alterar o restante do fluxo.
+  return `0 0 6,8,10,12,14,16,18,20 * * ${dow}`;
 }
 
 export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWorkflow {
