@@ -538,24 +538,17 @@ return out;`;
     .replace(/\nreturn out;\s*$/m, claimCode);
 }
 
-function buildCron(job: any): string | null {
+function buildCron(job: any): string {
+  if (job.force_every_minute) return "* * * * *";
   const cfg = job.config ?? {};
-  if (typeof cfg.agendamento_cron === "string" && cfg.agendamento_cron.trim()) {
-    return cfg.agendamento_cron.trim();
-  }
-  const intervalH = Math.max(1, Math.min(24, Number(job.intervalo_horas ?? cfg.intervalo_horas ?? 0)));
-  const start = Math.max(0, Math.min(23, Number(cfg.hora_inicio ?? cfg.inicio_hora ?? 0)));
-  const end = Math.max(start, Math.min(23, Number(cfg.hora_fim ?? cfg.fim_hora ?? 23)));
-  if (!intervalH) return null;
-  const hours: number[] = [];
-  for (let h = start; h <= end; h += intervalH) hours.push(h);
-  if (!hours.length) return null;
   const dowMap: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
   const dias = Array.isArray(cfg.dias_semana) ? cfg.dias_semana : [];
   const dow = dias.length && dias.length < 7
     ? dias.map((d: string) => dowMap[String(d).toLowerCase().slice(0, 3)]).filter((n: number) => n != null).sort().join(",")
     : "*";
-  return `0 0 ${hours.join(",")} * * ${dow}`;
+  // O ML passou a aplicar CAPTCHA no IP após coletas horárias. Oito janelas
+  // distribuídas diminuem a assinatura de automação sem alterar o restante do fluxo.
+  return `0 0 6,8,10,12,14,16,18,20 * * ${dow}`;
 }
 
 export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWorkflow {
@@ -565,6 +558,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   const cookie = sanitizeMlCredential(cfg.ml_cookie);
   const csrf = sanitizeMlCredential(cfg.ml_csrf_token);
   const tag = sanitizeMlCredential(cfg.ml_affiliate_id ?? cfg.ml_affiliate_tag);
+  const proxyUrl = cleanText(Deno.env.get("ML_SCRAPER_PROXY_URL") ?? "");
   const tableId = cleanText(job.n8n_datatable_id);
 
   if (!cookie) throw new Error("Faltando: ml_cookie (Cookie do Mercado Livre)");
@@ -603,6 +597,7 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
     if (f?.stringValue === "__ML_COOKIE__") f.stringValue = cookie;
     else if (f?.stringValue === "__ML_CSRF_TOKEN__") f.stringValue = csrf;
     else if (f?.stringValue === "__ML_AFFILIATE_TAG__") f.stringValue = tag;
+    else if (f?.stringValue === "__ML_PROXY_URL__") f.stringValue = proxyUrl;
   }
 
   const mlMinDiscount = Math.max(1, Math.min(99, Number(cfg.ml_min_discount ?? 30)));
@@ -642,6 +637,11 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   }
 
   // --- schedule opcional ---
+  const htmlRequest = findNode(wf, "Extrair HTML1");
+  if (htmlRequest?.parameters?.options) {
+    htmlRequest.parameters.options.proxy = "={{ $json.ml_proxy_url || undefined }}";
+  }
+
   const schedule = findNode(wf, "Schedule Trigger 12h");
   if (schedule) {
     const cron = buildCron(job);

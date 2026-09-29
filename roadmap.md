@@ -21,3 +21,5 @@
 - [x] Reconhecer singular e plural nas categorias do catálogo do Agente IA
 - [x] Trocar a voz de áudio do SDR para uma voz feminina conversada em português brasileiro
 - [x] Suavizar a fala do SDR com uma abertura em áudio mais fluida e voz feminina ajustada
+
+- [x] Estabilizar o scraper do Mercado Livre com 8 execuções diárias, coleta sequencial, detecção de CAPTCHA e proxy opcional
