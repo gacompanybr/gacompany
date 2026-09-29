@@ -23,3 +23,4 @@
 - [x] Suavizar a fala do SDR com uma abertura em áudio mais fluida e voz feminina ajustada
 
 - [x] Estabilizar o scraper do Mercado Livre com 8 execuções diárias, coleta sequencial, detecção de CAPTCHA e proxy opcional
+- [x] Restaurar coleta conservadora do Mercado Livre na VPS com URLs simples e rotação de categorias

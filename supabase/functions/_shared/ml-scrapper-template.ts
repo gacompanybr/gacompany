@@ -82,10 +82,19 @@ function inferCategoryName(value: unknown, fallback: string): string {
 
 function mlCategoryUrl(value: unknown, minDiscount: number): string {
   const raw = cleanText(value);
-  if (isMlListUrl(raw)) return raw.split("#")[0];
+  if (isMlListUrl(raw)) {
+    const url = raw.split("#")[0].split("?")[0];
+    return url
+      .replace(/_CustoFrete_Gratis/gi, "")
+      .replace(/_Desde_\d+/gi, "")
+      .replace(/_DiscountRange_\d+-\d+/gi, "")
+      .replace(/_NoIndex_True/gi, "")
+      .replace(/_OrderId_[^_]+/gi, "")
+      .replace(/_+$/g, "");
+  }
   const slug = slugifyMlCategory(raw);
   return slug
-    ? `https://lista.mercadolivre.com.br/${slug}_CustoFrete_Gratis_DiscountRange_${minDiscount}-100_NoIndex_True`
+    ? `https://lista.mercadolivre.com.br/${slug}`
     : "";
 }
 
@@ -601,7 +610,9 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
   }
 
   const mlMinDiscount = Math.max(1, Math.min(99, Number(cfg.ml_min_discount ?? 30)));
-  const mlPages = Math.max(1, Math.min(20, Number(cfg.ml_pages ?? 1)));
+  // Uma única página e poucos itens por janela reproduzem o padrão conservador
+  // que já funcionou no mesmo IP da VPS. Os filtros continuam após a extração.
+  const mlPages = 1;
   setConfigString(values, "ml_queries", JSON.stringify({
     settings: {
       min_discount: mlMinDiscount,
@@ -624,6 +635,12 @@ export function buildMlScrapperWorkflow(job: any, workflowName: string): AnyWork
 
   setConfigString(values, "min_commission_value", String(Math.max(0, Number(cfg.min_commission_value ?? 0))));
   setConfigString(values, "commission_rate", String(Math.max(0, Number(cfg.ml_default_commission_rate ?? cfg.commission_rate ?? 10))));
+  setConfigString(values, "max_total", "10");
+  setConfigString(values, "min_total", "1");
+  setConfigString(values, "max_tentativas", "1");
+  setConfigString(values, "max_total_final", "10");
+  setConfigString(values, "min_total_final", "1");
+  setConfigString(values, "final_pick", "10");
 
   // --- replace __DATA_TABLE_ID__ nos nodes de data table ---
   const tableName = job.data_table_name || "ML_SCRAPPER";
