@@ -1320,8 +1320,14 @@ async function processPayload(payload: any) {
       }
     }
 
-    // Salvar mensagem do usuário (com vínculo SDR se aplicável)
-    const { data: insertedUserMsg } = await admin.from("whatsapp_conversas").insert({
+    // Salvar mensagem do usuário (com vínculo SDR se aplicável).
+    // O id/timestamp são definidos aqui para o debounce nunca depender do retorno
+    // do INSERT. Se o retorno do banco vier vazio, a própria mensagem não pode ser
+    // confundida com uma mensagem "mais nova" e encerrar a última execução do burst.
+    const userMessageId = crypto.randomUUID();
+    const userMessageCreatedAt = new Date().toISOString();
+    const { error: insertUserError } = await admin.from("whatsapp_conversas").insert({
+      id: userMessageId,
       portfolio_id: portfolioId,
       instance_name: instance,
       contato_telefone: storagePhone,
@@ -1329,7 +1335,16 @@ async function processPayload(payload: any) {
       role: "user",
       mensagem: text,
       sdr_lead_id: sdrLead?.id ?? null,
-    }).select("id, created_at").maybeSingle();
+      created_at: userMessageCreatedAt,
+    });
+    if (insertUserError) {
+      console.error("[MESSAGE] falha ao salvar mensagem recebida", {
+        portfolioId,
+        storagePhone,
+        error: insertUserError.message,
+      });
+      continue;
+    }
 
     // === DEBOUNCE ANTI-BURST ===
     // Se o cliente manda várias mensagens seguidas ("oi", "opa", "call?"),
@@ -1343,19 +1358,20 @@ async function processPayload(payload: any) {
       ...phoneCandidates,
     ].filter(Boolean))).slice(0, 20);
     {
-      const cutoff = insertedUserMsg?.created_at ?? new Date(Date.now() - DEBOUNCE_MS).toISOString();
       if (phonesForCheck.length) {
         const { data: newer } = await admin
           .from("whatsapp_conversas")
-          .select("id")
+          .select("id, created_at")
           .eq("portfolio_id", portfolioId)
           .eq("role", "user")
           .in("contato_telefone", phonesForCheck)
-          .gt("created_at", cutoff)
+          .gt("created_at", userMessageCreatedAt)
+          .neq("id", userMessageId)
+          .order("created_at", { ascending: false })
           .limit(1);
         if (newer && newer.length > 0) {
           console.log("[DEBOUNCE] skip — chegou mensagem mais nova", {
-            portfolioId, storagePhone, thisId: insertedUserMsg?.id,
+            portfolioId, storagePhone, thisId: userMessageId, newerId: newer[0]?.id,
           });
           continue;
         }
@@ -1653,7 +1669,7 @@ async function processPayload(payload: any) {
     if (!reply) continue;
 
     // === ANTI-CONCORRÊNCIA (evita resposta obsoleta e duplicada) ===
-    const raceCutoff = insertedUserMsg?.created_at ?? null;
+    const raceCutoff = userMessageCreatedAt;
     if (raceCutoff && phonesForCheck.length) {
       const { data: newerUser } = await admin
         .from("whatsapp_conversas")
