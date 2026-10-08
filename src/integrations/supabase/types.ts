@@ -2678,6 +2678,9 @@ export type Database = {
           invalidated_before: string | null
           phone: string
           portfolio_id: string
+          scheduled_followup_at: string | null
+          scheduled_followup_status: string | null
+          scheduled_followup_token: string | null
           updated_at: string
         }
         Insert: {
@@ -2686,6 +2689,9 @@ export type Database = {
           invalidated_before?: string | null
           phone: string
           portfolio_id: string
+          scheduled_followup_at?: string | null
+          scheduled_followup_status?: string | null
+          scheduled_followup_token?: string | null
           updated_at?: string
         }
         Update: {
@@ -2694,6 +2700,9 @@ export type Database = {
           invalidated_before?: string | null
           phone?: string
           portfolio_id?: string
+          scheduled_followup_at?: string | null
+          scheduled_followup_status?: string | null
+          scheduled_followup_token?: string | null
           updated_at?: string
         }
         Relationships: [

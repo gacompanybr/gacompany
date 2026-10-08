@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { canSendContactFollowup, followupAllowed } from "../../supabase/functions/_shared/contact-followup-policy";
+import { canSendContactFollowup, followupAllowed, scheduledFollowupAllowed } from "../../supabase/functions/_shared/contact-followup-policy";
 
 describe("contact follow-up policy", () => {
   const source = "2026-10-08T12:00:00Z";
   it("keeps normal contacts eligible", () => expect(followupAllowed(null, source)).toBe(true));
+  it("holds automatic follow-ups while a selected date is pending or processing", () => {
+    for (const status of ["pending", "processing"]) {
+      expect(followupAllowed({ followup_disabled: false, customer_status: "lead", invalidated_before: null, scheduled_followup_status: status }, source)).toBe(false);
+    }
+  });
+  it("only permits the claimed schedule when due and still eligible", () => {
+    const preference = { followup_disabled: false, customer_status: "lead", invalidated_before: null,
+      scheduled_followup_at: source, scheduled_followup_status: "processing", scheduled_followup_token: "claim" };
+    const now = Date.parse(source);
+    expect(scheduledFollowupAllowed(preference, "claim", now)).toBe(true);
+    expect(scheduledFollowupAllowed(preference, "other", now)).toBe(false);
+    expect(scheduledFollowupAllowed(preference, "claim", now - 1)).toBe(false);
+    expect(scheduledFollowupAllowed({ ...preference, followup_disabled: true }, "claim", now)).toBe(false);
+    expect(scheduledFollowupAllowed({ ...preference, customer_status: "course_purchased" }, "claim", now)).toBe(false);
+    expect(scheduledFollowupAllowed({ ...preference, scheduled_followup_status: "pending" }, "claim", now)).toBe(false);
+  });
   it("blocks opt-outs and purchases", () => {
     expect(followupAllowed({ followup_disabled: true, customer_status: "lead", invalidated_before: null }, source)).toBe(false);
     expect(followupAllowed({ followup_disabled: false, customer_status: "course_purchased", invalidated_before: null }, source)).toBe(false);
