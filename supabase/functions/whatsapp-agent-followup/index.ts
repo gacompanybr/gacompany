@@ -5,6 +5,7 @@
 // Não toca em nada do SDR (conversas com sdr_lead_id são ignoradas).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { canSendContactFollowup } from "../_shared/contact-followup-policy.ts";
+import { runScheduledContactFollowups } from "../_shared/scheduled-contact-followup.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -97,12 +98,13 @@ async function run() {
   const { data: agents, error: aerr } = await admin
     .from("whatsapp_agents")
     .select("portfolio_id, nome_atendente, tom_de_voz, status, followup_enabled")
-    .eq("status", "active")
-    .eq("followup_enabled", true);
+    .eq("status", "active");
   if (aerr) throw new Error(aerr.message);
   const agentByPortfolio = new Map<string, any>();
   for (const a of agents ?? []) agentByPortfolio.set(String(a.portfolio_id), a);
-  if (agentByPortfolio.size === 0) return { portfolios: 0, sent: 0, results: [] };
+  const scheduled = await runScheduledContactFollowups(admin, agentByPortfolio, generateFollowup, EVO_URL, EVO_KEY);
+  for (const [id, agent] of agentByPortfolio) if (!agent.followup_enabled) agentByPortfolio.delete(id);
+  if (agentByPortfolio.size === 0) return { portfolios: 0, sent: 0, scheduled, results: [] };
 
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 3600 * 1000).toISOString();
   const { data: rows, error: cerr } = await admin
@@ -129,7 +131,8 @@ async function run() {
         isSdr: false,
       });
     }
-    const c = convos.get(key)!;
+    const c = convos.get(key);
+    if (!c) continue;
     c.instance = String(r.instance_name ?? c.instance);
     if (r.sdr_lead_id) c.isSdr = true;
     c.msgs.push(r);
@@ -292,7 +295,7 @@ async function run() {
     }
   }
 
-  return { portfolios: agentByPortfolio.size, checked: convos.size, sent: results.length, results };
+  return { portfolios: agentByPortfolio.size, checked: convos.size, sent: results.length, scheduled, results };
 }
 
 Deno.serve(async (req) => {
