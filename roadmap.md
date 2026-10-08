@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Adicionar data de follow-up no contato e executar envio agendado respeitando bloqueios
+- [x] Adicionar data de follow-up no contato e executar envio agendado respeitando bloqueios
 
 - [x] Criar cargos, permissões, auditoria e regras de acesso
 - [x] Criar subtarefas, notificações, preferências e dispositivos
