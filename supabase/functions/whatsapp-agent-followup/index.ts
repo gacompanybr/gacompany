@@ -4,6 +4,7 @@
 // Nunca mais que 2. Se o contato responder, o ciclo é zerado.
 // Não toca em nada do SDR (conversas com sdr_lead_id são ignoradas).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { canSendContactFollowup } from "../_shared/contact-followup-policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,6 +145,8 @@ async function run() {
 
     const lastUser = [...msgs].reverse().find((m) => m.role === "user");
     if (!lastUser) continue; // nunca houve interação real do contato
+    // The source is the user cycle, not a follow-up sent by an already running worker.
+    if (!await canSendContactFollowup(admin, convo.portfolioId, convo.phone, lastUser.created_at)) continue;
 
     // estado atual do ciclo
     const { data: state } = await admin
@@ -245,6 +248,7 @@ async function run() {
     }
 
     try {
+      if (!await canSendContactFollowup(admin, convo.portfolioId, convo.phone, lastUser.created_at)) continue;
       const r = await fetch(`${EVO_URL}/message/sendText/${instance}`, {
         method: "POST",
         headers: { apikey: EVO_KEY, "Content-Type": "application/json" },

@@ -5,6 +5,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
+import { ContactFollowupControl } from "./ContactFollowupControl";
 
 type Msg = {
   id: string;
@@ -29,12 +30,13 @@ export function ConversaDetailDialog({
   const { data: mensagens, isLoading } = useQuery({
     queryKey: ["whatsapp-conversa-detalhe", portfolioId, telefone],
     queryFn: async () => {
+      if (!telefone) return [];
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from("whatsapp_conversas")
         .select("id, role, mensagem, created_at")
         .eq("portfolio_id", portfolioId)
-        .eq("contato_telefone", telefone!)
+        .eq("contato_telefone", telefone)
         .gte("created_at", since)
         .order("created_at", { ascending: true })
         .limit(500);
@@ -62,6 +64,8 @@ export function ConversaDetailDialog({
             Histórico completo das últimas 24 horas
           </p>
         </DialogHeader>
+
+        {telefone && <ContactFollowupControl key={`${portfolioId}:${telefone}`} portfolioId={portfolioId} telefone={telefone} />}
 
         {isLoading ? (
           <div className="py-10 flex justify-center">

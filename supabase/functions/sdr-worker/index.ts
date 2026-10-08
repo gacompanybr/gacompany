@@ -2,6 +2,7 @@
 // Para cada campanha 'running': dispara aberturas dentro do budget de RPM,
 // envia follow-ups (24h e 48h) e respeita cooldowns.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { canSendContactFollowup } from "../_shared/contact-followup-policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -153,12 +154,13 @@ async function evoSend(instance: string, number: string, text: string, portfolio
   }
 }
 
-async function sendInBubbles(instance: string, number: string, text: string, portfolioId?: string | null): Promise<{ sent: string[]; failed: string[]; invalidNumber: boolean }> {
+async function sendInBubbles(instance: string, number: string, text: string, portfolioId?: string | null, followupSourceAt?: string): Promise<{ sent: string[]; failed: string[]; invalidNumber: boolean }> {
   const parts = splitMessage(text);
   const sent: string[] = [];
   const failed: string[] = [];
   let invalidNumber = false;
   for (let i = 0; i < parts.length; i++) {
+    if (followupSourceAt && (!portfolioId || !await canSendContactFollowup(admin, portfolioId, number, followupSourceAt))) break;
     const res = await evoSend(instance, number, parts[i], portfolioId);
     if (res.ok) {
       sent.push(parts[i]);
@@ -378,8 +380,10 @@ async function processCampaign(campaign: any) {
 
     for (const lead of fu1 ?? []) {
       if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
+      const sourceAt = lead.primeira_mensagem_em ?? lead.created_at;
+      if (!await canSendContactFollowup(admin, campaign.portfolio_id, lead.telefone, sourceAt)) continue;
       const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
-      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null, sourceAt);
       await logAssistant(lead, instance, sent, failed);
       if (sent.length) {
         await admin.from("sdr_leads").update({
@@ -404,8 +408,10 @@ async function processCampaign(campaign: any) {
 
     for (const lead of fu2 ?? []) {
       if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
+      const sourceAt = lead.primeira_mensagem_em ?? lead.created_at;
+      if (!await canSendContactFollowup(admin, campaign.portfolio_id, lead.telefone, sourceAt)) continue;
       const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, false, nomeAtendente);
-      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null, sourceAt);
       await logAssistant(lead, instance, sent, failed);
       if (sent.length) {
         await admin.from("sdr_leads").update({
@@ -431,9 +437,12 @@ async function processCampaign(campaign: any) {
 
     for (const lead of fu3 ?? []) {
       if (lead.cooldown_ate && new Date(lead.cooldown_ate) > now) continue;
+      const sourceAt = lead.primeira_mensagem_em ?? lead.created_at;
+      if (!await canSendContactFollowup(admin, campaign.portfolio_id, lead.telefone, sourceAt)) continue;
       const text = await aiFollowup(lead.nome_resolvido ?? "você", lead.nicho, lead.motivo_contato, true, nomeAtendente);
-      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null);
+      const { sent, failed } = await sendInBubbles(instance, lead.telefone, text, lead.portfolio_id ?? campaign?.portfolio_id ?? null, sourceAt);
       await logAssistant(lead, instance, sent, failed);
+      if (!sent.length) continue;
       await admin.from("sdr_leads").update({
         follow_up_count: 3,
         status: "sem_resposta",
