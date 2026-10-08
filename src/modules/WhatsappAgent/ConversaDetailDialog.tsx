@@ -55,7 +55,7 @@ export function ConversaDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="truncate">
             {nome ?? (telefone ? `+${telefone}` : "Conversa")}
@@ -76,7 +76,7 @@ export function ConversaDetailDialog({
             Nenhuma mensagem nas últimas 24 horas.
           </p>
         ) : (
-          <ScrollArea className="h-[60vh] pr-3">
+          <ScrollArea className="h-[40vh] pr-3">
             <div className="space-y-3 py-1">
               {mensagens.map((m) => {
                 const isAgent = m.role === "assistant";
