@@ -21,6 +21,17 @@ type ConversaRow = {
 
 export function ConversasTab({ portfolioId }: { portfolioId: string }) {
   const [sel, setSel] = useState<{ telefone: string; nome: string | null } | null>(null);
+  const { data: preferences = [] } = useQuery({
+    queryKey: ["contact-followup-preferences", portfolioId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("whatsapp_contact_preferences")
+        .select("phone, followup_disabled, customer_status").eq("portfolio_id", portfolioId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 5000,
+  });
+  const preferenceByPhone = new Map(preferences.map((p) => [p.phone, p]));
   const { data: mensagens, isLoading } = useQuery({
     queryKey: ["whatsapp-conversas", portfolioId],
     queryFn: async () => {
@@ -128,18 +139,22 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
                 <User size={16} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex flex-wrap items-center gap-2 mb-0.5">
                   <span className="font-semibold text-sm truncate">
                     {g.nome ?? `+${g.telefone}`}
                   </span>
                   {g.sdr && (
                     <Badge
-                      className="text-[10px] px-1.5 py-0 border-0 font-bold text-white"
-                      style={{ backgroundColor: "#FEA60F" }}
+                      className="text-[10px] px-1.5 py-0 border-0 font-bold"
                     >
                       SDR
                     </Badge>
                   )}
+                  {preferenceByPhone.get(g.telefone.replace(/\D/g, ""))?.customer_status === "course_purchased" ? (
+                    <Badge variant="secondary" className="text-[10px]">Cliente — Curso comprado</Badge>
+                  ) : preferenceByPhone.get(g.telefone.replace(/\D/g, ""))?.followup_disabled ? (
+                    <Badge variant="outline" className="text-[10px]">Follow-up bloqueado</Badge>
+                  ) : null}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
                   {g.ultimaRole === "assistant" ? "Você: " : ""}

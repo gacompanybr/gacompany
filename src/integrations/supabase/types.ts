@@ -2671,6 +2671,41 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_contact_preferences: {
+        Row: {
+          customer_status: string
+          followup_disabled: boolean
+          invalidated_before: string | null
+          phone: string
+          portfolio_id: string
+          updated_at: string
+        }
+        Insert: {
+          customer_status?: string
+          followup_disabled?: boolean
+          invalidated_before?: string | null
+          phone: string
+          portfolio_id: string
+          updated_at?: string
+        }
+        Update: {
+          customer_status?: string
+          followup_disabled?: boolean
+          invalidated_before?: string | null
+          phone?: string
+          portfolio_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_contact_preferences_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_conversas: {
         Row: {
           contato_nome: string | null
