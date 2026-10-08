@@ -23,3 +23,10 @@ export async function canSendContactFollowup(
   if (error) throw new Error("Unable to verify contact follow-up preference");
   return followupAllowed(data, sourceAt);
 }
+
+export async function canSendContactProspecting(admin: any, portfolioId: string, phone: string): Promise<boolean> {
+  const { data, error } = await admin.from("whatsapp_contact_preferences")
+    .select("customer_status").eq("portfolio_id", portfolioId).eq("phone", phone.replace(/\D/g, "")).maybeSingle();
+  if (error) throw new Error("Unable to verify customer status");
+  return data?.customer_status !== "course_purchased";
+}

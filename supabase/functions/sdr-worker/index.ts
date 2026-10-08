@@ -2,7 +2,7 @@
 // Para cada campanha 'running': dispara aberturas dentro do budget de RPM,
 // envia follow-ups (24h e 48h) e respeita cooldowns.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { canSendContactFollowup } from "../_shared/contact-followup-policy.ts";
+import { canSendContactFollowup, canSendContactProspecting } from "../_shared/contact-followup-policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,6 +91,7 @@ async function synthesizeSpeech(text: string): Promise<string | null> {
 async function evoSendAudio(instance: string, number: string, text: string, portfolioId?: string | null): Promise<SendResult> {
   const audio = await synthesizeSpeech(text);
   if (!audio) return { ok: false, invalidNumber: false };
+  if (portfolioId && !await canSendContactProspecting(admin, portfolioId, number)) return { ok: false, invalidNumber: false };
   try {
     const r = await fetch(`${EVO_URL}/message/sendWhatsAppAudio/${instance}`, {
       method: "POST",
@@ -122,6 +123,7 @@ async function evoSendAudio(instance: string, number: string, text: string, port
 }
 
 async function evoSend(instance: string, number: string, text: string, portfolioId?: string | null): Promise<SendResult> {
+  if (portfolioId && !await canSendContactProspecting(admin, portfolioId, number)) return { ok: false, invalidNumber: false };
   try {
     const r = await fetch(`${EVO_URL}/message/sendText/${instance}`, {
       method: "POST",
@@ -516,6 +518,10 @@ async function processCampaign(campaign: any) {
       .select("*");
 
     for (const lead of reservados ?? []) {
+      if (!await canSendContactProspecting(admin, campaign.portfolio_id, lead.telefone)) {
+        await admin.from("sdr_leads").update({ status: "pendente" }).eq("id", lead.id);
+        continue;
+      }
       // Dedupe por telefone: se já existe QUALQUER outro lead com esse número
       // no mesmo portfólio que já foi contatado (enviado/enviando/respondeu/sem_resposta),
       // marca este como duplicado e pula. Isso evita 4-8 aberturas pro mesmo contato
