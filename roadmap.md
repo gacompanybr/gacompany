@@ -25,3 +25,6 @@
 
 - [x] Estabilizar o scraper do Mercado Livre com 8 execuções diárias, coleta sequencial, detecção de CAPTCHA e proxy opcional
 - [ ] Restaurar a coleta do Mercado Livre na VPS — fluxo conservador publicado; bloqueado até renovar a sessão/cookie atualmente desafiada pelo CAPTCHA
+- [ ] Adicionar controle persistente de follow-up e comprador por contato
+- [ ] Proteger todos os envios de follow-up e invalidar pendências sem reenvio
+- [ ] Testar isolamento, persistência, retomada e compra confirmada
