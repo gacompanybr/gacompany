@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Corrigir busca completa no catálogo e validar produtos do início, meio e fim da planilha
+
 - [x] Adicionar data de follow-up no contato e executar envio agendado respeitando bloqueios
 
 - [x] Criar cargos, permissões, auditoria e regras de acesso
