@@ -2,7 +2,7 @@ export type SearchProduct = { codigo: string; categoria: string; nome: string; m
 export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number };
 
 const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces me meu minha quero queria preciso tem temos teria existe comprar produto produtos qual quais quanto custa custam preco valor mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui".split(" "));
-const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", led: "led", mm: "mm", pol: "polegada" };
+const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
 export function normalizeSearchText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
 }

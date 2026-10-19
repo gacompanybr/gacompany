@@ -49,9 +49,13 @@ Deno.serve(async (req) => {
 
     const products = await fetchProductCatalog(parsed.data.catalogoUrl);
     const search = parsed.data.consulta ? queryCatalogProducts(products, parsed.data) : undefined;
-    const samples = parsed.data.diagnostico ? [0, Math.floor(products.length / 2), products.length - 1].flatMap((index) => {
+    const sampleIndexes = [...new Set([0, Math.floor(products.length / 2), products.length - 1,
+      products.reduce((best, p, i) => p.nome.length + p.especificacoes.length > (products[best]?.nome.length ?? 0) + (products[best]?.especificacoes.length ?? 0) ? i : best, 0),
+      products.findIndex((p) => p.estoque.trim() === "0"), products.findIndex((p) => !p.preco.trim()),
+    ])].filter((index) => index >= 0);
+    const samples = parsed.data.diagnostico ? sampleIndexes.flatMap((index) => {
       const product = products[index];
-      return product ? [{ linha: index + 2, produto: product, localizado_por_codigo: queryCatalogProducts(products, { consulta: product.codigo }).produtos.some((p) => p.codigo === product.codigo) }] : [];
+      return product ? [{ linha: index + 2, produto: product, localizado: queryCatalogProducts(products, { consulta: product.codigo.trim() || product.nome }).produtos.some((p) => JSON.stringify(p) === JSON.stringify(product)) }] : [];
     }) : undefined;
     return respond({ total: products.length, categorias: listCatalogCategories(products), leitura_concluida: true, ultima_leitura_bem_sucedida: new Date().toISOString(), busca: search, amostras: samples });
   } catch (error) {
