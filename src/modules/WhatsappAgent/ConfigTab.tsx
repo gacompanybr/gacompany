@@ -17,7 +17,7 @@ export function ConfigTab({
   agent, onChange,
 }: { agent: WhatsappAgent; onChange: (patch: Partial<WhatsappAgent>) => void }) {
   const [testingCatalog, setTestingCatalog] = useState(false);
-  const [catalogResult, setCatalogResult] = useState<{ total: number; categorias: string[] } | null>(null);
+  const [catalogResult, setCatalogResult] = useState<{ total: number; categorias: string[]; ultima_leitura_bem_sucedida?: string } | null>(null);
   const [catalogError, setCatalogError] = useState("");
 
   async function testCatalog() {
@@ -41,7 +41,7 @@ export function ConfigTab({
         setCatalogError(data?.error ?? details?.error ?? error?.message ?? "Não foi possível testar a planilha.");
         return;
       }
-      setCatalogResult({ total: Number(data.total ?? 0), categorias: Array.isArray(data.categorias) ? data.categorias : [] });
+      setCatalogResult({ total: Number(data.total ?? 0), categorias: Array.isArray(data.categorias) ? data.categorias : [], ultima_leitura_bem_sucedida: data.ultima_leitura_bem_sucedida });
     } finally {
       setTestingCatalog(false);
     }
@@ -116,6 +116,7 @@ export function ConfigTab({
             <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-primary" />
             <p>
               {catalogResult.total} produto{catalogResult.total === 1 ? "" : "s"}. Categorias: {catalogResult.categorias.join(", ") || "nenhuma"}.
+              {catalogResult.ultima_leitura_bem_sucedida && <span className="block text-xs text-muted-foreground">Leitura completa: {new Date(catalogResult.ultima_leitura_bem_sucedida).toLocaleString("pt-BR")}</span>}
             </p>
           </div>
         )}

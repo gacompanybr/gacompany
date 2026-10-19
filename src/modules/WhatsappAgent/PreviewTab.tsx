@@ -37,6 +37,7 @@ export function PreviewTab({ agent }: { agent: WhatsappAgent }) {
           model: agent.modelo_ia,
           temperature: agent.temperatura,
           maxTokens: agent.max_tokens,
+          ...(agent.catalogo_url ? { catalogoUrl: agent.catalogo_url, portfolioId: agent.portfolio_id } : {}),
         },
       });
       if (error || (data as any)?.error) {

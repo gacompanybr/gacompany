@@ -89,6 +89,7 @@ export function parseCatalogCsv(csv: string): CatalogProduct[] {
 }
 
 export async function fetchProductCatalog(sheetUrl: string): Promise<CatalogProduct[]> {
+  const startedAt = Date.now();
   const csvUrl = extractGoogleSheetCsvUrl(sheetUrl);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -104,8 +105,11 @@ export async function fetchProductCatalog(sheetUrl: string): Promise<CatalogProd
         "not_shared",
       );
     }
-    return parseCatalogCsv(body);
+    const products = parseCatalogCsv(body);
+    console.log("[CATALOGO_LEITURA]", JSON.stringify({ produtos_carregados: products.length, leitura_concluida: true, ultima_leitura_bem_sucedida: new Date().toISOString(), duracao_ms: Date.now() - startedAt, origem: "csv_completo", cache: false }));
+    return products;
   } catch (error) {
+    console.error("[CATALOGO_LEITURA]", JSON.stringify({ leitura_concluida: false, duracao_ms: Date.now() - startedAt, erro: error instanceof Error ? error.message : String(error) }));
     if (error instanceof CatalogError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new CatalogError("A planilha demorou mais de 10 segundos para responder.", "timeout");

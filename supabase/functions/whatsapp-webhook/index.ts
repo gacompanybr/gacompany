@@ -3,7 +3,8 @@
 // de um job DUP (espelhamento de ofertas para a data table do n8n).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateAffiliateLink, isMercadoLivreUrl, parseOfferMessage } from "../_shared/ml-affiliate.ts";
-import { fetchProductCatalog, searchCatalogProducts } from "../_shared/product-catalog.ts";
+import { fetchProductCatalog } from "../_shared/product-catalog.ts";
+import { productSearchTool, queryCatalogProducts, searchOptionsFromMessage, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1530,27 +1531,23 @@ async function processPayload(payload: any) {
     const catalogoUrl = typeof agent.catalogo_url === "string" ? agent.catalogo_url.trim() : "";
     const baseAiMessages = [
       { role: "system", content: systemPrompt },
+      ...(catalogoUrl ? [{ role: "system", content: catalogGroundingInstruction }] : []),
       { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
       ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
     ];
-    const productSearchTool = {
-      type: "function",
-      function: {
-        name: "buscar_produtos",
-        description: "Busca produtos no catálogo da loja por categoria. Retorna os produtos da categoria com código, nome, marca, especificações, preço, unidade e estoque.",
-        parameters: {
-          type: "object",
-          properties: {
-            categoria: {
-              type: "string",
-              description: "Categoria em minúsculo e sem acento, ex.: chuveiro, tinta, tijolo_bloco",
-            },
-          },
-          required: ["categoria"],
-          additionalProperties: false,
-        },
-      },
-    };
+    // Reuse a complete snapshot within this reply only; next message reads the sheet again.
+    let executionCatalog: Awaited<ReturnType<typeof fetchProductCatalog>> | undefined;
+    if (catalogoUrl) {
+      try {
+        executionCatalog = await fetchProductCatalog(catalogoUrl);
+        const latestText = [...trimmedRecent].reverse().find((m) => m.role !== "assistant")?.mensagem ?? "";
+        const initialResult = queryCatalogProducts(executionCatalog, searchOptionsFromMessage(latestText));
+        baseAiMessages.splice(2, 0, { role: "system", content: `RESULTADO INTERNO DA CONSULTA ATUAL (não exibir diagnóstico): ${JSON.stringify(initialResult)}` });
+        console.log("[CATALOGO_BUSCA]", JSON.stringify({ portfolioId, consulta: latestText, carregados: executionCatalog.length, encontrados: initialResult.total, concluida: true, paginados: initialResult.resultados_paginados }));
+      } catch (error) {
+        baseAiMessages.splice(2, 0, { role: "system", content: `Falha ao consultar catálogo: ${error instanceof Error ? error.message : "falha de leitura"}. Não declarar produto inexistente nem inventar preço.` });
+      }
+    }
 
     async function callAi(mt: number, messages = baseAiMessages, toolsEnabled = false) {
       const requestBody: Record<string, unknown> = {
@@ -1594,15 +1591,14 @@ async function processPayload(payload: any) {
           if (toolCall?.function?.name === "buscar_produtos") {
             try {
               const args = JSON.parse(toolCall.function.arguments ?? "{}");
-              const categoria = typeof args?.categoria === "string" ? args.categoria : "";
-              if (!categoria.trim()) {
-                toolResult = { erro: "Categoria obrigatória." };
+              if (!args?.consulta?.trim() && !args?.categoria?.trim() && !args?.marca?.trim()) {
+                toolResult = { erro: "Informe consulta, categoria ou marca.", pesquisa_concluida: false };
               } else {
-                const products = await fetchProductCatalog(catalogoUrl);
-                toolResult = searchCatalogProducts(products, categoria);
+                executionCatalog ??= await fetchProductCatalog(catalogoUrl);
+                toolResult = queryCatalogProducts(executionCatalog, args);
               }
             } catch (error) {
-              toolResult = { erro: error instanceof Error ? error.message : "Falha ao buscar produtos." };
+              toolResult = { erro: error instanceof Error ? error.message : "Falha ao buscar produtos.", pesquisa_concluida: false };
             }
           }
           console.log("[CATALOGO] ferramenta executada", JSON.stringify({

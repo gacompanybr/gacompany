@@ -1,4 +1,7 @@
 // Preview do agente WhatsApp — usa Lovable AI Gateway (gratuito)
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { fetchProductCatalog } from "../_shared/product-catalog.ts";
+import { queryCatalogProducts, productSearchTool, searchOptionsFromMessage, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -16,6 +19,20 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { systemPrompt, userMessage, messages = [], model = "google/gemini-2.5-flash", temperature = 0.7, maxTokens = 500 } = body;
+    const catalogoUrl = typeof body.catalogoUrl === "string" ? body.catalogoUrl.trim() : "";
+    let catalog: Awaited<ReturnType<typeof fetchProductCatalog>> | undefined;
+    if (catalogoUrl) {
+      const url = Deno.env.get("SUPABASE_URL");
+      const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !key) return json({ error: "Serviço indisponível." }, 500);
+      const admin = createClient(url, key, { auth: { persistSession: false } });
+      const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      const { data: auth, error } = await admin.auth.getUser(token);
+      if (error || !auth.user) return json({ error: "Não autenticado." }, 401);
+      const { data: access, error: accessError } = await admin.rpc("has_portfolio_access", { _user_id: auth.user.id, _portfolio_id: body.portfolioId });
+      if (accessError || !access) return json({ error: "Você não tem acesso a este cliente." }, 403);
+      catalog = await fetchProductCatalog(catalogoUrl);
+    }
 
     if (!userMessage) return json({ error: "userMessage obrigatório" }, 400);
 
@@ -32,7 +49,13 @@ Deno.serve(async (req) => {
           .slice(-30)
       : [];
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiMessages: any[] = [
+      { role: "system", content: systemPrompt ?? "Você é um assistente prestativo." },
+      { role: "system", content: "Use o histórico como memória e responda a última mensagem. Não reinicie a conversa se já existe contexto." },
+      ...history, { role: "user", content: userMessage },
+      ...(catalog ? [{ role: "system", content: `${catalogGroundingInstruction}\nRESULTADO INTERNO: ${JSON.stringify(queryCatalogProducts(catalog, searchOptionsFromMessage(userMessage)))}` }] : []),
+    ];
+    async function callAi(toolsEnabled: boolean) { return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -40,16 +63,13 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: finalModel,
-        messages: [
-          { role: "system", content: systemPrompt ?? "Você é um assistente prestativo." },
-          { role: "system", content: "Use o histórico como memória e responda a última mensagem. Não reinicie a conversa se já existe contexto." },
-          ...history,
-          { role: "user", content: userMessage },
-        ],
+        messages: aiMessages,
+        ...(toolsEnabled ? { tools: [productSearchTool] } : {}),
         temperature,
         max_tokens: maxTokens,
       }),
-    });
+    }); }
+    let resp = await callAi(Boolean(catalog));
 
     if (resp.status === 429) return json({ error: "Limite de requisições atingido. Tente novamente em alguns segundos." }, 429);
     if (resp.status === 402) return json({ error: "Créditos esgotados. Adicione créditos em Settings → Workspace → Usage." }, 402);
@@ -59,7 +79,22 @@ Deno.serve(async (req) => {
       return json({ error: "Falha ao gerar resposta" }, 500);
     }
 
-    const data = await resp.json();
+    let data = await resp.json();
+    for (let round = 0; catalog && round < 3; round++) {
+      const message = data.choices?.[0]?.message;
+      if (!message?.tool_calls?.length) break;
+      aiMessages.push(message);
+      for (const tool of message.tool_calls) {
+        let result: unknown;
+        try {
+          result = tool.function?.name === "buscar_produtos" ? queryCatalogProducts(catalog, JSON.parse(tool.function.arguments ?? "{}")) : { erro: "Ferramenta desconhecida" };
+        } catch { result = { erro: "Consulta inválida", pesquisa_concluida: false }; }
+        aiMessages.push({ role: "tool", tool_call_id: tool.id, content: JSON.stringify(result) });
+      }
+      resp = await callAi(round < 2);
+      if (!resp.ok) return json({ error: "Falha ao consultar catálogo", status: resp.status, details: await resp.text() }, resp.status);
+      data = await resp.json();
+    }
     const reply = data.choices?.[0]?.message?.content ?? "(sem resposta)";
     const parts = splitMessage(reply);
     return json({ reply: parts.join("\n\n"), parts });
