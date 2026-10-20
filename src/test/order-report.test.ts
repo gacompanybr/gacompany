@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { dispatchOrder, formatOrder, validateOrder, type OrderDraft } from "../../supabase/functions/_shared/order-report";
+import { dispatchOrder, validateOrder, type OrderDraft } from "../../supabase/functions/_shared/order-report";
 
 const catalog = [{ codigo: "1", nome: "Tinta Mil Verde Esmeralda 3L", categoria: "Tinta", marca: "Mil", especificacoes: "", preco: "30,90", unidade: "UN", estoque: "13" },
   { codigo: "2", nome: "Kit Flex 3 Peças Roma", categoria: "Kit", marca: "Roma", especificacoes: "", preco: "32,10", unidade: "UN", estoque: "0" }];
@@ -55,6 +55,20 @@ describe("confirmed product orders", () => {
   it("does not automatically retry a timeout or claim success", async () => {
     const { admin } = database(); const transport = vi.fn().mockRejectedValue(new Error("timeout"));
     expect((await dispatchOrder(admin, { id: "agent", portfolio_id: "p" }, "5514997605588", "key", validateOrder(draft, catalog, turns), "CASA DO ELETRICISTA", "url", "key", transport)).status).toBe("uncertain");
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it("retries only an explicit rate-limit rejection safely", async () => {
+    const { admin } = database();
+    const transport = vi.fn().mockResolvedValueOnce(new Response("Rate limited", { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ key: { id: "accepted-after-rejection" } })));
+    const result = await dispatchOrder(admin, { id: "agent", portfolio_id: "p" }, "5514997605588", "key", validateOrder(draft, catalog, turns), "CASA DO ELETRICISTA", "url", "key", transport);
+    expect(result.status).toBe("accepted");
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+  it("does not retry a server error whose delivery is uncertain", async () => {
+    const { admin } = database(); const transport = vi.fn().mockResolvedValue(new Response("Unknown", { status: 500 }));
+    const result = await dispatchOrder(admin, { id: "agent", portfolio_id: "p" }, "5514997605588", "key", validateOrder(draft, catalog, turns), "CASA DO ELETRICISTA", "url", "key", transport);
+    expect(result.status).toBe("uncertain");
     expect(transport).toHaveBeenCalledTimes(1);
   });
 });
