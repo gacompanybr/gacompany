@@ -108,8 +108,10 @@ export async function dispatchOrder(admin: any, agent: any, phone: string, key: 
   for (let attempt = 1; attempt <= 2; attempt++) {
     await save({ status: "sending", attempts: attempt });
     console.log("[ORDER] tentativa", { orderId: reservation.id, attempt, group });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      const response = await transport(`${evoUrl}/message/sendText/${configured.instancia_id}`, { method: "POST", headers: { apikey: evoKey, "Content-Type": "application/json" }, body: JSON.stringify({ number: group, text: formatOrder(order, phone, business) }), signal: AbortSignal.timeout(20000) });
+      const response = await transport(`${evoUrl}/message/sendText/${configured.instancia_id}`, { method: "POST", headers: { apikey: evoKey, "Content-Type": "application/json" }, body: JSON.stringify({ number: group, text: formatOrder(order, phone, business) }), signal: controller.signal });
       const body = await response.text();
       // Only explicit rate-limit rejection is safe to retry automatically.
       if (response.status === 429 && attempt === 1) continue;
@@ -130,6 +132,8 @@ export async function dispatchOrder(admin: any, agent: any, phone: string, key: 
       await save({ status: "uncertain", error: details });
       console.error("[ORDER] resultado incerto — não reenviar", { orderId: reservation.id, details });
       return { status: "uncertain", error: details };
+    } finally {
+      clearTimeout(timer);
     }
   }
   return { status: "failed", error: "Envio não concluído" };
