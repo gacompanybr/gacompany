@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Restringir o novo fluxo de pedidos ao leonardo - novo tio sem alterar regras odontológicas
+- [x] Restringir o novo fluxo de pedidos ao leonardo - novo tio sem alterar regras odontológicas — 15 testes aprovados e webhook implantado
 - [x] Corrigir envio automático de pedidos confirmados ao grupo de cada agente, registrar falhas e validar integração sem duplicações
 - [ ] Confirmar recebimento do pedido de R$ 63,00 no grupo GA company equipe — envio real aceito e mensagem encontrada no histórico do grupo; aguardando recibo de entrega ou confirmação do usuário
 
