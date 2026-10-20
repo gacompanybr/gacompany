@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateAffiliateLink, isMercadoLivreUrl, parseOfferMessage } from "../_shared/ml-affiliate.ts";
 import { fetchProductCatalog } from "../_shared/product-catalog.ts";
-import { productSearchTool, queryCatalogProducts, searchOptionsFromMessage, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
+import { productSearchTool, queryCatalogProducts, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1540,10 +1540,12 @@ async function processPayload(payload: any) {
     if (catalogoUrl) {
       try {
         executionCatalog = await fetchProductCatalog(catalogoUrl);
-        const latestText = [...trimmedRecent].reverse().find((m) => m.role !== "assistant")?.mensagem ?? "";
-        const initialResult = queryCatalogProducts(executionCatalog, searchOptionsFromMessage(latestText));
-        baseAiMessages.splice(2, 0, { role: "system", content: `RESULTADO INTERNO DA CONSULTA ATUAL (não exibir diagnóstico): ${JSON.stringify(initialResult)}` });
-        console.log("[CATALOGO_BUSCA]", JSON.stringify({ portfolioId, consulta: latestText, carregados: executionCatalog.length, encontrados: initialResult.total, concluida: true, paginados: initialResult.resultados_paginados }));
+        const customerTexts = trimmedRecent.filter((m) => m.role !== "assistant").map((m) => String(m.mensagem ?? ""));
+        const found = contextualCatalogSearch(executionCatalog, customerTexts);
+        baseAiMessages.splice(2, 0, { role: "system", content: found
+          ? `RESULTADO INTERNO DA CONSULTA ATUAL (não exibir diagnóstico): ${JSON.stringify(found.result)}`
+          : "Nenhum produto identificado automaticamente nas últimas mensagens. Se o cliente pediu um produto, chame buscar_produtos com o nome antes de responder; não diga que não existe sem buscar." });
+        console.log("[CATALOGO_BUSCA]", JSON.stringify({ portfolioId, consulta: found?.consulta ?? customerTexts.at(-1) ?? "", carregados: executionCatalog.length, encontrados: found?.result.total ?? 0, concluida: true }));
       } catch (error) {
         baseAiMessages.splice(2, 0, { role: "system", content: `Falha ao consultar catálogo: ${error instanceof Error ? error.message : "falha de leitura"}. Não declarar produto inexistente nem inventar preço.` });
       }

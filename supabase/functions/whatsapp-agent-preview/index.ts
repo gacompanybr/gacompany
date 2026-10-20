@@ -1,7 +1,7 @@
 // Preview do agente WhatsApp — usa Lovable AI Gateway (gratuito)
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { fetchProductCatalog } from "../_shared/product-catalog.ts";
-import { queryCatalogProducts, productSearchTool, searchOptionsFromMessage, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
+import { queryCatalogProducts, productSearchTool, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       { role: "system", content: systemPrompt ?? "Você é um assistente prestativo." },
       { role: "system", content: "Use o histórico como memória e responda a última mensagem. Não reinicie a conversa se já existe contexto." },
       ...history, { role: "user", content: userMessage },
-      ...(catalog ? [{ role: "system", content: `${catalogGroundingInstruction}\nRESULTADO INTERNO: ${JSON.stringify(queryCatalogProducts(catalog, searchOptionsFromMessage(userMessage)))}` }] : []),
+      ...(catalog ? [{ role: "system", content: `${catalogGroundingInstruction}\nRESULTADO INTERNO: ${JSON.stringify(contextualCatalogSearch(catalog, [...history.filter((m: any) => m.role === "user").map((m: any) => m.content), userMessage])?.result ?? "nenhum produto identificado; use buscar_produtos")}` }] : []),
     ];
     async function callAi(toolsEnabled: boolean) { return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

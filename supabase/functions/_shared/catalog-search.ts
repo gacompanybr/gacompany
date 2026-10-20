@@ -1,7 +1,7 @@
 export type SearchProduct = { codigo: string; categoria: string; nome: string; marca: string; especificacoes: string; preco: string; unidade: string; estoque: string };
 export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number };
 
-const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces me meu minha quero queria preciso tem temos teria existe comprar produto produtos qual quais quanto custa custam preco valor mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui".split(" "));
+const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande".split(" "));
 const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
 export function normalizeSearchText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
@@ -36,14 +36,36 @@ export function catalogPrice(value: string): number | null {
   return Number.isFinite(price) ? price : null;
 }
 
-export function queryCatalogProducts(products: SearchProduct[], options: CatalogSearchOptions) {
+function meaningfulCategories(products: SearchProduct[]) {
+  const all = Array.from(new Set(products.map((p) => p.categoria.trim()).filter(Boolean)));
+  // Sheets with misaligned headers put internal numeric codes in "categoria"; never send those as categories.
+  const textual = all.filter((c) => /[a-zA-ZÀ-ú]/.test(c));
+  return textual.length >= all.length * 0.5 ? textual.sort().slice(0, 80) : [];
+}
+
+export function queryCatalogProducts(products: SearchProduct[], options: CatalogSearchOptions): ReturnType<typeof runQuery> {
+  const result = runQuery(products, options);
+  // A wrong category/brand guess must not hide products that match by name.
+  if (!result.total && (options.categoria?.trim() || options.marca?.trim())) {
+    const consulta = [options.consulta, options.categoria, options.marca].filter((v) => v?.trim()).join(" ");
+    const relaxed = runQuery(products, { consulta, ordenar: options.ordenar, pagina: options.pagina });
+    if (relaxed.total) return relaxed;
+    if (options.consulta?.trim()) {
+      const nameOnly = runQuery(products, { consulta: options.consulta, ordenar: options.ordenar, pagina: options.pagina });
+      if (nameOnly.total) return nameOnly;
+    }
+  }
+  return result;
+}
+
+function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   const queryTokens = tokens(options.consulta ?? "");
   const categoryTokens = tokens(options.categoria ?? "");
   const brandTokens = tokens(options.marca ?? "");
   const ranked = products.flatMap((product, index) => {
     const fields = [product.codigo, product.nome, product.categoria, product.marca, product.especificacoes].map(tokens);
     if (categoryTokens.some((q) => !fields[2].some((w) => tokenScore(q, w)))) return [];
-    if (brandTokens.some((q) => !fields[3].some((w) => q === w))) return [];
+    if (brandTokens.some((q) => !fields[3].some((w) => q === w) && !fields[1].some((w) => q === w))) return [];
     let score = 0;
     for (const q of queryTokens) {
       const best = Math.max(0, ...fields.map((words, field) => Math.max(0, ...words.map((w) => tokenScore(q, w))) * [6, 5, 3, 4, 1][field]));
@@ -68,8 +90,20 @@ export function queryCatalogProducts(products: SearchProduct[], options: Catalog
     total: ranked.length, produtos: selected.map(({ product }) => product), pagina: page,
     total_paginas: Math.ceil(ranked.length / pageSize), proxima_pagina: page * pageSize < ranked.length ? page + 1 : null,
     pesquisa_concluida: true, resultados_paginados: ranked.length > selected.length, produtos_analisados: products.length,
-    ...(ranked.length ? {} : { categorias_disponiveis: Array.from(new Set(products.map((p) => p.categoria).filter(Boolean))).sort() }),
+    ...(ranked.length ? {} : { categorias_disponiveis: meaningfulCategories(products) }),
   };
+}
+
+/** Finds the product being discussed, looking back over recent customer messages
+ * when the latest one has no product words ("e agora?", "veja aí"). */
+export function contextualCatalogSearch(products: SearchProduct[], customerMessages: string[]) {
+  const recent = customerMessages.filter((m) => m?.trim()).slice(-4).reverse();
+  for (const message of recent) {
+    if (!tokens(message).length) continue;
+    const result = queryCatalogProducts(products, searchOptionsFromMessage(message));
+    if (result.total) return { consulta: message, result };
+  }
+  return null;
 }
 
 export const productSearchTool = {
