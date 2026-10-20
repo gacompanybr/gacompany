@@ -6,6 +6,9 @@ export type OrderDraft = {
   modality: "entrega" | "retirada"; address: string; cep: string; freight: string; notes: string;
 };
 export type OrderTurn = { role: string; mensagem: string; created_at?: string };
+function orderProductName(value: string) {
+  return normalizeSearchText(value).replace(/\b(pecas|peca)\b/g, "pcs").replace(/\b0+(\d+)\b/g, "$1");
+}
 export function validateOrder(raw: unknown, catalog: SearchProduct[], turns: OrderTurn[]) {
   const d = raw as OrderDraft | null;
   if (!d?.intent || !d.confirmed) throw new Error("Pedido ainda não confirmado pelo cliente");
@@ -19,7 +22,7 @@ export function validateOrder(raw: unknown, catalog: SearchProduct[], turns: Ord
   if (!Array.isArray(d.items) || !d.items.length || d.items.length > 100) throw new Error("Produtos pendentes");
   const items = d.items.map(item => {
     if (!Number.isFinite(item.quantity) || item.quantity <= 0 || item.quantity > 100000) throw new Error("Quantidade inválida");
-    const matches = catalog.filter(p => (item.codigo ? p.codigo === item.codigo : true) && normalizeSearchText(p.nome) === normalizeSearchText(item.nome));
+    const matches = catalog.filter(p => (item.codigo ? p.codigo === item.codigo : true) && orderProductName(p.nome) === orderProductName(item.nome));
     if (matches.length !== 1) throw new Error(`Produto não identificado com segurança: ${item.nome}`);
     const product = matches[0];
     const price = catalogPrice(product.preco);
@@ -66,6 +69,8 @@ export async function processConversationOrder(admin: any, agent: any, phone: st
     if (!draft.confirmed) return { status: "incomplete", error: "Compra ainda não confirmada pelo cliente" };
     // Obtain canonical names only when the selected product is unambiguous.
     for (const item of draft.items ?? []) {
+      const canonical = catalog.filter(p => orderProductName(p.nome) === orderProductName(item.nome));
+      if (canonical.length === 1) { item.nome = canonical[0].nome; item.codigo = canonical[0].codigo; continue; }
       const result = queryCatalogProducts(catalog, { consulta: item.codigo || item.nome });
       const exact = result.produtos.filter(p => normalizeSearchText(p.nome) === normalizeSearchText(item.nome));
       const selected = exact.length === 1 ? exact[0] : result.total === 1 ? result.produtos[0] : undefined;
