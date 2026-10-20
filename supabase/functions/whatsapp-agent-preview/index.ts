@@ -49,11 +49,12 @@ Deno.serve(async (req) => {
           .slice(-30)
       : [];
 
+    const found = catalog ? contextualCatalogSearch(catalog, [...history.filter((m: any) => m.role === "user").map((m: any) => m.content), userMessage]) : null;
     const aiMessages: any[] = [
       { role: "system", content: systemPrompt ?? "Você é um assistente prestativo." },
       { role: "system", content: "Use o histórico como memória e responda a última mensagem. Não reinicie a conversa se já existe contexto." },
       ...history, { role: "user", content: userMessage },
-      ...(catalog ? [{ role: "system", content: `${catalogGroundingInstruction}\nRESULTADO INTERNO: ${JSON.stringify(contextualCatalogSearch(catalog, [...history.filter((m: any) => m.role === "user").map((m: any) => m.content), userMessage])?.result ?? "nenhum produto identificado; use buscar_produtos")}` }] : []),
+      ...(catalog ? [{ role: "system", content: `${catalogGroundingInstruction}\nRESULTADO INTERNO: ${JSON.stringify(found?.result ?? "nenhum produto identificado; use buscar_produtos")}` }] : []),
     ];
     async function callAi(toolsEnabled: boolean) { return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
         max_tokens: maxTokens,
       }),
     }); }
-    let resp = await callAi(Boolean(catalog));
+    let resp = await callAi(Boolean(catalog) && !found);
 
     if (resp.status === 429) return json({ error: "Limite de requisições atingido. Tente novamente em alguns segundos." }, 429);
     if (resp.status === 402) return json({ error: "Créditos esgotados. Adicione créditos em Settings → Workspace → Usage." }, 402);

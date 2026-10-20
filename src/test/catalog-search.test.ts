@@ -19,7 +19,17 @@ describe("Catálogo completo", () => {
   });
   it("lê atualização no próximo conjunto", () => { expect(queryCatalogProducts([{ ...products[0], preco: "R$ 49,90" }], { consulta: "100000" }).produtos[0].preco).toBe("R$ 49,90"); });
   it("identifica intenção de preço em pergunta real", () => { expect(searchOptionsFromMessage("qual parafusadeira mais barata").ordenar).toBe("menor_preco"); });
-});describe("Planilha com colunas desalinhadas", () => {
+});
+describe("Pedido genérico de tubo", () => {
+  const tubes = ["TUBO DE COBRE 15MM", "TUBO PVC 25MM", "TUBO DE COBRE 22MM"].map((nome, i) => ({ ...products[0], codigo: String(i), nome, categoria: "Tubos", marca: "", especificacoes: "" }));
+  for (const quantity of ["três", "3"]) it(`separa ${quantity} metros da escolha do tubo`, () => {
+    expect(contextualCatalogSearch(tubes, [`Me vê um orçamento de ${quantity} metros de tubo`])?.result.produtos.map(p => p.nome)).toEqual(tubes.map(p => p.nome));
+  });
+  it("preserva a medida especificada pelo cliente", () => {
+    expect(contextualCatalogSearch(tubes, ["3 metros de tubo de cobre 15mm"])?.result.produtos.map(p => p.nome)).toEqual(["TUBO DE COBRE 15MM"]);
+  });
+});
+describe("Planilha com colunas desalinhadas", () => {
   const sheet = [
     { codigo: "618341747982", categoria: "1736", nome: "TINTA MIL INTERNA VERDE ESMERALDA 3L", marca: "", especificacoes: "Ativo", preco: "30,9", unidade: "0", estoque: "13" },
     { codigo: "", categoria: "2710", nome: "TORNEIRA CROMADA YORA", marca: "", especificacoes: "Ativo", preco: "45", unidade: "0", estoque: "2" },
