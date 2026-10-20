@@ -7,6 +7,7 @@ import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { productSearchTool, queryCatalogProducts, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 import { processConversationOrder } from "../_shared/order-report.ts";
 import { usesCommercialOrderFlow } from "../_shared/order-report-scope.ts";
+import { conversationMessageId } from "../_shared/conversation-record.ts";
 import { usesHumanTakeoverPause } from "../_shared/human-takeover-policy.ts";
 
 const corsHeaders = {
@@ -1055,9 +1056,21 @@ async function handleOutgoingMessage(payload: any, msg: any) {
 
     const portfolioId = await resolvePortfolioByInstance(instance);
     if (!portfolioId) return;
-    if (!usesHumanTakeoverPause(portfolioId)) return;
 
     const phoneFromJid = normalizePhoneDigits(remoteJid.split("@")[0]) || remoteJid.split("@")[0];
+    const outgoingText = getMessageText(msg);
+    const candidates = getPhoneCandidates(msg, remoteJid, getContactPhone(msg, remoteJid), getSendTargets(msg, remoteJid));
+    if (outgoingText) {
+      const id = await conversationMessageId(portfolioId, instance, msgId);
+      const { error } = await admin.from("whatsapp_conversas").insert({
+        id, portfolio_id: portfolioId, instance_name: instance,
+        contato_telefone: candidates[0] || phoneFromJid, contato_nome: msg.pushName ?? null,
+        role: "human", mensagem: outgoingText,
+      });
+      if (error && error.code !== "23505") console.error("[MESSAGE] manual recording failed", error.message);
+    }
+    if (!usesHumanTakeoverPause(portfolioId)) return;
+
     // Rede de segurança extra: se o sistema enviou algo para este contato nos
     // últimos 60s, a mensagem fromMe é da própria IA (id pode não bater em
     // @lid / reenvios da Evolution) — não pausar.
@@ -1191,6 +1204,19 @@ async function processPayload(payload: any) {
       continue;
     }
 
+    // Record every inbound before agent, schedule and takeover response gates.
+    const userMessageId = await conversationMessageId(portfolioId, instance, asText(msg.key?.id) || asText(msg.id));
+    const userMessageCreatedAt = new Date().toISOString();
+    const { error: insertUserError } = await admin.from("whatsapp_conversas").insert({
+      id: userMessageId, portfolio_id: portfolioId, instance_name: instance,
+      contato_telefone: storagePhone, contato_nome: pushName, role: "user", mensagem: text,
+      created_at: userMessageCreatedAt,
+    });
+    if (insertUserError) {
+      if (insertUserError.code !== "23505") console.error("[MESSAGE] failed to record inbound", insertUserError.message);
+      continue;
+    }
+
     const { data: agent } = await admin
       .from("whatsapp_agents")
       .select("*")
@@ -1269,22 +1295,12 @@ async function processPayload(payload: any) {
     }));
 
 
-    // Gate manual: só responde se o agente estiver explicitamente ativo
     if (agent.status !== "active") {
-      console.log("agente inativo, ignorando mensagem", { portfolioId, status: agent.status });
-      await admin.from("whatsapp_conversas").insert({
-        portfolio_id: portfolioId,
-        instance_name: instance,
-        contato_telefone: storagePhone,
-        contato_nome: pushName,
-        role: "user",
-        mensagem: text,
-        sdr_lead_id: sdrLead?.id ?? null,
-      });
+      console.log("agente inativo, mensagem registrada sem resposta", { portfolioId });
       continue;
     }
 
-    // Fora do expediente: o robô fica invisível — sem leitura, sem resposta, sem banco.
+    // Outside hours: record inbound, but do not mark read or respond.
     if (!dentroDoHorario(agent)) {
       const _diaHoje = DIA_MAP[nowSaoPaulo().getDay()];
       const _janelaHoje = janelaDoDia(agent, _diaHoje);
@@ -1330,52 +1346,6 @@ async function processPayload(payload: any) {
       console.log("[READ] erro", (e as Error).message);
     }
 
-    // === DEDUPE DE ENTREGA (Evolution reenvia webhook às vezes) ===
-    // Se o mesmo texto do mesmo telefone chegou nos últimos 15s, ignora esta entrega
-    // — evita a IA responder 2x a mesma mensagem.
-    {
-      const dedupeCutoff = new Date(Date.now() - 15000).toISOString();
-      const { data: dupe } = await admin
-        .from("whatsapp_conversas")
-        .select("id")
-        .eq("portfolio_id", portfolioId)
-        .eq("role", "user")
-        .eq("contato_telefone", storagePhone)
-        .eq("mensagem", text)
-        .gte("created_at", dedupeCutoff)
-        .limit(1);
-      if (dupe && dupe.length > 0) {
-        console.log("[DEDUPE] entrega duplicada ignorada", { storagePhone, preview: text.slice(0, 60) });
-        continue;
-      }
-    }
-
-    // Salvar mensagem do usuário (com vínculo SDR se aplicável).
-    // O id/timestamp são definidos aqui para o debounce nunca depender do retorno
-    // do INSERT. Se o retorno do banco vier vazio, a própria mensagem não pode ser
-    // confundida com uma mensagem "mais nova" e encerrar a última execução do burst.
-    const userMessageId = crypto.randomUUID();
-    const userMessageCreatedAt = new Date().toISOString();
-    const { error: insertUserError } = await admin.from("whatsapp_conversas").insert({
-      id: userMessageId,
-      portfolio_id: portfolioId,
-      instance_name: instance,
-      contato_telefone: storagePhone,
-      contato_nome: pushName,
-      role: "user",
-      mensagem: text,
-      sdr_lead_id: sdrLead?.id ?? null,
-      created_at: userMessageCreatedAt,
-    });
-    if (insertUserError) {
-      console.error("[MESSAGE] falha ao salvar mensagem recebida", {
-        portfolioId,
-        storagePhone,
-        error: insertUserError.message,
-      });
-      continue;
-    }
-
     // === DEBOUNCE ANTI-BURST ===
     // Se o cliente manda várias mensagens seguidas ("oi", "opa", "call?"),
     // cada webhook chamava a IA e respondia 3x cada = enxurrada de bolhas.
@@ -1407,6 +1377,8 @@ async function processPayload(payload: any) {
         }
       }
     }
+
+    if (sdrLead) await admin.from("whatsapp_conversas").update({ sdr_lead_id: sdrLead.id }).eq("id", userMessageId);
 
     // Se é lead SDR: atualiza status (primeira resposta vira "respondeu") e métricas
     if (sdrLead) {
@@ -1563,15 +1535,17 @@ async function processPayload(payload: any) {
       { role: "system", content: systemPrompt },
       ...(catalogoUrl ? [{ role: "system", content: catalogGroundingInstruction }] : []),
       { role: "system", content: "Responda agora a ÚLTIMA mensagem do cliente. Use o histórico como memória; não trate mensagens antigas como nova pergunta." },
-      ...trimmedRecent.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.mensagem })),
+      ...trimmedRecent.map((m) => ({ role: m.role === "assistant" || m.role === "human" ? "assistant" : "user", content: m.mensagem })),
     ];
+    let currentCatalogSearch: ReturnType<typeof contextualCatalogSearch> = null;
     // Reuse a complete snapshot within this reply only; next message reads the sheet again.
     let executionCatalog: Awaited<ReturnType<typeof fetchProductCatalog>> | undefined;
     if (catalogoUrl) {
       try {
         executionCatalog = await fetchProductCatalog(catalogoUrl);
-        const customerTexts = trimmedRecent.filter((m) => m.role !== "assistant").map((m) => String(m.mensagem ?? ""));
+        const customerTexts = trimmedRecent.filter((m) => m.role === "user").map((m) => String(m.mensagem ?? ""));
         const found = contextualCatalogSearch(executionCatalog, customerTexts);
+        currentCatalogSearch = found;
         baseAiMessages.splice(2, 0, { role: "system", content: found
           ? `RESULTADO INTERNO DA CONSULTA ATUAL (não exibir diagnóstico): ${JSON.stringify(found.result)}`
           : "Nenhum produto identificado automaticamente nas últimas mensagens. Se o cliente pediu um produto, chame buscar_produtos com o nome antes de responder; não diga que não existe sem buscar." });
@@ -1607,7 +1581,7 @@ async function processPayload(payload: any) {
     }
 
     let toolMessages: any[] = [...baseAiMessages];
-    let aiResp = await callAi(maxTokens, toolMessages, Boolean(catalogoUrl));
+    let aiResp = await callAi(maxTokens, toolMessages, Boolean(catalogoUrl) && !currentCatalogSearch);
     if (!aiResp.ok) {
       console.error("AI gateway error", aiResp.status, await aiResp.text());
       continue;
@@ -1669,7 +1643,7 @@ async function processPayload(payload: any) {
     // Detecta resposta cortada: finish_reason=length ou texto sem pontuação final.
     const finishReason = String(aiJson.choices?.[0]?.finish_reason ?? "").toLowerCase();
     const endsProperly = (t: string) => /[.!?…\)\]\"'”’)]\s*$/.test(t) || /[:;]\s*$/.test(t);
-    const looksTruncated = reply.length > 0 && (finishReason === "length" || !endsProperly(reply));
+    const looksTruncated = reply.length > 0 && finishReason === "length";
     if (looksTruncated && maxTokens < 3000) {
       const retryTokens = Math.min(3000, Math.max(maxTokens * 2, 2000));
       console.warn("[TRUNCATED] resposta parece cortada — refazendo com max_tokens maior", { finishReason, was: maxTokens, retry: retryTokens, preview: reply.slice(-80) });

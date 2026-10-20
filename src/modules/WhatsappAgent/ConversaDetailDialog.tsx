@@ -1,3 +1,4 @@
+import { loadAllConversationRows } from "@/lib/conversation-history";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -27,21 +28,22 @@ export function ConversaDetailDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data: mensagens, isLoading } = useQuery({
+  const { data: mensagens, isLoading, isError } = useQuery({
     queryKey: ["whatsapp-conversa-detalhe", portfolioId, telefone],
     queryFn: async () => {
       if (!telefone) return [];
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      return loadAllConversationRows(async (from, to) => {
       const { data, error } = await supabase
         .from("whatsapp_conversas")
         .select("id, role, mensagem, created_at")
         .eq("portfolio_id", portfolioId)
         .eq("contato_telefone", telefone)
-        .gte("created_at", since)
         .order("created_at", { ascending: true })
-        .limit(500);
+        .order("id", { ascending: true })
+        .range(from, to);
       if (error) throw error;
       return (data ?? []) as Msg[];
+      });
     },
     enabled: open && !!telefone,
     refetchInterval: open ? 8000 : false,
@@ -61,7 +63,7 @@ export function ConversaDetailDialog({
             {nome ?? (telefone ? `+${telefone}` : "Conversa")}
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Histórico completo das últimas 24 horas
+            Histórico completo
           </p>
         </DialogHeader>
 
@@ -71,9 +73,9 @@ export function ConversaDetailDialog({
           <div className="py-10 flex justify-center">
             <Loader2 className="animate-spin text-muted-foreground" size={20} />
           </div>
-        ) : !mensagens?.length ? (
+        ) : isError ? (<p role="alert" className="py-10 text-destructive">Não foi possível carregar as mensagens.</p>) : !mensagens?.length ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            Nenhuma mensagem nas últimas 24 horas.
+            Nenhuma mensagem registrada.
           </p>
         ) : (
           <ScrollArea className="h-[40vh] pr-3">
@@ -92,6 +94,7 @@ export function ConversaDetailDialog({
                           : "bg-muted text-foreground"
                       }`}
                     >
+                      {m.role === "human" && <div className="text-xs font-semibold mb-1">Equipe</div>}
                       <div>{m.mensagem}</div>
                       <div
                         className={`mt-1 text-[10px] ${

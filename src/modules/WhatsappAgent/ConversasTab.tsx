@@ -1,3 +1,4 @@
+import { loadAllConversationRows } from "@/lib/conversation-history";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,19 +33,20 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
     refetchInterval: 5000,
   });
   const preferenceByPhone = new Map(preferences.map((p) => [p.phone, p]));
-  const { data: mensagens, isLoading } = useQuery({
+  const { data: mensagens, isLoading, isError } = useQuery({
     queryKey: ["whatsapp-conversas", portfolioId],
     queryFn: async () => {
-      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      return loadAllConversationRows(async (from, to) => {
       const { data, error } = await supabase
         .from("whatsapp_conversas")
         .select("id, portfolio_id, instance_name, contato_telefone, contato_nome, role, mensagem, sdr_lead_id, created_at")
         .eq("portfolio_id", portfolioId)
-        .gte("created_at", since)
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .order("id", { ascending: false })
+        .range(from, to);
       if (error) throw error;
       return (data ?? []) as ConversaRow[];
+      });
     },
     refetchInterval: 5000,
   });
@@ -73,6 +75,7 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
           sdr: !!m.sdr_lead_id,
         });
       } else {
+        if (!g.nome && m.contato_nome) g.nome = m.contato_nome;
         g.total += 1;
         g.sdr = g.sdr || !!m.sdr_lead_id;
         // Já ordenado do mais recente -> o primeiro é o mais recente
@@ -112,10 +115,12 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
     );
   }
 
+  if (isError) return <p role="alert" className="p-4 text-destructive">Não foi possível carregar as conversas. Tentaremos novamente.</p>;
+
   if (!grupos.length) {
     return (
       <Card className="p-8 text-center text-sm text-muted-foreground">
-        Nenhuma conversa registrada nos últimos 7 dias.
+        Nenhuma conversa registrada.
       </Card>
     );
   }
