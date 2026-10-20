@@ -7,7 +7,13 @@ export type OrderDraft = {
 };
 export type OrderTurn = { role: string; mensagem: string; created_at?: string };
 function orderProductName(value: string) {
-  return normalizeSearchText(value).replace(/\b(pecas|peca)\b/g, "pcs").replace(/\b0+(\d+)\b/g, "$1");
+  return normalizeSearchText(value)
+    .replace(/\b(pecas|peca)\b/g, "pcs")
+    .replace(/\b0+(\d+)\b/g, "$1")
+    // "2,0mm" vira "2 0mm" na normalização; reunir medidas decimais ("2 0mm" -> "2mm").
+    .replace(/\b(\d+) 0+(mm|cm|m|l|kg|v|w|pol)\b/g, "$1$2")
+    // A ordem das palavras não muda o produto ("Espaçador Cortag 2mm" = "Espaçador 2mm Cortag").
+    .split(" ").sort().join(" ");
 }
 export function validateOrder(raw: unknown, catalog: SearchProduct[], turns: OrderTurn[]) {
   const d = raw as OrderDraft | null;
