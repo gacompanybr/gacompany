@@ -1065,7 +1065,7 @@ async function handleOutgoingMessage(payload: any, msg: any) {
       const { error } = await admin.from("whatsapp_conversas").insert({
         id, portfolio_id: portfolioId, instance_name: instance,
         contato_telefone: candidates[0] || phoneFromJid, contato_nome: msg.pushName ?? null,
-        role: "human", mensagem: outgoingText,
+        role: "assistant", mensagem: `[Equipe — mensagem manual] ${outgoingText}`,
       });
       if (error && error.code !== "23505") console.error("[MESSAGE] manual recording failed", error.message);
     }
