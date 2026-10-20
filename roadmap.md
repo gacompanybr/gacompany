@@ -1,7 +1,9 @@
 # Roadmap
 
-- [ ] Registrar e exibir o histórico completo de conversas, inclusive fora do horário e atendimento manual
-- [ ] Agilizar busca genérica por produtos separando quantidade e evitando consultas redundantes
+- [x] Registrar mensagens antes das regras de resposta e exibir todo o histórico armazenado — teste de registro remoto e paginação aprovados
+- [x] Agilizar busca genérica separando quantidade e evitando consultas redundantes — 77 resultados de tubo nos 5.974 produtos reais; 32 testes aprovados
+- [ ] Verificar John Lennon e histórico ausente na Evolution — contato não encontrado nos registros; precisa do telefone do contato
+- [ ] Validar histórico completo pela tela autenticada — acesso de teste indisponível; precisa entrar no painel
 
 - [x] Liberar pausas e desativar atendimento humano automático somente na Casa do Eletricista 558781607727 — sete pausas liberadas, 12 testes aprovados e webhook implantado
 
