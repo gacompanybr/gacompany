@@ -7,6 +7,7 @@ import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { productSearchTool, queryCatalogProducts, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 import { processConversationOrder } from "../_shared/order-report.ts";
 import { usesCommercialOrderFlow } from "../_shared/order-report-scope.ts";
+import { usesHumanTakeoverPause } from "../_shared/human-takeover-policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1054,6 +1055,7 @@ async function handleOutgoingMessage(payload: any, msg: any) {
 
     const portfolioId = await resolvePortfolioByInstance(instance);
     if (!portfolioId) return;
+    if (!usesHumanTakeoverPause(portfolioId)) return;
 
     const phoneFromJid = normalizePhoneDigits(remoteJid.split("@")[0]) || remoteJid.split("@")[0];
     // Rede de segurança extra: se o sistema enviou algo para este contato nos
@@ -1085,6 +1087,7 @@ async function handleOutgoingMessage(payload: any, msg: any) {
 }
 
 async function isContactPaused(portfolioId: string, suffixes: string[]): Promise<string | null> {
+  if (!usesHumanTakeoverPause(portfolioId)) return null;
   if (!suffixes.length) return null;
   const { data: rows } = await admin
     .from("whatsapp_paused_contacts")

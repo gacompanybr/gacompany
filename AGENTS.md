@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Human-takeover pause creation and inbound checks share a stable portfolio-scoped policy; opted-out clients never create or honor these pauses, while other clients retain existing behavior.
+
 - Commercial order dispatch is gated by a stable portfolio allowlist in the shared scope module; only opted-in portfolios bypass unchanged dental reporting. Orders use validated dispatch before the client response, per-agent group lookup, atomic reservation and explicit accepted/uncertain states to avoid duplicate or false-success reports.
 
 - Catalog retrieval reads the complete CSV without persistent cache and shares a per-reply snapshot; a shared search module ranks all rows before paginating or price sorting, so both live and preview answers use current commercial data without changing agents that have no catalog.
