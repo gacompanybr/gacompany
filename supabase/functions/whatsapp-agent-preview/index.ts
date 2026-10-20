@@ -1,5 +1,6 @@
 // Preview do agente WhatsApp — usa Lovable AI Gateway (gratuito)
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { boundedCatalogResponse, catalogResponseFallback, MAX_CATALOG_TOOL_ROUNDS } from "../_shared/catalog-response.ts";
 import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { queryCatalogProducts, productSearchTool, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 const corsHeaders = {
@@ -49,15 +50,16 @@ Deno.serve(async (req) => {
           .slice(-30)
       : [];
 
-    const found = catalog ? contextualCatalogSearch(catalog, [...history.filter((m: any) => m.role === "user").map((m: any) => m.content), userMessage]) : null;
+    let found = catalog ? contextualCatalogSearch(catalog, [...history.filter((m: any) => m.role === "user").map((m: any) => m.content), userMessage]) : null;
     const aiMessages: any[] = [
       { role: "system", content: systemPrompt ?? "Você é um assistente prestativo." },
       { role: "system", content: "Use o histórico como memória e responda a última mensagem. Não reinicie a conversa se já existe contexto." },
       ...history, { role: "user", content: userMessage },
       ...(catalog ? [{ role: "system", content: `${catalogGroundingInstruction}\nRESULTADO INTERNO: ${JSON.stringify(found?.result ?? "nenhum produto identificado; use buscar_produtos")}` }] : []),
     ];
-    async function callAi(toolsEnabled: boolean) { return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    async function callAi(toolsEnabled: boolean) { const request = (signal?: AbortSignal) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
+      signal,
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
@@ -69,7 +71,7 @@ Deno.serve(async (req) => {
         temperature,
         max_tokens: maxTokens,
       }),
-    }); }
+    }); return catalog ? boundedCatalogResponse(request, () => catalogResponseFallback(found?.result)) : request(); }
     let resp = await callAi(Boolean(catalog) && !found);
 
     if (resp.status === 429) return json({ error: "Limite de requisições atingido. Tente novamente em alguns segundos." }, 429);
@@ -81,7 +83,7 @@ Deno.serve(async (req) => {
     }
 
     let data = await resp.json();
-    for (let round = 0; catalog && round < 3; round++) {
+    for (let round = 0; catalog && round < MAX_CATALOG_TOOL_ROUNDS; round++) {
       const message = data.choices?.[0]?.message;
       if (!message?.tool_calls?.length) break;
       aiMessages.push(message);
@@ -89,14 +91,16 @@ Deno.serve(async (req) => {
         let result: unknown;
         try {
           result = tool.function?.name === "buscar_produtos" ? queryCatalogProducts(catalog, JSON.parse(tool.function.arguments ?? "{}")) : { erro: "Ferramenta desconhecida" };
+          if (tool.function?.name === "buscar_produtos") found = { consulta: userMessage, result: result as ReturnType<typeof queryCatalogProducts> };
         } catch { result = { erro: "Consulta inválida", pesquisa_concluida: false }; }
         aiMessages.push({ role: "tool", tool_call_id: tool.id, content: JSON.stringify(result) });
       }
-      resp = await callAi(round < 2);
+      aiMessages.push({ role: "system", content: "A consulta terminou. Responda agora, inclusive se não encontrou o produto; não execute mais buscas." });
+      resp = await callAi(false);
       if (!resp.ok) return json({ error: "Falha ao consultar catálogo", status: resp.status, details: await resp.text() }, resp.status);
       data = await resp.json();
     }
-    const reply = data.choices?.[0]?.message?.content ?? "(sem resposta)";
+    const reply = data.choices?.[0]?.message?.content?.trim() || catalogResponseFallback(found?.result);
     const parts = splitMessage(reply);
     return json({ reply: parts.join("\n\n"), parts });
   } catch (e) {

@@ -38,3 +38,23 @@ describe("Planilha com colunas desalinhadas", () => {
   it("usa o produto pedido antes quando a última mensagem é só 'Veja aí'", () => { expect(contextualCatalogSearch(sheet, ["Me vê uma torneira então", "Certo", "Veja aí"])?.result.produtos[0].nome).toBe("TORNEIRA CROMADA YORA"); });
   it("não lista códigos numéricos como categorias", () => { expect(queryCatalogProducts(sheet, { consulta: "geladeira" }).categorias_disponiveis).toEqual([]); });
 });
+describe("Consulta sem resultados", () => {
+  it("não substitui caixa d’água ausente pela torneira de uma pergunta antiga", () => {
+    const sheet = [{ ...products[0], nome: "TORNEIRA CROMADA", categoria: "Metais", especificacoes: "", marca: "" }];
+    const search = contextualCatalogSearch(sheet, ["torneira", "tem caixa d'água de 2.000 litros?"]);
+    expect(search?.consulta).toBe("tem caixa d'água de 2.000 litros?");
+    expect(search?.result.total).toBe(0);
+    expect(search?.result.pesquisa_concluida).toBe(true);
+    expect(search?.result.produtos_analisados).toBe(1);
+  });
+  it("2000 litros não corresponde a 1000 litros e aceita escrita 2.000 L", () => {
+    const sheet = [1000, 2000].map(capacity => ({ ...products[0], nome: `CAIXA DAGUA ${capacity}L`, categoria: "", marca: "", especificacoes: "" }));
+    expect(contextualCatalogSearch(sheet, ["caixa d'água de 2.000 litros"])?.result.produtos.map(p => p.nome)).toEqual(["CAIXA DAGUA 2000L"]);
+  });
+  it("tubo ausente encerra a busca de todas as 5500 linhas", () => {
+    const search = contextualCatalogSearch(products, ["três metros de tubo"]);
+    expect(search?.result.total).toBe(0);
+    expect(search?.result.produtos_analisados).toBe(5500);
+    expect(search?.result.pesquisa_concluida).toBe(true);
+  });
+});
