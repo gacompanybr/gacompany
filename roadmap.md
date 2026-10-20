@@ -1,6 +1,7 @@
 # Roadmap
 
-- [ ] Encerrar buscas sem resultados com resposta rápida e preservar medidas como caixa d’água 2.000 litros
+- [x] Encerrar buscas sem resultados, preservar capacidade de 2.000 litros e responder em falha/demora do modelo — 29 testes aprovados; webhook e preview implantados
+- [ ] Confirmar entrega real pelo WhatsApp após consulta de produto ausente — correção implantada; entrega ainda não exercitada com contato real
 
 - [x] Registrar mensagens antes das regras de resposta e exibir todo o histórico armazenado — teste de registro remoto e paginação aprovados
 - [x] Agilizar busca genérica separando quantidade e evitando consultas redundantes — 77 resultados de tubo nos 5.974 produtos reais; 32 testes aprovados
