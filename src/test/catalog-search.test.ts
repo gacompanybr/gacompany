@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { queryCatalogProducts, searchOptionsFromMessage } from "../../supabase/functions/_shared/catalog-search";
+import { queryCatalogProducts, searchOptionsFromMessage, contextualCatalogSearch } from "../../supabase/functions/_shared/catalog-search";
 const products = Array.from({ length: 5500 }, (_, i) => ({ codigo: String(100000 + i), nome: `Parafusadeira Bosch modelo ${i} 220V`, categoria: "Ferramentas elétricas", marca: "Bosch", especificacoes: "Mandril 10mm", preco: String(5500 - i), estoque: "10", unidade: "un" }));
 describe("Catálogo completo", () => {
   for (const position of [0, 2750, 5499]) it(`localiza registro ${position + 1} da base de 5500`, () => {
@@ -19,4 +19,12 @@ describe("Catálogo completo", () => {
   });
   it("lê atualização no próximo conjunto", () => { expect(queryCatalogProducts([{ ...products[0], preco: "R$ 49,90" }], { consulta: "100000" }).produtos[0].preco).toBe("R$ 49,90"); });
   it("identifica intenção de preço em pergunta real", () => { expect(searchOptionsFromMessage("qual parafusadeira mais barata").ordenar).toBe("menor_preco"); });
+});describe("Planilha com colunas desalinhadas", () => {
+  const sheet = [
+    { codigo: "618341747982", categoria: "1736", nome: "TINTA MIL INTERNA VERDE ESMERALDA 3L", marca: "", especificacoes: "Ativo", preco: "30,9", unidade: "0", estoque: "13" },
+    { codigo: "", categoria: "2710", nome: "TORNEIRA CROMADA YORA", marca: "", especificacoes: "Ativo", preco: "45", unidade: "0", estoque: "2" },
+  ];
+  it("categoria chutada errada não esconde produto achado pelo nome", () => { expect(queryCatalogProducts(sheet, { consulta: "torneira", categoria: "Metais sanitários" }).produtos[0].nome).toBe("TORNEIRA CROMADA YORA"); });
+  it("usa o produto pedido antes quando a última mensagem é só 'Veja aí'", () => { expect(contextualCatalogSearch(sheet, ["Me vê uma torneira então", "Certo", "Veja aí"])?.result.produtos[0].nome).toBe("TORNEIRA CROMADA YORA"); });
+  it("não lista códigos numéricos como categorias", () => { expect(queryCatalogProducts(sheet, { consulta: "geladeira" }).categorias_disponiveis).toEqual([]); });
 });
