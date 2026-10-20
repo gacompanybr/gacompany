@@ -256,17 +256,31 @@ function getContactPhone(msg: any, remoteJid: string): string {
   return (candidates[0] ?? remoteJid).split("@")[0];
 }
 
+function getMediaMarker(msg: any): string {
+  const m = msg?.message ?? {};
+  if (m.audioMessage || m.pttMessage) return "[O cliente enviou um ÁUDIO — você não consegue escutar]";
+  if (m.imageMessage) return "[O cliente enviou uma IMAGEM — você não consegue visualizar]";
+  if (m.videoMessage) return "[O cliente enviou um VÍDEO — você não consegue visualizar]";
+  if (m.documentMessage || m.documentWithCaptionMessage) return "[O cliente enviou um ARQUIVO — você não consegue ler]";
+  if (m.stickerMessage) return "[O cliente enviou uma FIGURINHA]";
+  return "";
+}
+
 function getMessageText(msg: any): string {
-  return (
+  const text = (
     asText(msg.message?.conversation) ||
     asText(msg.message?.extendedTextMessage?.text) ||
     asText(msg.message?.imageMessage?.caption) ||
     asText(msg.message?.videoMessage?.caption) ||
     asText(msg.message?.documentMessage?.caption) ||
+    asText(msg.message?.documentWithCaptionMessage?.message?.documentMessage?.caption) ||
     asText(msg.text) ||
     asText(msg.body) ||
     asText(msg.message?.text)
   ).trim();
+  const marker = getMediaMarker(msg);
+  if (!marker) return text;
+  return text ? `${marker} Legenda: ${text}` : marker;
 }
 
 function normalizePhoneDigits(raw: unknown): string {
@@ -339,6 +353,7 @@ function buildSystemPrompt(agent: any): string {
     `- Português brasileiro, natural, humano, sem corporativês. Máx 1 emoji por bloco. Cada bloco: 1-3 linhas curtas.`,
     `- Por padrão envie UMA mensagem por turno. Só quebre em até 3 blocos com "|||" se as INSTRUÇÕES do negócio pedirem explicitamente. NUNCA mencione o separador ao cliente.`,
     `- Nunca invente preço/prazo/condição que não esteja nas instruções — se não souber, diga que vai confirmar com o time.`,
+    `- ÁUDIO/IMAGEM/ARQUIVO: mensagens marcadas como [O cliente enviou um ÁUDIO/IMAGEM/VÍDEO/ARQUIVO] não podem ser escutadas nem lidas por você. Nunca invente o conteúdo. Diga com educação que não conseguiu ouvir/visualizar e peça para o cliente digitar (se houver legenda, use só a legenda). Se as INSTRUÇÕES tiverem uma frase própria para isso, use a delas.`,
     `- NUNCA escreva mensagem no formato de relatório interno ("Nome: X | Empresa: Y | ..."). Isso é reservado ao grupo interno. Você fala SEMPRE com o cliente em linguagem natural de WhatsApp.`,
     `- NUNCA use placeholders entre [colchetes] ou {chaves}.`,
     `- Respostas CURTAS, como um humano digitando no WhatsApp: em geral até ~300 caracteres por turno. Só ultrapasse quando o cliente pedir detalhes (ex.: lista de preços).`,
