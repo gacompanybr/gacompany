@@ -46,3 +46,7 @@
 - [x] Adicionar controle persistente de follow-up e comprador por contato
 - [x] Proteger todos os envios de follow-up e invalidar pendências sem reenvio
 - [x] Testar isolamento, persistência, retomada e compra confirmada
+
+- [ ] Corrigir falhas de monitoramento que impedem os robôs de responder — import CORS quebrado em 6 funções, conflito de webhook n8n silencioso, erro 405 no n8n-sync, busca que diz "não tem" para produto existente, modelos de IA descontinuados
+- [ ] Aplicar na Casa do Eletricista todas as melhorias do leonardo - novo tio — fluxo de pedidos ao grupo, atualizações de pedido, busca de catálogo
+- [ ] Investigar mensagens sem resposta (ex.: Olga Nunes 2000L às 17:19) e pedido do Bruno não enviado ao grupo

@@ -38,6 +38,19 @@ describe("Planilha com colunas desalinhadas", () => {
   it("usa o produto pedido antes quando a última mensagem é só 'Veja aí'", () => { expect(contextualCatalogSearch(sheet, ["Me vê uma torneira então", "Certo", "Veja aí"])?.result.produtos[0].nome).toBe("TORNEIRA CROMADA YORA"); });
   it("não lista códigos numéricos como categorias", () => { expect(queryCatalogProducts(sheet, { consulta: "geladeira" }).categorias_disponiveis).toEqual([]); });
 });
+describe("Palavras de conversa não zeram a busca", () => {
+  it("ignora palavras fora da planilha quando há palavra de produto", () => {
+    expect(queryCatalogProducts(products, { consulta: "parafusadeira entrega hoje" }).total).toBe(5500);
+  });
+  it("palavra de produto com erro de digitação não vira ruído", () => {
+    expect(queryCatalogProducts(products, { consulta: "parafusadeita entrega" }).total).toBe(5500);
+  });
+  it("mantém busca concluída quando nenhuma palavra existe na planilha", () => {
+    const r = queryCatalogProducts(products, { consulta: "caixa dagua" });
+    expect(r.total).toBe(0);
+    expect(r.pesquisa_concluida).toBe(true);
+  });
+});
 describe("Consulta sem resultados", () => {
   it("não substitui caixa d’água ausente pela torneira de uma pergunta antiga", () => {
     const sheet = [{ ...products[0], nome: "TORNEIRA CROMADA", categoria: "Metais", especificacoes: "", marca: "" }];

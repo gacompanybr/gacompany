@@ -285,9 +285,9 @@ async function aiOpening(nome: string, nicho: string, motivo: string, nomeAtende
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "openai/gpt-6-astra",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.8,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: audioIntro ? 450 : 350,
       }),
     });
@@ -323,9 +323,9 @@ async function aiFollowup(nome: string, nicho: string, motivo: string, isFinal: 
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "openai/gpt-6-astra",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.8,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: 220,
       }),
     });

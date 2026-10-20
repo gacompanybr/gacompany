@@ -29,12 +29,12 @@ async function aiClassifyBool(prompt: string): Promise<boolean> {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "openai/gpt-6-astra",
         messages: [
           { role: "system", content: "Você é um classificador. Responda SOMENTE com true ou false." },
           { role: "user", content: prompt },
         ],
-        temperature: 0,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: 5,
       }),
     });
@@ -52,12 +52,12 @@ async function aiExtractShort(prompt: string): Promise<string> {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "openai/gpt-6-astra",
         messages: [
           { role: "system", content: "Responda apenas com a frase pedida, sem explicações e sem aspas." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.1,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: 60,
       }),
     });

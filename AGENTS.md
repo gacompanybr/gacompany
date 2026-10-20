@@ -11,3 +11,7 @@
 - Conversation list and detail fetch all stored history in ordered pages and show query errors; manual outgoing messages use the allowed assistant role with an explicit team prefix so paused/off-hours chats remain visible.
 - Store contact follow-up eligibility once per portfolio and normalized phone; shared fail-closed checks run before generation and every follow-up bubble, while a database-owned cutoff invalidates cancelled cycles without deleting conversation history.
 - Execute explicit contact schedules through the existing agent follow-up job with token-checked atomic claims; pending schedules suppress automatic cycles, and ambiguous deliveries require manual rescheduling to avoid duplicates.
+- Commercial order dispatch allowlist lives in supabase/functions/_shared/order-report-scope.ts (leonardo - novo tio + Casa do Eletricista only); dental reporting stays untouched.
+- Edge functions must define corsHeaders locally; importing from "npm:@supabase/supabase-js@2/cors" fails at boot (502) — that subpath does not exist.
+- AI calls use openai/gpt-6-astra via the Lovable gateway chat completions endpoint; google/gemini-2.5-flash(-lite) is deprecated and must not be reintroduced.
+- Catalog search drops conversational tokens absent from the sheet vocabulary only when other product words match; numeric tokens (voltage/measure) are never dropped, and a search where no word exists in the sheet is a completed zero result.
