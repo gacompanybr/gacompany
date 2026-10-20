@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Corrigir envio automático de pedidos confirmados ao grupo de cada agente, registrar falhas e validar integração sem duplicações
+- [ ] Confirmar recebimento do pedido de R$ 63,00 no grupo GA company equipe — envio real aceito e mensagem encontrada no histórico do grupo; aguardando recibo de entrega ou confirmação do usuário
+
 - [x] Corrigir busca completa no catálogo e validar produtos do início, meio e fim da planilha
 
 - [x] Adicionar data de follow-up no contato e executar envio agendado respeitando bloqueios

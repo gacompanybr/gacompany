@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Product orders use a shared validated dispatch path before the client response, with per-agent group lookup, atomic persistent reservation and explicit accepted/uncertain states; this prevents dental lead rules and ambiguous retries from suppressing or duplicating orders.
+
 - Catalog retrieval reads the complete CSV without persistent cache and shares a per-reply snapshot; a shared search module ranks all rows before paginating or price sorting, so both live and preview answers use current commercial data without changing agents that have no catalog.
 
 - Mercado Livre scraping remains HTML-based on the VPS, runs eight times daily, rotates one category and one page per run, stops on CAPTCHA, and supports optional `ML_SCRAPER_PROXY_URL`; this preserves downstream affiliate and dispatch logic while minimizing blocking signals.

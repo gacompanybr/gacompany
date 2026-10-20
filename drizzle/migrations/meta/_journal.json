@@ -15,6 +15,13 @@
       "when": 1791488466353,
       "tag": "0001_contact_scheduled_followup",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792504176307,
+      "tag": "0002_whatsapp_order_reports",
+      "breakpoints": true
     }
   ]
 }

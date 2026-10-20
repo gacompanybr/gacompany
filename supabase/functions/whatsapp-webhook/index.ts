@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateAffiliateLink, isMercadoLivreUrl, parseOfferMessage } from "../_shared/ml-affiliate.ts";
 import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { productSearchTool, queryCatalogProducts, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
+import { processConversationOrder } from "../_shared/order-report.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1088,6 +1089,15 @@ async function processPayload(payload: any) {
   if (eventName.includes("connection")) return;
   if (eventName.includes("message") && eventName.includes("update")) {
     console.log("messageUpdate", JSON.stringify(payload).slice(0, 1000));
+    const updates = Array.isArray(payload.data) ? payload.data : [payload.data];
+    for (const update of updates) {
+      const id = update?.key?.id ?? update?.keyId;
+      const status = String(update?.status ?? "").toUpperCase();
+      if (id && ["DELIVERY_ACK", "READ", "READ_ACK", "3", "4"].includes(status)) {
+        await admin.from("whatsapp_order_reports").update({ status: "delivered", error: null, updated_at: new Date().toISOString() })
+          .eq("message_id", id).in("status", ["accepted", "uncertain", "sending"]);
+      }
+    }
     return;
   }
   if (event && !eventName.includes("messages.upsert") && !eventName.includes("messages_upsert")) return;
@@ -1551,6 +1561,16 @@ async function processPayload(payload: any) {
       }
     }
 
+    let orderResult: Awaited<ReturnType<typeof processConversationOrder>> = null;
+    if (catalogoUrl) {
+      const { data: newerBeforeOrder, error: orderRaceError } = await admin.from("whatsapp_conversas").select("id")
+        .eq("portfolio_id", portfolioId).eq("role", "user").in("contato_telefone", phonesForCheck)
+        .gt("created_at", userMessageCreatedAt).limit(1);
+      if (orderRaceError || newerBeforeOrder?.length) continue;
+      if (executionCatalog) orderResult = await processConversationOrder(admin, agent, storagePhone, trimmedRecent, executionCatalog, LOVABLE_API_KEY, EVO_URL, EVO_KEY);
+      baseAiMessages.splice(1, 0, { role: "system", content: `CONTROLE REAL DE ENVIO DO PEDIDO (interno): ${JSON.stringify(orderResult ?? { status: "not_sent" })}. Só diga que encaminhou o pedido se status for accepted ou delivered. accepted significa aceito pelo WhatsApp, não pagamento confirmado. Se incomplete, peça os dados pendentes ou reconfirme produto/quantidade/preço. Se failed ou uncertain, informe que não conseguiu confirmar o encaminhamento, sem prometer que enviou. Nunca diga que passou, encaminhou ou avisou a equipe sem esse resultado real. O frete a calcular não bloqueia envio de pedido confirmado.` });
+    }
+
     async function callAi(mt: number, messages = baseAiMessages, toolsEnabled = false) {
       const requestBody: Record<string, unknown> = {
         model,
@@ -1853,7 +1873,7 @@ async function processPayload(payload: any) {
       }
 
       // Dispara o relatório — SDR ou RECEPTIVO
-      if (trigger) {
+    if (trigger && !catalogoUrl) {
         const { data: agentRow } = await admin
           .from("whatsapp_agents")
           .select("report_group_id, report_group_name, report_number")

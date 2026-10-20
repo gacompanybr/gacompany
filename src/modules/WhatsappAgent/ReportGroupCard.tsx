@@ -24,6 +24,20 @@ export function ReportGroupCard({
   const [saving, setSaving] = useState(false);
   const [numberInput, setNumberInput] = useState(agent.report_number ?? "");
   const [savingNumber, setSavingNumber] = useState(false);
+  const [orderWarnings, setOrderWarnings] = useState<{ id: string; status: string; error: string | null; created_at: string }[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function refreshWarnings() {
+      const { data } = await supabase.from("whatsapp_order_reports")
+        .select("id,status,error,created_at").eq("agent_id", agent.id)
+        .in("status", ["failed", "uncertain"]).order("created_at", { ascending: false }).limit(5);
+      if (mounted) setOrderWarnings(data ?? []);
+    }
+    void refreshWarnings();
+    const timer = setInterval(refreshWarnings, 15000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, [agent.id]);
 
   useEffect(() => {
     setNumberInput(agent.report_number ?? "");
@@ -225,6 +239,15 @@ export function ReportGroupCard({
           </p>
         </div>
       )}
+      {orderWarnings.map(warning => (
+        <div key={warning.id} role="alert" className="border border-destructive rounded p-3 text-sm space-y-1">
+          <p className="font-semibold text-destructive flex items-center gap-2"><AlertTriangle size={14} />
+            {warning.status === "uncertain" ? "Pedido com envio incerto — confira o grupo antes de reenviar" : "Pedido não enviado ao grupo"}
+          </p>
+          <p className="text-muted-foreground break-words">{warning.error || "Confira o grupo vinculado e a conexão do WhatsApp."}</p>
+          <p className="text-xs text-muted-foreground">{new Date(warning.created_at).toLocaleString("pt-BR")}</p>
+        </div>
+      ))}
     </Card>
   );
 }

@@ -2766,6 +2766,69 @@ export type Database = {
           },
         ]
       }
+      whatsapp_order_reports: {
+        Row: {
+          agent_id: string
+          attempts: number
+          created_at: string
+          error: string | null
+          group_id: string | null
+          id: string
+          message_id: string | null
+          order_key: string
+          payload: Json
+          phone: string
+          portfolio_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          group_id?: string | null
+          id?: string
+          message_id?: string | null
+          order_key: string
+          payload?: Json
+          phone: string
+          portfolio_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          group_id?: string | null
+          id?: string
+          message_id?: string | null
+          order_key?: string
+          payload?: Json
+          phone?: string
+          portfolio_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_order_reports_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_order_reports_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_paused_contacts: {
         Row: {
           created_at: string
