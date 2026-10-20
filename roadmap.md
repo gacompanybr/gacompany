@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Encerrar buscas sem resultados com resposta rápida e preservar medidas como caixa d’água 2.000 litros
+
 - [x] Registrar mensagens antes das regras de resposta e exibir todo o histórico armazenado — teste de registro remoto e paginação aprovados
 - [x] Agilizar busca genérica separando quantidade e evitando consultas redundantes — 77 resultados de tubo nos 5.974 produtos reais; 32 testes aprovados
 - [ ] Verificar John Lennon e histórico ausente na Evolution — contato não encontrado nos registros; precisa do telefone do contato

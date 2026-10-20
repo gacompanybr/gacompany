@@ -7,6 +7,7 @@ import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { productSearchTool, queryCatalogProducts, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 import { processConversationOrder } from "../_shared/order-report.ts";
 import { usesCommercialOrderFlow } from "../_shared/order-report-scope.ts";
+import { boundedCatalogResponse, catalogResponseFallback, MAX_CATALOG_TOOL_ROUNDS } from "../_shared/catalog-response.ts";
 import { conversationMessageId } from "../_shared/conversation-record.ts";
 import { usesHumanTakeoverPause } from "../_shared/human-takeover-policy.ts";
 
@@ -1573,11 +1574,13 @@ async function processPayload(payload: any) {
         max_tokens: mt,
       };
       if (toolsEnabled) requestBody.tools = [productSearchTool];
-      return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const request = (signal?: AbortSignal) => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
+        signal,
       });
+      return catalogoUrl ? boundedCatalogResponse(request, () => catalogResponseFallback(currentCatalogSearch?.result)) : request();
     }
 
     let toolMessages: any[] = [...baseAiMessages];
@@ -1590,7 +1593,7 @@ async function processPayload(payload: any) {
     let aiJson = await aiResp.json();
     if (catalogoUrl) {
       let toolRounds = 0;
-      while (toolRounds < 3) {
+      while (toolRounds < MAX_CATALOG_TOOL_ROUNDS) {
         const assistantMessage = aiJson.choices?.[0]?.message;
         const toolCalls = Array.isArray(assistantMessage?.tool_calls) ? assistantMessage.tool_calls : [];
         if (!toolCalls.length) break;
@@ -1612,6 +1615,7 @@ async function processPayload(payload: any) {
               } else {
                 executionCatalog ??= await fetchProductCatalog(catalogoUrl);
                 toolResult = queryCatalogProducts(executionCatalog, args);
+                currentCatalogSearch = { consulta: args.consulta ?? "", result: toolResult as ReturnType<typeof queryCatalogProducts> };
               }
             } catch (error) {
               toolResult = { erro: error instanceof Error ? error.message : "Falha ao buscar produtos.", pesquisa_concluida: false };
@@ -1630,7 +1634,8 @@ async function processPayload(payload: any) {
           });
         }
 
-        aiResp = await callAi(maxTokens, toolMessages, toolRounds < 3);
+        toolMessages.push({ role: "system", content: "A pesquisa terminou. Responda agora sem novas buscas. Zero resultados significa não localizado com essas características no catálogo, não falha de leitura. Não prometa pesquisar depois." });
+        aiResp = await callAi(maxTokens, toolMessages, false);
         if (!aiResp.ok) {
           console.error("AI gateway error after catalog tool", aiResp.status, await aiResp.text());
           break;
@@ -1662,6 +1667,7 @@ async function processPayload(payload: any) {
       }
     }
 
+    if (!reply && catalogoUrl) reply = catalogResponseFallback(currentCatalogSearch?.result);
     if (!reply) continue;
 
 

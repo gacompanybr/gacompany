@@ -4,7 +4,7 @@ export type CatalogSearchOptions = { consulta?: string; categoria?: string; marc
 const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor valores orcamento cotacao mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande".split(" "));
 const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
 export function normalizeSearchText(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\.(?=\d{3}\b)/g, "$1").replace(/\b(\d+)\s*(?:litros?|l)\b/g, "$1l").replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
 }
 function tokens(value: string) {
   return normalizeSearchText(value).split(/\s+/).flatMap((word) => (aliases[word] ?? word).split(" ")).filter((word) => word && !stopWords.has(word));
@@ -101,7 +101,8 @@ export function contextualCatalogSearch(products: SearchProduct[], customerMessa
   for (const message of recent) {
     if (!tokens(message).length) continue;
     const result = queryCatalogProducts(products, searchOptionsFromMessage(message));
-    if (result.total) return { consulta: message, result };
+    // Zero is a completed search too; never replace the current missing item with an old match.
+    return { consulta: message, result };
   }
   return null;
 }
