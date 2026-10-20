@@ -75,12 +75,12 @@ async function generateFollowup(
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "openai/gpt-6-astra",
       messages: [
         { role: "system", content: system },
         { role: "user", content: `Histórico da conversa:\n\n${history}` },
       ],
-      temperature: 0.6,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
       max_tokens: 200,
     }),
   });

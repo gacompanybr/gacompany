@@ -852,12 +852,12 @@ async function aiClassifyBool(prompt: string): Promise<boolean> {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: "openai/gpt-6-astra",
       messages: [
         { role: "system", content: "Você é um classificador. Responda SOMENTE com true ou false." },
         { role: "user", content: prompt },
       ],
-      temperature: 0,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
       max_tokens: 5,
     }),
   });
@@ -877,12 +877,12 @@ async function aiExtractShort(prompt: string): Promise<string> {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "openai/gpt-6-astra",
         messages: [
           { role: "system", content: "Responda apenas com a frase pedida, sem explicações e sem aspas." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.1,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: 60,
       }),
     });
@@ -1458,7 +1458,7 @@ async function processPayload(payload: any) {
     const recent = (history ?? []).reverse();
 
     const modelMap: Record<string, string> = {
-      gemini: "google/gemini-2.5-flash",
+      gemini: "openai/gpt-6-astra",
       openai: "openai/gpt-5-mini",
     };
     const model = modelMap[agent.modelo_ia] ?? "openai/gpt-5-mini";
@@ -1570,7 +1570,7 @@ async function processPayload(payload: any) {
       const requestBody: Record<string, unknown> = {
         model,
         messages,
-        temperature: agent.temperatura ?? 0.7,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: mt,
       };
       if (toolsEnabled) requestBody.tools = [productSearchTool];
@@ -1804,7 +1804,7 @@ async function processPayload(payload: any) {
             method: "POST",
             headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash-lite",
+              model: "openai/gpt-6-astra",
               messages: [
                 {
                   role: "system",
@@ -1821,7 +1821,7 @@ async function processPayload(payload: any) {
                   content: `Histórico recente:\n${lastTurns}\n\nÚLTIMA mensagem do CLIENTE: "${text}"\nResposta que a IA acabou de mandar: "${reply}"`,
                 },
               ],
-              temperature: 0,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
               max_tokens: 60,
             }),
           });
@@ -1945,7 +1945,7 @@ async function processPayload(payload: any) {
                 method: "POST",
                 headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  model: "google/gemini-2.5-flash-lite",
+                  model: "openai/gpt-6-astra",
                   messages: [
                     { role: "system", content: "Você analisa conversas de WhatsApp de uma clínica odontológica e responde SOMENTE com JSON válido." },
                     { role: "user", content: `Analise o histórico abaixo e responda um JSON com as chaves:\n` +
@@ -1954,7 +1954,7 @@ async function processPayload(payload: any) {
                       `- "motivo": frase curta (máx 10 palavras) com o motivo real do contato, específico. Se não der pra saber, use "Motivo não identificado".\n\n` +
                       `Histórico:\n${histParaMotivo}` },
                   ],
-                  temperature: 0.1,
+// temperature omitida: gpt-6-astra aceita apenas o valor padrão
                   max_tokens: 120,
                 }),
               });

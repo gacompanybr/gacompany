@@ -46,3 +46,7 @@
 - [x] Adicionar controle persistente de follow-up e comprador por contato
 - [x] Proteger todos os envios de follow-up e invalidar pendências sem reenvio
 - [x] Testar isolamento, persistência, retomada e compra confirmada
+
+- [x] Corrigir falhas de monitoramento que impedem os robôs de responder — CORS corrigido em 6 funções (401 em vez de 502), conflito de webhook n8n com desativação de concorrentes e erro visível, retry /api/v1 no n8n-sync, ruído de conversa não zera busca, modelos gemini trocados por gpt-6-astra; 6 falhas resolvidas
+- [x] Aplicar na Casa do Eletricista todas as melhorias do leonardo - novo tio — fluxo de pedidos ativado (allowlist), validação de produto insensível à ordem das palavras, pedido do Bruno (R$ 179,69) enviado e aceito no grupo CASA DO ELETRICISTA - MKT GA COMPANY
+- [x] Responder mensagens paradas da Casa do Eletricista — 6 conversas reenviadas e respondidas; causa raiz: modelo gemini descontinuado rejeitava temperatura (400), caindo no fallback

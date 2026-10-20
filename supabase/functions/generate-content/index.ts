@@ -22,12 +22,12 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "openai/gpt-6-astra",
         messages: [
           { role: "system", content: systemPrompt ?? "Você é um copywriter sênior brasileiro especializado em marketing digital." },
           { role: "user", content: userPrompt },
         ],
-        temperature,
+        // temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: maxTokens,
       }),
     });

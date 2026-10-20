@@ -35,6 +35,13 @@ describe("confirmed product orders", () => {
   it("allows pickup without delivery address", () => {
     expect(validateOrder({ ...draft, modality: "retirada", address: "", cep: "" }, catalog, turns).modality).toBe("retirada");
   });
+  it("identifica o produto com palavras em outra ordem e medida decimal", () => {
+    const sheet = [{ codigo: "9", nome: "ESPACADOR NIVELADOR EASY SPIN 2MM CORTAG", categoria: "", marca: "", especificacoes: "", preco: "7,30", unidade: "UN", estoque: "50" }];
+    const item = { codigo: "", nome: "Espaçador Nivelador Cortag Easy Spin 2,0mm", quantity: 2, unit_price: 7.3 };
+    const order = validateOrder({ ...draft, items: [item] }, sheet, turns);
+    expect(order.items[0].codigo).toBe("9");
+    expect(order.total).toBe(14.6);
+  });
   it("sends only to the group's own saved agent configuration and records acceptance", async () => {
     const { admin, rows } = database();
     const transport = vi.fn().mockResolvedValue(new Response(JSON.stringify({ key: { id: "real-message-id" } })));

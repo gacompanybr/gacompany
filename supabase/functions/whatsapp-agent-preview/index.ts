@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { systemPrompt, userMessage, messages = [], model = "google/gemini-2.5-flash", temperature = 0.7, maxTokens = 500 } = body;
+    const { systemPrompt, userMessage, messages = [], model = "openai/gpt-6-astra", temperature = 0.7, maxTokens = 500 } = body;
     const catalogoUrl = typeof body.catalogoUrl === "string" ? body.catalogoUrl.trim() : "";
     let catalog: Awaited<ReturnType<typeof fetchProductCatalog>> | undefined;
     if (catalogoUrl) {
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     // Mapear modelo configurado para o gateway
     const modelMap: Record<string, string> = {
-      gemini: "google/gemini-2.5-flash",
+      gemini: "openai/gpt-6-astra",
       openai: "openai/gpt-5-mini",
     };
     const finalModel = modelMap[model] ?? model;
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         model: finalModel,
         messages: aiMessages,
         ...(toolsEnabled ? { tools: [productSearchTool] } : {}),
-        temperature,
+        // temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: maxTokens,
       }),
     }); return catalog ? boundedCatalogResponse(request, () => catalogResponseFallback(found?.result)) : request(); }

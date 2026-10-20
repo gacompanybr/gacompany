@@ -78,7 +78,7 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
       console.log("[n8nFetch] write", method, path, "topKeys=", Object.keys(parsedDbg), "settings=", parsedDbg.settings);
     } catch {/*noop*/}
   }
-  const res = await fetch(`${N8N_BASE}${path}`, {
+  let res = await fetch(`${N8N_BASE}${path}`, {
     ...init,
     method,
     body,
@@ -88,6 +88,19 @@ async function n8nFetch(path: string, init: RequestInit = {}) {
       ...(init.headers ?? {}),
     },
   });
+  // 405 quase sempre significa base URL sem (ou com) /api/v1 a mais — tenta a outra forma.
+  if (res.status === 405 && !path.startsWith("/api/v1")) {
+    res = await fetch(`${N8N_BASE}/api/v1${path}`, {
+      ...init,
+      method,
+      body,
+      headers: {
+        "X-N8N-API-KEY": N8N_KEY,
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+  }
   const text = await res.text();
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }

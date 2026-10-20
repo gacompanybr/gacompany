@@ -88,7 +88,7 @@ function buildSystemPrompt(agent: any): string {
 }
 
 function modelFor(agent: any): string {
-  return agent.modelo_ia === "openai" ? "openai/gpt-5-mini" : "google/gemini-2.5-flash";
+  return agent.modelo_ia === "openai" ? "openai/gpt-5-mini" : "openai/gpt-6-astra";
 }
 
 function buildWorkflow(opts: {
@@ -472,12 +472,34 @@ Deno.serve(async (req) => {
 
     // Ativa ou desativa conforme o status do agente (controle manual da IA)
     const shouldBeActive = agent.status === "active";
-    const activate = await n8n(
+    let activate = await n8n(
       `/workflows/${workflowId}/${shouldBeActive ? "activate" : "deactivate"}`,
       { method: "POST" },
     );
+    if (!activate.ok && shouldBeActive) {
+      // Outro workflow ativo pode estar segurando o mesmo caminho de webhook.
+      // Desativa os concorrentes e tenta de novo, em vez de fingir sucesso.
+      console.warn("n8n activate failed, procurando conflito de webhook", activate.status, JSON.stringify(activate.body).slice(0, 300));
+      const list = await n8n(`/workflows`);
+      const others = (list.body?.data ?? list.body ?? []) as Array<{ id?: string; active?: boolean; nodes?: Array<{ parameters?: { path?: string } }> }>;
+      for (const other of Array.isArray(others) ? others : []) {
+        if (!other.id || other.id === workflowId || !other.active) continue;
+        const holdsPath = (other.nodes ?? []).some((n) => n?.parameters?.path === webhookPath);
+        if (!holdsPath) continue;
+        console.warn("desativando workflow concorrente", other.id);
+        await n8n(`/workflows/${other.id}/deactivate`, { method: "POST" });
+      }
+      activate = await n8n(`/workflows/${workflowId}/activate`, { method: "POST" });
+    }
     if (!activate.ok) {
-      console.warn("n8n activate/deactivate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
+      console.error("n8n activate/deactivate failed", activate.status, JSON.stringify(activate.body).slice(0, 300));
+      return json({
+        error: shouldBeActive
+          ? "O robô foi salvo, mas a automação não ligou: outro fluxo está usando o mesmo endereço. Desative fluxos antigos deste cliente no n8n e salve novamente."
+          : "O robô foi salvo, mas não foi possível desativar a automação no n8n.",
+        detail: activate.body,
+        workflowId,
+      }, 502);
     }
 
     // Aponta Evolution para o webhook central do sistema. Ele salva memória por conversa,

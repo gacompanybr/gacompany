@@ -1,7 +1,7 @@
 export type SearchProduct = { codigo: string; categoria: string; nome: string; marca: string; especificacoes: string; preco: string; unidade: string; estoque: string };
 export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number };
 
-const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor valores orcamento cotacao mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande".split(" "));
+const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor valores orcamento cotacao mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande vendem vende trabalham trabalha conseguem consegue arruma arrumam obrigado obrigada tambem ta fica litro litros metro metros".split(" "));
 const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
 export function normalizeSearchText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\.(?=\d{3}\b)/g, "$1").replace(/\b(\d+)\s*(?:litros?|l)\b/g, "$1l").replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
@@ -58,10 +58,40 @@ export function queryCatalogProducts(products: SearchProduct[], options: Catalog
   return result;
 }
 
+// Words that appear in at least one product field, cached per fetched snapshot.
+// Conversational noise ("estao", "tendo", a customer name) must not zero out a search.
+const vocabularyIndex = new WeakMap<SearchProduct[], Set<string>>();
+function catalogVocabulary(products: SearchProduct[]) {
+  const existing = vocabularyIndex.get(products);
+  if (existing) return existing;
+  const vocab = new Set<string>();
+  for (const product of products) for (const words of indexedFields(product)) for (const w of words) vocab.add(w);
+  vocabularyIndex.set(products, vocab);
+  return vocab;
+}
+function inVocabulary(vocab: Set<string>, token: string): boolean {
+  if (vocab.has(token) || vocab.has(singular(token))) return true;
+  // Misspelled product words still count as product intent, not noise.
+  if (/\d/.test(token) || token.length < 5) return false;
+  for (const word of vocab) {
+    if (Math.abs(word.length - token.length) <= 1 && distance(token, word) <= 1) return true;
+  }
+  return false;
+}
+
 function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
-  const queryTokens = tokens(options.consulta ?? "");
+  const rawTokens = tokens(options.consulta ?? "");
   const categoryTokens = tokens(options.categoria ?? "");
   const brandTokens = tokens(options.marca ?? "");
+  let queryTokens = rawTokens;
+  if (rawTokens.length > 1) {
+    const vocab = catalogVocabulary(products);
+    // Numeric tokens (voltage, measure, model) are hard constraints — never drop them.
+    const known = rawTokens.filter((t) => /\d/.test(t) || inVocabulary(vocab, t));
+    // When some words match the sheet, the rest is conversational noise and must not
+    // zero out the search. When NO word matches, the product is genuinely absent.
+    if (known.length) queryTokens = known;
+  }
   const ranked = products.flatMap((product, index) => {
     const fields = indexedFields(product);
     if (categoryTokens.some((q) => !fields[2].some((w) => tokenScore(q, w)))) return [];
