@@ -6,6 +6,7 @@ import { generateAffiliateLink, isMercadoLivreUrl, parseOfferMessage } from "../
 import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { productSearchTool, queryCatalogProducts, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
 import { processConversationOrder } from "../_shared/order-report.ts";
+import { usesCommercialOrderFlow } from "../_shared/order-report-scope.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1539,6 +1540,7 @@ async function processPayload(payload: any) {
     const maxTokens = Math.min(Math.max(Number(agent.max_tokens ?? 1200), 500), 3000);
 
     const catalogoUrl = typeof agent.catalogo_url === "string" ? agent.catalogo_url.trim() : "";
+    const commercialOrderFlow = usesCommercialOrderFlow(portfolioId, catalogoUrl);
     const baseAiMessages = [
       { role: "system", content: systemPrompt },
       ...(catalogoUrl ? [{ role: "system", content: catalogGroundingInstruction }] : []),
@@ -1562,7 +1564,7 @@ async function processPayload(payload: any) {
     }
 
     let orderResult: Awaited<ReturnType<typeof processConversationOrder>> = null;
-    if (catalogoUrl) {
+    if (commercialOrderFlow) {
       const { data: newerBeforeOrder, error: orderRaceError } = await admin.from("whatsapp_conversas").select("id")
         .eq("portfolio_id", portfolioId).eq("role", "user").in("contato_telefone", phonesForCheck)
         .gt("created_at", userMessageCreatedAt).limit(1);
@@ -1873,7 +1875,7 @@ async function processPayload(payload: any) {
       }
 
       // Dispara o relatório — SDR ou RECEPTIVO
-    if (trigger && !catalogoUrl) {
+    if (trigger && !commercialOrderFlow) {
         const { data: agentRow } = await admin
           .from("whatsapp_agents")
           .select("report_group_id, report_group_name, report_number")

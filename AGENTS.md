@@ -1,6 +1,6 @@
 # Project Architecture Rules
 
-- Product orders use a shared validated dispatch path before the client response, with per-agent group lookup, atomic persistent reservation and explicit accepted/uncertain states; this prevents dental lead rules and ambiguous retries from suppressing or duplicating orders.
+- Commercial order dispatch is gated by a stable portfolio allowlist in the shared scope module; only opted-in portfolios bypass unchanged dental reporting. Orders use validated dispatch before the client response, per-agent group lookup, atomic reservation and explicit accepted/uncertain states to avoid duplicate or false-success reports.
 
 - Catalog retrieval reads the complete CSV without persistent cache and shares a per-reply snapshot; a shared search module ranks all rows before paginating or price sorting, so both live and preview answers use current commercial data without changing agents that have no catalog.
 
