@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Corrigir envio automático de pedidos confirmados ao grupo de cada agente, registrar falhas e validar integração sem duplicações
+
 - [x] Corrigir busca completa no catálogo e validar produtos do início, meio e fim da planilha
 
 - [x] Adicionar data de follow-up no contato e executar envio agendado respeitando bloqueios
