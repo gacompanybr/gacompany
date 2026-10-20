@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Registrar e exibir o histórico completo de conversas, inclusive fora do horário e atendimento manual
+- [ ] Agilizar busca genérica por produtos separando quantidade e evitando consultas redundantes
+
 - [x] Liberar pausas e desativar atendimento humano automático somente na Casa do Eletricista 558781607727 — sete pausas liberadas, 12 testes aprovados e webhook implantado
 
 - [x] Restringir o novo fluxo de pedidos ao leonardo - novo tio sem alterar regras odontológicas — 15 testes aprovados e webhook implantado
