@@ -71,4 +71,22 @@ describe("confirmed product orders", () => {
     expect(result.status).toBe("uncertain");
     expect(transport).toHaveBeenCalledTimes(1);
   });
+});import { orderChanges, formatOrderUpdate } from "../../supabase/functions/_shared/order-report";
+describe("order updates after the group report", () => {
+  const sent = validateOrder(draft, catalog, turns);
+  it("reports a payment method informed after sending", () => {
+    const changes = orderChanges(sent, { ...sent, payment: "Pix" });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toContain("FORMA DE PAGAMENTO INFORMADA: Pix");
+  });
+  it("reports a changed CEP and switch to pickup", () => {
+    expect(orderChanges(sent, { ...sent, cep: "56280-000" })[0]).toBe("CEP: 56280-000");
+    expect(orderChanges(sent, { ...sent, modality: "retirada" })).toContain("Modalidade: retirada");
+  });
+  it("sends nothing when nothing changed", () => {
+    expect(orderChanges(sent, { ...sent })).toHaveLength(0);
+  });
+  it("identifies the original order in the update", () => {
+    expect(formatOrderUpdate(sent, ["CEP: 1"], "5514", "CASA DO ELETRICISTA", "Bruno")).toContain("ATUALIZAÇÃO DE PEDIDO — CASA DO ELETRICISTA");
+  });
 });
