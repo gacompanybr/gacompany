@@ -75,8 +75,8 @@ describe("Consulta sem resultados", () => {
 describe("Primeira consulta por nomes populares e parciais", () => {
   // Exact rows observed in the linked sheet; no generated commercial data.
   const sheet = [
-    { codigo: "tubo", nome: "TUBO ESGOTO 50MMX6MT KRONA", categoria: "", marca: "", especificacoes: "", preco: "18", estoque: "31,99", unidade: "" },
-    { codigo: "tinta", nome: "TINTA MIL INTERNA VERDE ESMERALDA 3L", categoria: "", marca: "", especificacoes: "", preco: "30,9", estoque: "13", unidade: "" },
+    { codigo: "", nome: "TUBO ESGOTO 50MMX6MT KRONA", categoria: "1460", marca: "", especificacoes: "Ativo", preco: "18", estoque: "31,99", unidade: "0" },
+    { codigo: "618341747982", nome: "TINTA MIL INTERNA VERDE ESMERALDA 3L", categoria: "1736", marca: "", especificacoes: "Ativo", preco: "30,9", estoque: "13", unidade: "0" },
     { codigo: "outra-tinta", nome: "TINTA BRANCA 3L", categoria: "", marca: "", especificacoes: "", preco: "", estoque: "0", unidade: "" },
   ];
   for (const consulta of ["Vocês têm cano de esgoto?", "tubo de esgoto", "esgoto", "TUBO ESGOTO 50MMX6MT KRONA", "canos de esgoto"]) {
@@ -104,5 +104,6 @@ describe("Primeira consulta por nomes populares e parciais", () => {
   it("singulariza plurais irregulares de outras categorias", () => {
     const product = { ...sheet[0], nome: "CONEXAO SOLDAVEL PVC" };
     expect(queryCatalogProducts([product], { consulta: "conexões soldáveis" }).total).toBe(1);
+    expect(queryCatalogProducts([{ ...product, nome: "CONEXAO ROSCAVEL PVC" }], { consulta: "conexões soldáveis" }).total).toBe(0);
   });
 });

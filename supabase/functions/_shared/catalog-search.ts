@@ -12,7 +12,11 @@ export function normalizeSearchText(value: string) {
 function tokens(value: string) {
   return normalizeSearchText(value).replace(/\bd\s+agua\b/g, "agua").replace(/\bdagua\b/g, "agua").split(/\s+/).flatMap((word) => (aliases[word] ?? word).split(" ")).filter((word) => word && !stopWords.has(word));
 }
-function singular(word: string) { return irregularPlurals[word] ?? (word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word); }
+function singular(word: string) {
+  if (irregularPlurals[word]) return irregularPlurals[word];
+  if (word.endsWith("veis")) return word.slice(0, -4) + "vel";
+  return word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word;
+}
 function distance(a: string, b: string) {
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
@@ -127,7 +131,7 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   const page = Math.max(1, Math.floor(Number(options.pagina) || 1));
   const selected = ranked.slice((page - 1) * pageSize, page * pageSize);
   const consultasExecutadas = Array.from(new Set([queryTokens.join(" "), ...queryTokens.flatMap((token, index) => alternatives(token).map((alternative) => queryTokens.map((t, i) => i === index ? alternative : t).join(" ")))]));
-  console.log("[CATALOGO_BUSCA]", JSON.stringify({ consulta: options.consulta ?? "", termos: queryTokens, consultas_executadas: consultasExecutadas, produtos_analisados: products.length, resultados: ranked.length, pesquisa_concluida: true, pagina: page, codigos_retornados: selected.map(({ product }) => product.codigo) }));
+  console.log("[CATALOGO_BUSCA]", JSON.stringify({ consulta: options.consulta ?? "", termos: queryTokens, consultas_executadas: consultasExecutadas, produtos_analisados: products.length, resultados: ranked.length, pesquisa_concluida: true, pagina: page, registros_retornados: selected.map(({ product }) => ({ codigo: product.codigo, nome: product.nome })) }));
   return {
     total: ranked.length, produtos: selected.map(({ product }) => product), pagina: page,
     total_paginas: Math.ceil(ranked.length / pageSize), proxima_pagina: page * pageSize < ranked.length ? page + 1 : null,
