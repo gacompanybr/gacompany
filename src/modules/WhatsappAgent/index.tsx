@@ -12,6 +12,7 @@ import { FaqsTab } from "./FaqsTab";
 import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
 import { ConversasTab } from "./ConversasTab";
+import { SearchLogsTab } from "./SearchLogsTab";
 import { SdrTab } from "./SdrTab";
 import { emptyAgent, DEFAULT_HORARIOS_AGENTE, DIAS, type WhatsappAgent } from "./types";
 
@@ -199,6 +200,7 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
             {!isConnected && <span className="ml-1 inline-block w-2 h-2 rounded-full bg-amber-400" />}
           </TabsTrigger>
           <TabsTrigger value="conversas">Conversas</TabsTrigger>
+          <TabsTrigger value="buscas">Buscas</TabsTrigger>
           <TabsTrigger value="preview">Pré-visualizar</TabsTrigger>
           <TabsTrigger value="sdr">SDR</TabsTrigger>
         </TabsList>
@@ -217,6 +219,9 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
         </TabsContent>
         <TabsContent value="conversas">
           <ConversasTab portfolioId={portfolioId} />
+        </TabsContent>
+        <TabsContent value="buscas">
+          <SearchLogsTab portfolioId={portfolioId} />
         </TabsContent>
         <TabsContent value="preview">
           <PreviewTab agent={local} />

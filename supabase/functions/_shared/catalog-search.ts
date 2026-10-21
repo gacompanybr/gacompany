@@ -1,10 +1,20 @@
 export type SearchProduct = { codigo: string; categoria: string; nome: string; marca: string; especificacoes: string; preco: string; unidade: string; estoque: string };
-export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number };
+export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number; incluir_inativos?: boolean };
 
 const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor valores orcamento cotacao mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande vendem vende trabalham trabalha conseguem consegue arruma arrumam obrigado obrigada tambem ta fica litro litros metro metros".split(" "));
 const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
-// Equivalent popular names only; never equate different materials, brands or dimensions.
-const popularNames = [["cano", "tubo"], ["lampada", "lamp"], ["interruptor", "interrupt"]];
+// Tabela de equivalências de nomes populares — edite esta lista para ensinar novos sinônimos.
+// Nunca equiparar materiais, marcas ou medidas diferentes.
+const equivalentNames: string[][] = [
+  ["cano", "tubo"],
+  ["fio", "cabo"],
+  ["lampada", "lamp"],
+  ["interruptor", "interrupt", "inter"],
+  ["tomada", "tom"],
+  ["esmalte", "esm"],
+  ["sintetico", "sint", "sinte"],
+  ["conduite", "eletroduto"],
+];
 const irregularPlurals: Record<string, string> = { conexoes: "conexao", pinceis: "pincel", aneis: "anel", paineis: "painel", maos: "mao" };
 const specificationTokens = new Set(["soldavel", "roscavel", "esgoto", "cobre", "pvc", "ppr", "cpvc"]);
 export function normalizeSearchText(value: string) {
@@ -31,13 +41,14 @@ function tokenScore(query: string, word: string) {
   if (query === word || singular(query) === singular(word)) return 1;
   // Numeric model/voltage/measure tokens must never be fuzzy matched.
   if (/\d/.test(query) || /\d/.test(word)) return 0;
-  if (query.length >= 3 && word.startsWith(query)) return 0.85;
+  // Palavra parcial só a partir de 5 letras: "cano" não pode casar com "canoa".
+  if (query.length >= 5 && word.startsWith(query)) return 0.85;
   if (query.length >= 5 && Math.abs(query.length - word.length) <= 1 && distance(query, word) <= 1) return 0.65;
   return 0;
 }
 function alternatives(token: string): string[] {
   const base = singular(token);
-  return popularNames.find((group) => group.includes(base)) ?? [token];
+  return equivalentNames.find((group) => group.includes(base)) ?? [token];
 }
 function equivalentScore(query: string, word: string) {
   return Math.max(tokenScore(query, word), ...alternatives(query).map((alternative) => tokenScore(alternative, word) * 0.9));
@@ -94,34 +105,105 @@ function inVocabulary(vocab: Set<string>, token: string): boolean {
   return false;
 }
 
+type ScoredProduct = { product: SearchProduct; index: number; score: number; price: number | null };
+
+function stockNumber(value: string): number {
+  const parsed = Number(value.trim().replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function scoreTokenSet(products: SearchProduct[], queryTokens: string[], categoryTokens: string[], brandTokens: string[], requireAll: boolean): ScoredProduct[] {
+  return products.flatMap((product, index) => {
+    const fields = indexedFields(product);
+    if (categoryTokens.some((q) => !fields[2].some((w) => tokenScore(q, w)))) return [];
+    if (brandTokens.some((q) => !fields[3].some((w) => q === w) && !fields[1].some((w) => q === w))) return [];
+    let score = 0;
+    let matched = 0;
+    for (const q of queryTokens) {
+      const best = Math.max(0, ...fields.map((words, field) => Math.max(0, ...words.map((w) => equivalentScore(q, w))) * [6, 5, 3, 4, 1][field]));
+      if (!best) {
+        if (requireAll) return [];
+        continue;
+      }
+      matched += 1;
+      score += best;
+    }
+    if (!matched) return [];
+    return [{ product, index, score, price: catalogPrice(product.preco) }];
+  });
+}
+
+// Alternativas de frase inteira para nomes populares (edite junto com equivalentNames).
+function queryTokenSetAlternatives(queryTokens: string[]): string[][] {
+  const sets: string[][] = [];
+  if (queryTokens.includes("reservatorio")) sets.push(queryTokens.flatMap((t) => (t === "reservatorio" ? ["caixa", "agua"] : [t])));
+  // "água" junto de cano/tubo aponta para a linha soldável da planilha.
+  if (queryTokens.includes("agua") && queryTokens.some((t) => ["cano", "tubo"].includes(singular(t)))) {
+    sets.push(queryTokens.map((t) => (t === "agua" ? "soldavel" : t)));
+  }
+  return sets;
+}
+
 function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   const rawTokens = tokens(options.consulta ?? "");
   const categoryTokens = tokens(options.categoria ?? "");
   const brandTokens = tokens(options.marca ?? "");
+  // Linhas marcadas como "Inativo" na coluna de situação/especificações não entram na busca.
+  const active = options.incluir_inativos ? products : products.filter((p) => normalizeSearchText(p.especificacoes) !== "inativo");
   let queryTokens = rawTokens;
   if (rawTokens.length > 1) {
-    const vocab = catalogVocabulary(products);
+    const vocab = catalogVocabulary(active);
     // Numeric tokens (voltage, measure, model) are hard constraints — never drop them.
     const known = rawTokens.filter((t) => /\d/.test(t) || specificationTokens.has(singular(t)) || inVocabulary(vocab, t));
     // When some words match the sheet, the rest is conversational noise and must not
     // zero out the search. When NO word matches, the product is genuinely absent.
     if (known.length) queryTokens = known;
   }
-  const ranked = products.flatMap((product, index) => {
-    const fields = indexedFields(product);
-    if (categoryTokens.some((q) => !fields[2].some((w) => tokenScore(q, w)))) return [];
-    if (brandTokens.some((q) => !fields[3].some((w) => q === w) && !fields[1].some((w) => q === w))) return [];
-    let score = 0;
-    for (const q of queryTokens) {
-      const best = Math.max(0, ...fields.map((words, field) => Math.max(0, ...words.map((w) => equivalentScore(q, w))) * [6, 5, 3, 4, 1][field]));
-      if (!best) return [];
-      score += best;
+  // Medidas, voltagens e especificações de material são restrições rígidas em todas as camadas.
+  const hardTokens = queryTokens.filter((t) => /\d/.test(t) || specificationTokens.has(singular(t)));
+  const wordTokens = queryTokens.filter((t) => !hardTokens.includes(t));
+
+  // Camadas: AND -> equivalências de frase -> token mais raro -> qualquer token.
+  // A primeira camada com resultados vence; medidas/voltagens são exigidas em todas.
+  let camada: string | null = null;
+  let ranked: ScoredProduct[] = [];
+  const attempt = (tokenSet: string[], requireAll: boolean, name: string) => {
+    if (ranked.length || !tokenSet.length) return;
+    const result = scoreTokenSet(active, tokenSet, categoryTokens, brandTokens, requireAll);
+    if (result.length) {
+      ranked = result;
+      camada = name;
     }
-    return [{ product, index, score, price: catalogPrice(product.preco) }];
-  });
+  };
+  attempt(queryTokens, true, "and");
+  const alternativeSets = queryTokenSetAlternatives(queryTokens);
+  for (const alternative of alternativeSets) attempt(alternative, true, "equivalencias");
+  if (wordTokens.length > 1) {
+    const vocab = catalogVocabulary(active);
+    const occurrences = (token: string) => {
+      let count = 0;
+      for (const word of vocab) if (equivalentScore(token, word) > 0) count += 1;
+      return count;
+    };
+    const rarest = [...wordTokens].sort((a, b) => occurrences(a) - occurrences(b))[0];
+    attempt([rarest, ...hardTokens], true, "token_raro");
+    if (!ranked.length) {
+      const orScored = scoreTokenSet(active, wordTokens, categoryTokens, brandTokens, false)
+        .filter((entry) => hardTokens.every((t) => indexedFields(entry.product).some((words) => words.some((w) => tokenScore(t, w) > 0))));
+      if (orScored.length) {
+        ranked = orScored;
+        camada = "ou";
+      }
+    }
+  }
+
   const order = options.ordenar ?? "relevancia";
   ranked.sort((a, b) => {
     if (order !== "relevancia") {
+      // Perguntas de mais barato/mais caro priorizam preço > 0 com estoque > 0.
+      const aOk = a.price !== null && a.price > 0 && stockNumber(a.product.estoque) > 0;
+      const bOk = b.price !== null && b.price > 0 && stockNumber(b.product.estoque) > 0;
+      if (aOk !== bOk) return aOk ? -1 : 1;
       if (a.price === null && b.price !== null) return 1;
       if (b.price === null && a.price !== null) return -1;
       if (a.price !== null && b.price !== null && a.price !== b.price) return order === "menor_preco" ? a.price - b.price : b.price - a.price;
@@ -131,14 +213,18 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   const pageSize = 60;
   const page = Math.max(1, Math.floor(Number(options.pagina) || 1));
   const selected = ranked.slice((page - 1) * pageSize, page * pageSize);
-  const consultasExecutadas = Array.from(new Set([queryTokens.join(" "), ...queryTokens.flatMap((token, index) => alternatives(token).map((alternative) => queryTokens.map((t, i) => i === index ? alternative : t).join(" ")))]));
-  console.log("[CATALOGO_BUSCA]", JSON.stringify({ consulta: options.consulta ?? "", termos: queryTokens, consultas_executadas: consultasExecutadas, produtos_analisados: products.length, resultados: ranked.length, pesquisa_concluida: true, pagina: page, registros_retornados: selected.map(({ product }) => ({ codigo: product.codigo, nome: product.nome })) }));
+  const consultasExecutadas = Array.from(new Set([queryTokens.join(" "), ...alternativeSets.map((set) => set.join(" ")), ...queryTokens.flatMap((token, index) => alternatives(token).map((alternative) => queryTokens.map((t, i) => i === index ? alternative : t).join(" ")))]));
+  console.log("[CATALOGO_BUSCA]", JSON.stringify({ consulta: options.consulta ?? "", termos: queryTokens, consultas_executadas: consultasExecutadas, camada, produtos_analisados: active.length, resultados: ranked.length, pesquisa_concluida: true, pagina: page, registros_retornados: selected.map(({ product }) => ({ codigo: product.codigo, nome: product.nome })) }));
   return {
     total: ranked.length, produtos: selected.map(({ product }) => product), pagina: page,
     total_paginas: Math.ceil(ranked.length / pageSize), proxima_pagina: page * pageSize < ranked.length ? page + 1 : null,
-    pesquisa_concluida: true, resultados_paginados: ranked.length > selected.length, produtos_analisados: products.length,
+    pesquisa_concluida: true, resultados_paginados: ranked.length > selected.length, produtos_analisados: active.length,
     consultas_executadas: consultasExecutadas,
-    ...(ranked.length ? {} : { categorias_disponiveis: meaningfulCategories(products) }),
+    camada,
+    total_encontrado: ranked.length,
+    retornados: selected.length,
+    tem_mais: page * pageSize < ranked.length,
+    ...(ranked.length ? {} : { categorias_disponiveis: meaningfulCategories(active) }),
   };
 }
 
@@ -159,7 +245,7 @@ export const productSearchTool = {
   type: "function",
   function: {
     name: "buscar_produtos",
-    description: "Pesquisa TODAS as linhas por nome parcial, código, marca, categoria e especificações. Ordenação de preço considera todos os resultados antes de paginar. Use consulta para o produto solicitado, não adivinhe categoria. Use proxima_pagina para outras opções.",
+    description: "Busca produtos pelo nome. Envie palavras-chave curtas e soltas (ex.: ESMERALDA, TUBO SOLD, COBRE), uma busca por palavra ou par de palavras. A busca ignora maiúsculas, acentos e plural, aceita palavra parcial do cliente e resolve sinônimos como cano/tubo. Para 'mais barato' ou 'mais caro', use ordenar. Se retornar vazio para uma palavra comum, tente outra palavra.",
     parameters: { type: "object", properties: {
       consulta: { type: "string", description: "Nome/palavras do produto, código, modelo ou medida. Ex: parafusadeira Bosch 220V" },
       categoria: { type: "string", description: "Filtro opcional, somente se a categoria for conhecida" },

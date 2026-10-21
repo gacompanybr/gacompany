@@ -298,6 +298,45 @@ export type Database = {
           },
         ]
       }
+      catalog_search_logs: {
+        Row: {
+          agent_id: string | null
+          camada: string | null
+          consulta: string
+          consulta_normalizada: string | null
+          created_at: string
+          id: string
+          portfolio_id: string
+          retornados: number
+          telefone: string | null
+          total_encontrado: number
+        }
+        Insert: {
+          agent_id?: string | null
+          camada?: string | null
+          consulta: string
+          consulta_normalizada?: string | null
+          created_at?: string
+          id?: string
+          portfolio_id: string
+          retornados?: number
+          telefone?: string | null
+          total_encontrado?: number
+        }
+        Update: {
+          agent_id?: string | null
+          camada?: string | null
+          consulta?: string
+          consulta_normalizada?: string | null
+          created_at?: string
+          id?: string
+          portfolio_id?: string
+          retornados?: number
+          telefone?: string | null
+          total_encontrado?: number
+        }
+        Relationships: []
+      }
       cobranca_config: {
         Row: {
           ativo: boolean
