@@ -107,3 +107,76 @@ describe("Primeira consulta por nomes populares e parciais", () => {
     expect(queryCatalogProducts([{ ...product, nome: "CONEXAO ROSCAVEL PVC" }], { consulta: "conexões soldáveis" }).total).toBe(0);
   });
 });
+
+describe("Busca em camadas com equivalências (spec de nomes populares)", () => {
+  const base = { categoria: "", marca: "", unidade: "un" };
+  const sheet = [
+    { ...base, codigo: "1", nome: "TINTA MIL INTERNA VERDE ESMERALDA 3L", especificacoes: "Ativo", preco: "30,9", estoque: "13" },
+    { ...base, codigo: "2", nome: "TINTA MIL INTERNA VERDE ESMERALDA 15L", especificacoes: "Ativo", preco: "85", estoque: "4" },
+    { ...base, codigo: "3", nome: "TINTA ESMERALDA STALUX NOVOLAR 15LT", especificacoes: "Ativo", preco: "120", estoque: "2" },
+    { ...base, codigo: "4", nome: "TUBO DE COBRE PANC 1/2", especificacoes: "Ativo", preco: "90", estoque: "7" },
+    { ...base, codigo: "5", nome: "TOMADA CANOA BRANCA", especificacoes: "Ativo", preco: "12", estoque: "30" },
+    { ...base, codigo: "6", nome: "TUBO SOLD 25MM X 6MT", especificacoes: "Ativo", preco: "22", estoque: "15" },
+    { ...base, codigo: "7", nome: "TUBO ESGOTO 50MMX6MT KRONA", especificacoes: "Ativo", preco: "18", estoque: "31" },
+    { ...base, codigo: "8", nome: "CAIXA D'AGUA 1000L", especificacoes: "Ativo", preco: "350", estoque: "3" },
+    { ...base, codigo: "9", nome: "TINTA LATEX BRANCA 15L", especificacoes: "Ativo", preco: "50", estoque: "5" },
+    { ...base, codigo: "10", nome: "TINTA ECONOMICA 15L", especificacoes: "Ativo", preco: "10", estoque: "0" },
+    { ...base, codigo: "11", nome: "TINTA INATIVA 1L", especificacoes: "Inativo", preco: "5", estoque: "9" },
+  ];
+  const codigos = (consulta: string, extra: object = {}) => queryCatalogProducts(sheet, { consulta, ...extra }).produtos.map((p) => p.codigo);
+
+  it("tinta esmeralda inclui os 3 itens", () => {
+    expect(codigos("tinta esmeralda")).toEqual(expect.arrayContaining(["1", "2", "3"]));
+  });
+  it("tinta mil esmeralda inclui os 2 itens TINTA MIL", () => {
+    const found = codigos("tinta mil esmeralda");
+    expect(found).toEqual(expect.arrayContaining(["1", "2"]));
+    expect(found).not.toContain("3");
+  });
+  it("cano de cobre acha TUBO DE COBRE PANC e não acha tomada CANOA", () => {
+    const found = codigos("cano de cobre");
+    expect(found).toContain("4");
+    expect(found).not.toContain("5");
+  });
+  it("cano de água acha TUBO SOLD pela equivalência com soldável", () => {
+    const result = queryCatalogProducts(sheet, { consulta: "cano de água" });
+    expect(result.produtos.map((p) => p.codigo)).toContain("6");
+    expect(result.camada).toBe("equivalencias");
+  });
+  it("cano de água 25mm mantém a medida como restrição", () => {
+    expect(codigos("cano de água 25mm")).toEqual(["6"]);
+  });
+  it("cano de esgoto acha TUBO ESGOTO", () => {
+    expect(codigos("cano de esgoto")).toContain("7");
+  });
+  it("caixa dagua, caixa d água e caixa d'água retornam o mesmo resultado", () => {
+    const expected = codigos("caixa dagua");
+    expect(expected).toEqual(["8"]);
+    expect(codigos("caixa d água")).toEqual(expected);
+    expect(codigos("caixa d'água")).toEqual(expected);
+  });
+  it("tubo de cobre e cano de cobre retornam o mesmo resultado", () => {
+    expect(codigos("tubo de cobre")).toEqual(codigos("cano de cobre"));
+  });
+  it("tinta por menor preço começa no mais barato com preço > 0 e estoque > 0", () => {
+    const result = queryCatalogProducts(sheet, { consulta: "tinta", ordenar: "menor_preco" });
+    expect(result.produtos[0].codigo).toBe("1");
+    expect(result.produtos.map((p) => p.codigo)).not.toContain("11");
+  });
+  it("nenhum resultado expõe coluna de custo", () => {
+    for (const product of queryCatalogProducts(sheet, { consulta: "tinta" }).produtos) {
+    expect(Object.keys(product).sort()).toEqual(["categoria", "codigo", "especificacoes", "estoque", "marca", "nome", "preco", "unidade"]);
+    }
+  });
+  it("linha Inativo fica fora da busca e volta só com incluir_inativos", () => {
+    expect(codigos("tinta inativa")).toEqual([]);
+    expect(codigos("tinta inativa", { incluir_inativos: true })).toEqual(["11"]);
+  });
+  it("informa total_encontrado, retornados, tem_mais e camada", () => {
+    const result = queryCatalogProducts(sheet, { consulta: "tinta esmeralda" });
+    expect(result.total_encontrado).toBe(3);
+    expect(result.retornados).toBe(3);
+    expect(result.tem_mais).toBe(false);
+    expect(result.camada).toBe("and");
+  });
+});
