@@ -12,6 +12,7 @@ import { FaqsTab } from "./FaqsTab";
 import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
 import { ConversasTab } from "./ConversasTab";
+import { SearchLogsTab } from "./SearchLogsTab";
 import { SdrTab } from "./SdrTab";
 import { emptyAgent, DEFAULT_HORARIOS_AGENTE, DIAS, type WhatsappAgent } from "./types";
 
