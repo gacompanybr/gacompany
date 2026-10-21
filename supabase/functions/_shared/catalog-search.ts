@@ -6,6 +6,7 @@ const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac:
 // Equivalent popular names only; never equate different materials, brands or dimensions.
 const popularNames = [["cano", "tubo"], ["lampada", "lamp"], ["interruptor", "interrupt"]];
 const irregularPlurals: Record<string, string> = { conexoes: "conexao", pinceis: "pincel", aneis: "anel", paineis: "painel", maos: "mao" };
+const specificationTokens = new Set(["soldavel", "roscavel", "esgoto", "cobre", "pvc", "ppr", "cpvc"]);
 export function normalizeSearchText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\.(?=\d{3}\b)/g, "$1").replace(/\b(\d+)\s*(?:litros?|lts?|l)\b/g, "$1l").replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -101,7 +102,7 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   if (rawTokens.length > 1) {
     const vocab = catalogVocabulary(products);
     // Numeric tokens (voltage, measure, model) are hard constraints — never drop them.
-    const known = rawTokens.filter((t) => /\d/.test(t) || inVocabulary(vocab, t));
+    const known = rawTokens.filter((t) => /\d/.test(t) || specificationTokens.has(singular(t)) || inVocabulary(vocab, t));
     // When some words match the sheet, the rest is conversational noise and must not
     // zero out the search. When NO word matches, the product is genuinely absent.
     if (known.length) queryTokens = known;
