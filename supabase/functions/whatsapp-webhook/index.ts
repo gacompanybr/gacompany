@@ -1564,6 +1564,7 @@ async function processPayload(payload: any) {
           ? `RESULTADO INTERNO DA CONSULTA ATUAL (não exibir diagnóstico): ${JSON.stringify(found.result)}`
           : "Nenhum produto identificado automaticamente nas últimas mensagens. Se o cliente pediu um produto, chame buscar_produtos com o nome antes de responder; não diga que não existe sem buscar." });
         console.log("[CATALOGO_BUSCA]", JSON.stringify({ portfolioId, consulta: found?.consulta ?? customerTexts.at(-1) ?? "", carregados: executionCatalog.length, encontrados: found?.result.total ?? 0, concluida: true }));
+        logCatalogSearch(found?.consulta ?? customerTexts.at(-1) ?? "", found?.result ?? null);
       } catch (error) {
         baseAiMessages.splice(2, 0, { role: "system", content: `Falha ao consultar catálogo: ${error instanceof Error ? error.message : "falha de leitura"}. Não declarar produto inexistente nem inventar preço.` });
       }
@@ -1629,6 +1630,7 @@ async function processPayload(payload: any) {
                 executionCatalog ??= await fetchProductCatalog(catalogoUrl);
                 toolResult = queryCatalogProducts(executionCatalog, args);
                 currentCatalogSearch = { consulta: args.consulta ?? "", result: toolResult as ReturnType<typeof queryCatalogProducts> };
+                logCatalogSearch(args.consulta ?? args.categoria ?? "", toolResult as ReturnType<typeof queryCatalogProducts>);
               }
             } catch (error) {
               toolResult = { erro: error instanceof Error ? error.message : "Falha ao buscar produtos.", pesquisa_concluida: false };
