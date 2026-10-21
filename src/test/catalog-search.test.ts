@@ -169,8 +169,8 @@ describe("Busca em camadas com equivalências (spec de nomes populares)", () => 
     }
   });
   it("linha Inativo fica fora da busca e volta só com incluir_inativos", () => {
-    expect(codigos("tinta inativa")).toEqual([]);
-    expect(codigos("tinta inativa", { incluir_inativos: true })).toEqual(["11"]);
+    expect(codigos("inativa")).toEqual([]);
+    expect(codigos("inativa", { incluir_inativos: true })).toEqual(["11"]);
   });
   it("informa total_encontrado, retornados, tem_mais e camada", () => {
     const result = queryCatalogProducts(sheet, { consulta: "tinta esmeralda" });
