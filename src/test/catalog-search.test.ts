@@ -71,3 +71,39 @@ describe("Consulta sem resultados", () => {
     expect(search?.result.pesquisa_concluida).toBe(true);
   });
 });
+
+describe("Primeira consulta por nomes populares e parciais", () => {
+  // Exact rows observed in the linked sheet; no generated commercial data.
+  const sheet = [
+    { codigo: "", nome: "TUBO ESGOTO 50MMX6MT KRONA", categoria: "1460", marca: "", especificacoes: "Ativo", preco: "18", estoque: "31,99", unidade: "0" },
+    { codigo: "618341747982", nome: "TINTA MIL INTERNA VERDE ESMERALDA 3L", categoria: "1736", marca: "", especificacoes: "Ativo", preco: "30,9", estoque: "13", unidade: "0" },
+    { codigo: "outra-tinta", nome: "TINTA BRANCA 3L", categoria: "", marca: "", especificacoes: "", preco: "", estoque: "0", unidade: "" },
+  ];
+  for (const consulta of ["Vocês têm cano de esgoto?", "tubo de esgoto", "esgoto", "TUBO ESGOTO 50MMX6MT KRONA", "canos de esgoto"]) {
+    it(`localiza esgoto sem insistência: ${consulta}`, () => {
+      const result = contextualCatalogSearch(sheet, [consulta]);
+      expect(result?.result.produtos).toEqual([sheet[0]]);
+      expect(result?.result.produtos[0].preco).toBe("18");
+      expect(result?.result.produtos[0].estoque).toBe("31,99");
+    });
+  }
+  it("mantém o termo parcial como restrição, em vez de retornar todas as tintas", () => {
+    expect(queryCatalogProducts(sheet, { consulta: "tinta esmeral" }).produtos).toEqual([sheet[1]]);
+  });
+  it("aceita acento, espaços, plural e ordem de palavras", () => {
+    expect(queryCatalogProducts(sheet, { consulta: "  esméraldas   tintas " }).produtos).toEqual([sheet[1]]);
+  });
+  it("não relaxa a dimensão quando usa um nome popular", () => {
+    expect(queryCatalogProducts(sheet, { consulta: "cano esgoto 100MMX6MT" }).total).toBe(0);
+  });
+  it("registra termos alternativos pesquisados sobre o mesmo conjunto completo", () => {
+    const result = queryCatalogProducts(sheet, { consulta: "cano esgoto" });
+    expect(result.consultas_executadas).toContain("tubo esgoto");
+    expect(result.produtos_analisados).toBe(3);
+  });
+  it("singulariza plurais irregulares de outras categorias", () => {
+    const product = { ...sheet[0], nome: "CONEXAO SOLDAVEL PVC" };
+    expect(queryCatalogProducts([product], { consulta: "conexões soldáveis" }).total).toBe(1);
+    expect(queryCatalogProducts([{ ...product, nome: "CONEXAO ROSCAVEL PVC" }], { consulta: "conexões soldáveis" }).total).toBe(0);
+  });
+});

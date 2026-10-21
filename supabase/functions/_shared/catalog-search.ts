@@ -3,13 +3,21 @@ export type CatalogSearchOptions = { consulta?: string; categoria?: string; marc
 
 const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor valores orcamento cotacao mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande vendem vende trabalham trabalha conseguem consegue arruma arrumam obrigado obrigada tambem ta fica litro litros metro metros".split(" "));
 const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
+// Equivalent popular names only; never equate different materials, brands or dimensions.
+const popularNames = [["cano", "tubo"], ["lampada", "lamp"], ["interruptor", "interrupt"]];
+const irregularPlurals: Record<string, string> = { conexoes: "conexao", pinceis: "pincel", aneis: "anel", paineis: "painel", maos: "mao" };
+const specificationTokens = new Set(["soldavel", "roscavel", "esgoto", "cobre", "pvc", "ppr", "cpvc"]);
 export function normalizeSearchText(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\.(?=\d{3}\b)/g, "$1").replace(/\b(\d+)\s*(?:litros?|l)\b/g, "$1l").replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/(\d)\.(?=\d{3}\b)/g, "$1").replace(/\b(\d+)\s*(?:litros?|lts?|l)\b/g, "$1l").replace(/(\d)\s+(mm|cm|v|w|kw|ml|kg|hz)\b/g, "$1$2").replace(/[^a-z0-9]+/g, " ").trim();
 }
 function tokens(value: string) {
   return normalizeSearchText(value).replace(/\bd\s+agua\b/g, "agua").replace(/\bdagua\b/g, "agua").split(/\s+/).flatMap((word) => (aliases[word] ?? word).split(" ")).filter((word) => word && !stopWords.has(word));
 }
-function singular(word: string) { return word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word; }
+function singular(word: string) {
+  if (irregularPlurals[word]) return irregularPlurals[word];
+  if (word.endsWith("veis")) return word.slice(0, -4) + "vel";
+  return word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word;
+}
 function distance(a: string, b: string) {
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
@@ -26,6 +34,13 @@ function tokenScore(query: string, word: string) {
   if (query.length >= 3 && word.startsWith(query)) return 0.85;
   if (query.length >= 5 && Math.abs(query.length - word.length) <= 1 && distance(query, word) <= 1) return 0.65;
   return 0;
+}
+function alternatives(token: string): string[] {
+  const base = singular(token);
+  return popularNames.find((group) => group.includes(base)) ?? [token];
+}
+function equivalentScore(query: string, word: string) {
+  return Math.max(tokenScore(query, word), ...alternatives(query).map((alternative) => tokenScore(alternative, word) * 0.9));
 }
 export function catalogPrice(value: string): number | null {
   let cleaned = value.trim().replace(/R\$|\s/g, "");
@@ -71,10 +86,10 @@ function catalogVocabulary(products: SearchProduct[]) {
 }
 function inVocabulary(vocab: Set<string>, token: string): boolean {
   if (vocab.has(token) || vocab.has(singular(token))) return true;
-  // Misspelled product words still count as product intent, not noise.
-  if (/\d/.test(token) || token.length < 5) return false;
+  // Use the SAME matcher as ranking: partial names must not be discarded as noise.
+  if (/\d/.test(token)) return false;
   for (const word of vocab) {
-    if (Math.abs(word.length - token.length) <= 1 && distance(token, word) <= 1) return true;
+    if (equivalentScore(token, word) > 0) return true;
   }
   return false;
 }
@@ -87,7 +102,7 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   if (rawTokens.length > 1) {
     const vocab = catalogVocabulary(products);
     // Numeric tokens (voltage, measure, model) are hard constraints — never drop them.
-    const known = rawTokens.filter((t) => /\d/.test(t) || inVocabulary(vocab, t));
+    const known = rawTokens.filter((t) => /\d/.test(t) || specificationTokens.has(singular(t)) || inVocabulary(vocab, t));
     // When some words match the sheet, the rest is conversational noise and must not
     // zero out the search. When NO word matches, the product is genuinely absent.
     if (known.length) queryTokens = known;
@@ -98,7 +113,7 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
     if (brandTokens.some((q) => !fields[3].some((w) => q === w) && !fields[1].some((w) => q === w))) return [];
     let score = 0;
     for (const q of queryTokens) {
-      const best = Math.max(0, ...fields.map((words, field) => Math.max(0, ...words.map((w) => tokenScore(q, w))) * [6, 5, 3, 4, 1][field]));
+      const best = Math.max(0, ...fields.map((words, field) => Math.max(0, ...words.map((w) => equivalentScore(q, w))) * [6, 5, 3, 4, 1][field]));
       if (!best) return [];
       score += best;
     }
@@ -116,10 +131,13 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
   const pageSize = 60;
   const page = Math.max(1, Math.floor(Number(options.pagina) || 1));
   const selected = ranked.slice((page - 1) * pageSize, page * pageSize);
+  const consultasExecutadas = Array.from(new Set([queryTokens.join(" "), ...queryTokens.flatMap((token, index) => alternatives(token).map((alternative) => queryTokens.map((t, i) => i === index ? alternative : t).join(" ")))]));
+  console.log("[CATALOGO_BUSCA]", JSON.stringify({ consulta: options.consulta ?? "", termos: queryTokens, consultas_executadas: consultasExecutadas, produtos_analisados: products.length, resultados: ranked.length, pesquisa_concluida: true, pagina: page, registros_retornados: selected.map(({ product }) => ({ codigo: product.codigo, nome: product.nome })) }));
   return {
     total: ranked.length, produtos: selected.map(({ product }) => product), pagina: page,
     total_paginas: Math.ceil(ranked.length / pageSize), proxima_pagina: page * pageSize < ranked.length ? page + 1 : null,
     pesquisa_concluida: true, resultados_paginados: ranked.length > selected.length, produtos_analisados: products.length,
+    consultas_executadas: consultasExecutadas,
     ...(ranked.length ? {} : { categorias_disponiveis: meaningfulCategories(products) }),
   };
 }

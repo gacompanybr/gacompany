@@ -14,4 +14,4 @@
 - Commercial order dispatch allowlist lives in supabase/functions/_shared/order-report-scope.ts (leonardo - novo tio + Casa do Eletricista only); dental reporting stays untouched.
 - Edge functions must define corsHeaders locally; importing from "npm:@supabase/supabase-js@2/cors" fails at boot (502) — that subpath does not exist.
 - AI calls use openai/gpt-6-astra via the Lovable gateway chat completions endpoint; google/gemini-2.5-flash(-lite) is deprecated and must not be reintroduced.
-- Catalog search drops conversational tokens absent from the sheet vocabulary only when other product words match; numeric tokens (voltage/measure) are never dropped, and a search where no word exists in the sheet is a completed zero result.
+- Catalog search uses the same partial/fuzzy/popular-name matcher for vocabulary detection and ranking, with bounded equivalent-term expansion over the complete snapshot; numeric tokens (voltage/measure) are never dropped. Query traces remain administrative and a search where no word exists in the sheet is a completed zero result.
