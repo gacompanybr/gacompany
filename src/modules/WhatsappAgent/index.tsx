@@ -219,6 +219,9 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
         <TabsContent value="conversas">
           <ConversasTab portfolioId={portfolioId} />
         </TabsContent>
+        <TabsContent value="buscas">
+          <SearchLogsTab portfolioId={portfolioId} />
+        </TabsContent>
         <TabsContent value="preview">
           <PreviewTab agent={local} />
         </TabsContent>
