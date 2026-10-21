@@ -244,7 +244,7 @@ export const productSearchTool = {
   type: "function",
   function: {
     name: "buscar_produtos",
-    description: "Pesquisa TODAS as linhas por nome parcial, código, marca, categoria e especificações. Ordenação de preço considera todos os resultados antes de paginar. Use consulta para o produto solicitado, não adivinhe categoria. Use proxima_pagina para outras opções.",
+    description: "Busca produtos pelo nome. Envie palavras-chave curtas e soltas (ex.: ESMERALDA, TUBO SOLD, COBRE), uma busca por palavra ou par de palavras. A busca ignora maiúsculas, acentos e plural, aceita palavra parcial do cliente e resolve sinônimos como cano/tubo. Para 'mais barato' ou 'mais caro', use ordenar. Se retornar vazio para uma palavra comum, tente outra palavra.",
     parameters: { type: "object", properties: {
       consulta: { type: "string", description: "Nome/palavras do produto, código, modelo ou medida. Ex: parafusadeira Bosch 220V" },
       categoria: { type: "string", description: "Filtro opcional, somente se a categoria for conhecida" },
