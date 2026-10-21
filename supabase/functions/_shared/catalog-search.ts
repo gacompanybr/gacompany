@@ -1,10 +1,20 @@
 export type SearchProduct = { codigo: string; categoria: string; nome: string; marca: string; especificacoes: string; preco: string; unidade: string; estoque: string };
-export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number };
+export type CatalogSearchOptions = { consulta?: string; categoria?: string; marca?: string; ordenar?: "relevancia" | "menor_preco" | "maior_preco"; pagina?: number; incluir_inativos?: boolean };
 
 const stopWords = new Set("a o as os e de do da dos das um uma uns umas para por com no na nos nas eu voce voces vc vcs ve veja vou me meu minha quero queria preciso tem tens temos teria tinha existe comprar produto produtos qual quais quanto custa custam preco valor valores orcamento cotacao mais menos barato barata baratos baratas caro cara caros caras menor maior disponivel disponiveis favor porfavor bom dia boa tarde noite ola oi saber ver procurar buscando estou gostaria pode poderia mostrar todos todas catalogo estoque pelo pela se sobre esse essa isso ai aqui ali entao agora certo ok sim nao que algum alguma tipo opcao opcoes manda mande vendem vende trabalham trabalha conseguem consegue arruma arrumam obrigado obrigada tambem ta fica litro litros metro metros".split(" "));
 const aliases: Record<string, string> = { arcondicionado: "ar condicionado", ac: "ar condicionado", parafus: "parafusadeira", parafusad: "parafusadeira", argam: "argamassa", inter: "interruptor", simp: "simples", sold: "soldavel", br: "branco", pret: "preto", p: "para", led: "led", mm: "mm", pol: "polegada" };
-// Equivalent popular names only; never equate different materials, brands or dimensions.
-const popularNames = [["cano", "tubo"], ["lampada", "lamp"], ["interruptor", "interrupt"]];
+// Tabela de equivalências de nomes populares — edite esta lista para ensinar novos sinônimos.
+// Nunca equiparar materiais, marcas ou medidas diferentes.
+const equivalentNames: string[][] = [
+  ["cano", "tubo"],
+  ["fio", "cabo"],
+  ["lampada", "lamp"],
+  ["interruptor", "interrupt", "inter"],
+  ["tomada", "tom"],
+  ["esmalte", "esm"],
+  ["sintetico", "sint", "sinte"],
+  ["conduite", "eletroduto"],
+];
 const irregularPlurals: Record<string, string> = { conexoes: "conexao", pinceis: "pincel", aneis: "anel", paineis: "painel", maos: "mao" };
 const specificationTokens = new Set(["soldavel", "roscavel", "esgoto", "cobre", "pvc", "ppr", "cpvc"]);
 export function normalizeSearchText(value: string) {
