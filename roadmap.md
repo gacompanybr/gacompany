@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Corrigir nomes populares/parciais na primeira busca e validar cano/tubo de esgoto, Esmeralda e outras categorias na planilha real, sem alterar dados comerciais
+
 - [x] Encerrar buscas sem resultados, preservar capacidade de 2.000 litros e responder em falha/demora do modelo — 29 testes aprovados; webhook e preview implantados
 - [ ] Confirmar entrega real pelo WhatsApp após consulta de produto ausente — correção implantada; entrega ainda não exercitada com contato real
 
