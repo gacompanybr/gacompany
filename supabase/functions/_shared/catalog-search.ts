@@ -41,13 +41,14 @@ function tokenScore(query: string, word: string) {
   if (query === word || singular(query) === singular(word)) return 1;
   // Numeric model/voltage/measure tokens must never be fuzzy matched.
   if (/\d/.test(query) || /\d/.test(word)) return 0;
-  if (query.length >= 3 && word.startsWith(query)) return 0.85;
+  // Palavra parcial só a partir de 5 letras: "cano" não pode casar com "canoa".
+  if (query.length >= 5 && word.startsWith(query)) return 0.85;
   if (query.length >= 5 && Math.abs(query.length - word.length) <= 1 && distance(query, word) <= 1) return 0.65;
   return 0;
 }
 function alternatives(token: string): string[] {
   const base = singular(token);
-  return popularNames.find((group) => group.includes(base)) ?? [token];
+  return equivalentNames.find((group) => group.includes(base)) ?? [token];
 }
 function equivalentScore(query: string, word: string) {
   return Math.max(tokenScore(query, word), ...alternatives(query).map((alternative) => tokenScore(alternative, word) * 0.9));
