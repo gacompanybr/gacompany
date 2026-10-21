@@ -1,6 +1,7 @@
 # Roadmap
 
-- [ ] Corrigir nomes populares/parciais na primeira busca e validar cano/tubo de esgoto, Esmeralda e outras categorias na planilha real, sem alterar dados comerciais
+- [x] Corrigir nomes populares/parciais na primeira busca — 5.974 registros consultados, cano/tubo de esgoto 8 resultados, esgoto 11, Esmeralda 4, fio 88, argamassa 10, torneira 106; 57 testes aprovados, funções implantadas e respostas verificadas na tela autenticada, inclusive ausência; dados comerciais intactos
+- [ ] Confirmar entrega dessas buscas pelo WhatsApp — agente da Casa do Eletricista está desativado; preservado sem ativação automática
 
 - [x] Encerrar buscas sem resultados, preservar capacidade de 2.000 litros e responder em falha/demora do modelo — 29 testes aprovados; webhook e preview implantados
 - [ ] Confirmar entrega real pelo WhatsApp após consulta de produto ausente — correção implantada; entrega ainda não exercitada com contato real
