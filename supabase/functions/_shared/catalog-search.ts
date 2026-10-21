@@ -186,10 +186,10 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
       return count;
     };
     const rarest = [...wordTokens].sort((a, b) => occurrences(a) - occurrences(b))[0];
-    attempt([rarest, ...numericTokens], true, "token_raro");
+    attempt([rarest, ...hardTokens], true, "token_raro");
     if (!ranked.length) {
       const orScored = scoreTokenSet(active, wordTokens, categoryTokens, brandTokens, false)
-        .filter((entry) => numericTokens.every((t) => indexedFields(entry.product).some((words) => words.some((w) => tokenScore(t, w) > 0))));
+        .filter((entry) => hardTokens.every((t) => indexedFields(entry.product).some((words) => words.some((w) => tokenScore(t, w) > 0))));
       if (orScored.length) {
         ranked = orScored;
         camada = "ou";
