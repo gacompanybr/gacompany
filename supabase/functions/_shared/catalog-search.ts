@@ -139,7 +139,7 @@ function queryTokenSetAlternatives(queryTokens: string[]): string[][] {
   if (queryTokens.includes("reservatorio")) sets.push(queryTokens.flatMap((t) => (t === "reservatorio" ? ["caixa", "agua"] : [t])));
   // "água" junto de cano/tubo aponta para a linha soldável da planilha.
   if (queryTokens.includes("agua") && queryTokens.some((t) => ["cano", "tubo"].includes(singular(t)))) {
-    sets.push(queryTokens.map((t) => (t === "agua" ? "sold" : t)));
+    sets.push(queryTokens.map((t) => (t === "agua" ? "soldavel" : t)));
   }
   return sets;
 }
@@ -159,8 +159,9 @@ function runQuery(products: SearchProduct[], options: CatalogSearchOptions) {
     // zero out the search. When NO word matches, the product is genuinely absent.
     if (known.length) queryTokens = known;
   }
-  const numericTokens = queryTokens.filter((t) => /\d/.test(t));
-  const wordTokens = queryTokens.filter((t) => !/\d/.test(t));
+  // Medidas, voltagens e especificações de material são restrições rígidas em todas as camadas.
+  const hardTokens = queryTokens.filter((t) => /\d/.test(t) || specificationTokens.has(singular(t)));
+  const wordTokens = queryTokens.filter((t) => !hardTokens.includes(t));
 
   // Camadas: AND -> equivalências de frase -> token mais raro -> qualquer token.
   // A primeira camada com resultados vence; medidas/voltagens são exigidas em todas.
