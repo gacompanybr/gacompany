@@ -23,6 +23,16 @@ export type WhatsappAgent = {
   report_number: string | null;
   followup_enabled: boolean;
   catalogo_url: string | null;
+  melhorias_enabled?: boolean;
+  catalog_multi_enabled?: boolean;
+  handoff_enabled?: boolean;
+  watchdog_enabled?: boolean;
+  fora_horario_modo?: "silencio" | "responder";
+  pedir_nome?: "sempre" | "no_fechamento" | "nunca";
+  report_profile?: "odonto" | "generico";
+  mensagem_fallback?: string;
+  alert_number?: string | null;
+  ai_paused_reason?: string | null;
 };
 
 export type Faq = { pergunta: string; resposta: string };
@@ -95,5 +105,12 @@ export function emptyAgent(portfolioId: string): Partial<WhatsappAgent> {
     report_number: null,
     followup_enabled: false,
     catalogo_url: null,
+    melhorias_enabled: false,
+    catalog_multi_enabled: false,
+    handoff_enabled: false,
+    watchdog_enabled: false,
+    fora_horario_modo: "silencio",
+    pedir_nome: "sempre",
+    report_profile: "odonto",
   };
 }

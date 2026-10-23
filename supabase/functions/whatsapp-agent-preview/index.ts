@@ -3,6 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { boundedCatalogResponse, catalogResponseFallback, MAX_CATALOG_TOOL_ROUNDS } from "../_shared/catalog-response.ts";
 import { fetchProductCatalog } from "../_shared/product-catalog.ts";
 import { queryCatalogProducts, productSearchTool, contextualCatalogSearch, catalogGroundingInstruction } from "../_shared/catalog-search.ts";
+import { safeAgentEnabled } from "../_shared/agent-safe-policy.ts";
+import { generateSafeAgentResponse } from "../_shared/agent-safe-response.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -19,6 +21,28 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
+    // Fetch protected options server-side; never accept an opt-in supplied by the browser.
+    if (body.portfolioId) {
+      const url = Deno.env.get("SUPABASE_URL"), key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !key) return json({ error: "Serviço indisponível" }, 500);
+      const admin = createClient(url, key, { auth: { persistSession: false } });
+      const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      const { data: auth, error: authError } = await admin.auth.getUser(token);
+      if (authError || !auth.user) return json({ error: "Não autenticado" }, 401);
+      const { data: access } = await admin.rpc("has_portfolio_access", { _user_id: auth.user.id, _portfolio_id: body.portfolioId });
+      if (!access) return json({ error: "Sem acesso ao cliente" }, 403);
+      const { data: configured } = await admin.from("whatsapp_agents").select("*").eq("portfolio_id", body.portfolioId).maybeSingle();
+      if (configured && safeAgentEnabled(configured)) {
+        if (typeof body.userMessage !== "string" || !body.userMessage.trim() || body.userMessage.length > 10000) return json({ error: "Mensagem inválida" }, 400);
+        const turns = (Array.isArray(body.messages) ? body.messages : []).filter((m: any) => ["user", "assistant"].includes(m?.role) && typeof m?.content === "string").slice(-60).map((m: any) => ({ role: m.role, mensagem: m.content.slice(0, 10000) }));
+        turns.push({ role: "user", mensagem: body.userMessage });
+        let snapshot: Awaited<ReturnType<typeof fetchProductCatalog>> | undefined, failed = false;
+        if (configured.catalogo_url) try { snapshot = await fetchProductCatalog(configured.catalogo_url); } catch { failed = true; }
+        const result = await generateSafeAgentResponse(configured, turns, LOVABLE_API_KEY, snapshot, failed);
+        if (result.gatewayError) return json({ error: result.gatewayError.message }, result.gatewayError.status);
+        return json({ reply: result.text, parts: result.parts, handoff_preview: result.handoff, fallback: result.fallback });
+      }
+    }
     const { systemPrompt, userMessage, messages = [], model = "openai/gpt-6-astra", temperature = 0.7, maxTokens = 500 } = body;
     const catalogoUrl = typeof body.catalogoUrl === "string" ? body.catalogoUrl.trim() : "";
     let catalog: Awaited<ReturnType<typeof fetchProductCatalog>> | undefined;

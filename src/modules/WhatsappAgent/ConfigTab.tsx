@@ -12,6 +12,7 @@ import { CheckCircle2, Info, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TOM_OPTIONS, DIAS, type WhatsappAgent } from "./types";
 import { ReportGroupCard } from "./ReportGroupCard";
+import { SafeOptions } from "./SafeOptions";
 
 export function ConfigTab({
   agent, onChange,
@@ -238,6 +239,7 @@ export function ConfigTab({
       </Card>
 
       <ReportGroupCard agent={agent} onChange={onChange} />
+      <SafeOptions agent={agent} onChange={onChange} />
     </div>
   );
 }

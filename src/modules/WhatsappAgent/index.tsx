@@ -13,6 +13,8 @@ import { ConectarTab } from "./ConectarTab";
 import { PreviewTab } from "./PreviewTab";
 import { ConversasTab } from "./ConversasTab";
 import { SearchLogsTab } from "./SearchLogsTab";
+import { HandoffsTab } from "./HandoffsTab";
+import { AgentHealthTab } from "./AgentHealthTab";
 import { SdrTab } from "./SdrTab";
 import { emptyAgent, DEFAULT_HORARIOS_AGENTE, DIAS, type WhatsappAgent } from "./types";
 
@@ -84,6 +86,7 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
 
   async function save() {
     if (!local) return;
+    if (local.melhorias_enabled && local.handoff_enabled && !local.report_group_id && !local.report_number) return toast.error("Configure o grupo ou número de encaminhamento antes de ativar.");
     const horarios = { ...DEFAULT_HORARIOS_AGENTE, ...(local.horarios_por_dia ?? {}) };
     for (const d of DIAS) {
       const cfg = horarios[d.value];
@@ -201,6 +204,8 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
           </TabsTrigger>
           <TabsTrigger value="conversas">Conversas</TabsTrigger>
           <TabsTrigger value="buscas">Buscas</TabsTrigger>
+          <TabsTrigger value="encaminhamentos">Encaminhamentos</TabsTrigger>
+          <TabsTrigger value="saude">Saúde</TabsTrigger>
           <TabsTrigger value="preview">Pré-visualizar</TabsTrigger>
           <TabsTrigger value="sdr">SDR</TabsTrigger>
         </TabsList>
@@ -223,6 +228,8 @@ export default function WhatsappAgentModule({ portfolioId }: { portfolioId: stri
         <TabsContent value="buscas">
           <SearchLogsTab portfolioId={portfolioId} />
         </TabsContent>
+        <TabsContent value="encaminhamentos"><HandoffsTab portfolioId={portfolioId} /></TabsContent>
+        <TabsContent value="saude"><AgentHealthTab agent={local} /></TabsContent>
         <TabsContent value="preview">
           <PreviewTab agent={local} />
         </TabsContent>
