@@ -52,6 +52,7 @@ export async function generateSafeAgentResponse(agent: any, turns: { role: strin
     if (!responseText.trim()) throw new Error("Resposta vazia");
   } catch (error) {
     if (error instanceof AgentGatewayError) gatewayError = error;
+    if (gatewayError?.terminal) return { text: "", parts: [], handoff: null, fallback: false, gatewayError, searches };
     fallback = true; responseText = agent.mensagem_fallback?.trim() || DEFAULT_SAFE_FALLBACK;
   }
   const parsed = extractTeamMarker(responseText);

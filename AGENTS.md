@@ -16,3 +16,6 @@
 - Edge functions must define corsHeaders locally; importing from "npm:@supabase/supabase-js@2/cors" fails at boot (502) — that subpath does not exist.
 - AI calls use openai/gpt-6-astra via the Lovable gateway chat completions endpoint; google/gemini-2.5-flash(-lite) is deprecated and must not be reintroduced.
 - Catalog search uses the same partial/fuzzy/popular-name matcher for vocabulary detection and ranking, with bounded equivalent-term expansion over the complete snapshot; numeric tokens (voltage/measure) are never dropped. Query traces remain administrative and a search where no word exists in the sheet is a completed zero result.
+- Agent safety improvements are opt-in per agent and disabled by default, with Lopes Saúde protected server-side; the legacy path preserves existing dental, SDR and follow-up behavior.
+- Opt-in replies use streamed Responses with terminal gateway failures surfaced without substitute replies; token-fenced delivery tries recipient aliases only after explicit rejection to prevent duplicates.
+- Reply recovery wakes on eligible queue entries and unschedules after drain; ambiguous delivery is marked uncertain for manual verification instead of automatic resending.
