@@ -36,6 +36,13 @@
       "when": 1792756852780,
       "tag": "0004_agent_safe_response_options",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792757128873,
+      "tag": "0005_agent_recovery_wake_queue",
+      "breakpoints": true
     }
   ]
 }

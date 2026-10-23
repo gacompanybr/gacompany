@@ -2505,6 +2505,36 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_agent_alerts: {
+        Row: {
+          agent_id: string
+          created_at: string
+          dedupe_key: string
+          id: string
+          portfolio_id: string
+          reason: string
+          status: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          portfolio_id: string
+          reason: string
+          status?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          portfolio_id?: string
+          reason?: string
+          status?: string
+        }
+        Relationships: []
+      }
       whatsapp_agent_followups: {
         Row: {
           created_at: string
@@ -3036,6 +3066,21 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_recovery_config: {
+        Row: {
+          callback_token: string
+          id: boolean
+        }
+        Insert: {
+          callback_token?: string
+          id?: boolean
+        }
+        Update: {
+          callback_token?: string
+          id?: boolean
+        }
+        Relationships: []
+      }
       whatsapp_report_dedupe: {
         Row: {
           created_at: string
@@ -3196,6 +3241,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      drain_agent_recovery: { Args: never; Returns: undefined }
       generate_task_deadline_notifications: { Args: never; Returns: number }
       get_my_permissions: {
         Args: never
