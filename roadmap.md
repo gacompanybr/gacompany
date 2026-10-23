@@ -1,7 +1,8 @@
 # Roadmap
 
-- [ ] Preparar recepção autenticada dos formulários instantâneos Meta no CRM geral, com deduplicação e respostas personalizadas
-- [ ] Configurar credenciais seguras e verificar lead real — substituir credenciais expostas; configurar assinatura leadgen na Meta
+- [x] Preparar recepção assinada dos formulários instantâneos Meta no CRM geral, com deduplicação e respostas personalizadas — implantada; 3 testes passaram; evento sem assinatura rejeitado com 401
+- [x] Salvar credenciais dedicadas pelo formulário seguro, sem substituir a conexão Meta existente
+- [ ] Configurar callback da função meta-leads-webhook e assinatura leadgen na Meta; verificar lead real e permissões — depende da configuração externa; rotação dos valores expostos ainda não confirmada
 
 - [x] Auditar o arquivo de correção dos agentes e apresentar implantação conservadora por agente, preservando Lopes Saúde — 56 testes aprovados; nenhum comportamento de atendimento alterado
 - [x] Implantar opções individuais, estados de resposta e painel de diagnóstico sem ativar melhorias em clientes existentes — todas desligadas; Lopes Saúde preservada
