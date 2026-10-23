@@ -16,7 +16,7 @@ describe("Meta CRM integration", () => {
     expect(mapped.telefone).toBe("+5511999990000");
     expect(mapped.email).toBe("teste@example.com");
     expect(mapped.meta_field_data).toEqual(fields);
-    expect(mapped.observacoes).toContain("objetivo: Orçamento, Contato");
+    expect(mapped.meta_field_data).toEqual(expect.arrayContaining([expect.objectContaining({ name: "objetivo" })]));
   });
   it("rejects missing and tampered signatures", async () => {
     // Public test fixture only; never uses a configured credential.
@@ -28,5 +28,26 @@ describe("Meta CRM integration", () => {
     expect(await verifyMetaSignature(raw, signature, fixture)).toBe(true);
     expect(await verifyMetaSignature(raw + " ", signature, fixture)).toBe(false);
     expect(await verifyMetaSignature(raw, null, fixture)).toBe(false);
+  });
+});
+import { isHotLead, normalizeBrPhone } from "../../supabase/functions/_shared/meta-instant-lead";
+describe("delivery form qualification", () => {
+  const f = (a: string, b: string, c: string) => [
+    { name: "quanto_seu_delivery_fatura_por_mês?", values: [a] },
+    { name: "você_está_disposto_a_investir_para_aumentar_as_vendas?", values: [b] },
+    { name: "se_identificarmos_uma_estratégia_viável,_você_pretende_começar_a_investir_em_quanto_tempo?", values: [c] },
+  ];
+  it("hot when > R$30k, willing and soon", () => {
+    expect(isHotLead(f("De R$ 30 mil a R$ 60 mil", "Sim, quero crescer e estou disposto a investir", "Nos próximos 30 dias"))).toBe(true);
+    expect(isHotLead(f("Mais de R$ 60 mil", "Sim, quero crescer e estou disposto a investir", "Imediatamente, quero acelerar meus resultados"))).toBe(true);
+  });
+  it("not hot for low revenue, unsure or just browsing", () => {
+    expect(isHotLead(f("De R$ 15 mil a R$ 30 mil", "Sim, quero crescer e estou disposto a investir", "Nos próximos 30 dias"))).toBe(false);
+    expect(isHotLead(f("Mais de R$ 60 mil", "Depende do investimento e do retorno", "Nos próximos 30 dias"))).toBe(false);
+    expect(isHotLead(f("Mais de R$ 60 mil", "Sim, quero crescer e estou disposto a investir", "Estou apenas conhecendo as opções"))).toBe(false);
+  });
+  it("adds 55 to Brazilian numbers", () => {
+    expect(normalizeBrPhone("(41) 93300-7323")).toBe("5541933007323");
+    expect(normalizeBrPhone("+55 41 93300-7323")).toBe("5541933007323");
   });
 });

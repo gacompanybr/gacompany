@@ -50,8 +50,8 @@ const norm = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").t
 export function isHotLead(fields: { name: string; values: string[] }[]): boolean {
   const answer = (re: RegExp) => norm(fields.find(f => re.test(norm(f.name)))?.values[0] ?? "");
   const fatura = answer(/fatura/);
-  const investe = answer(/invest/) ;
-  const prazo = answer(/tempo|quando|prazo/);
+  const investe = answer(/disposto|dispost/);
+  const prazo = answer(/quanto tempo|prazo/);
   const highRevenue = /30 mil a r\$ ?60|mais de r\$ ?60|30_mil_a|mais_de/.test(fatura);
   const willing = /^sim/.test(investe);
   const soon = /imediat|30 dias|30_dias/.test(prazo);
