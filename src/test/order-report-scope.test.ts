@@ -12,6 +12,11 @@ describe("commercial order flow isolation", () => {
     expect(usesCommercialOrderFlow("385284c7-79c4-4df0-840c-30df88b32b0d", "https://docs.google.com/spreadsheets/d/catalog")).toBe(false);
     expect(usesCommercialOrderFlow("385284c7-79c4-4df0-840c-30df88b32b0d", "")).toBe(false);
   });
+  it("keeps Lopes Saúde on its existing dental reporting path, with or without a catalog", () => {
+    const lopesSaude = "bab9656f-f264-4930-9483-c66733394364";
+    expect(usesCommercialOrderFlow(lopesSaude, "")).toBe(false);
+    expect(usesCommercialOrderFlow(lopesSaude, "https://docs.google.com/spreadsheets/d/catalog")).toBe(false);
+  });
   it("does not apply the new order rules to Bruno or other agents", () => {
     expect(usesCommercialOrderFlow("bb29569f-ffa6-46e2-8e50-1273f3624a97", "https://docs.google.com/spreadsheets/d/catalog")).toBe(false);
     expect(usesCommercialOrderFlow("another-agent", "https://docs.google.com/spreadsheets/d/catalog")).toBe(false);
