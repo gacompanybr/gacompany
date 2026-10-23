@@ -1,12 +1,11 @@
-import { AbortSignal as NodeAbortSignal } from "node:events";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { resolveMetaPageToken } from "../../supabase/functions/_shared/meta-page-access";
 
 describe("Meta Page authorization", () => {
   beforeEach(() => {
-    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => new AbortController().signal);
+    vi.stubGlobal("AbortSignal", { timeout: () => new AbortController().signal });
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.unstubAllGlobals());
   it("resolves a Page-scoped token with the dedicated credential", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ id: "569248409608253", access_token: "test-page-token" })));
     expect(await resolveMetaPageToken("569248409608253", "test-system-token", request)).toBe("test-page-token");
