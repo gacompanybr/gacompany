@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Auditar o arquivo de correção dos agentes e apresentar implantação conservadora por agente, preservando Lopes Saúde e os clientes já aprovados
+- [x] Auditar o arquivo de correção dos agentes e apresentar implantação conservadora por agente, preservando Lopes Saúde — 56 testes aprovados; nenhum comportamento de atendimento alterado
 
 - [x] Nova busca em camadas com equivalências (cano/tubo, dagua, sold), exclusão de inativos, sem coluna de custo, log de auditoria e tela das últimas 100 buscas — 45 testes aprovados, validado na planilha real (esgoto 8, caixa dagua 15, cano de cobre 13), funções implantadas
 - [x] Corrigir nomes populares/parciais na primeira busca — 5.974 registros consultados, cano/tubo de esgoto 8 resultados, esgoto 11, Esmeralda 4, fio 88, argamassa 10, torneira 106; 57 testes aprovados, funções implantadas e respostas verificadas na tela autenticada, inclusive ausência; dados comerciais intactos
