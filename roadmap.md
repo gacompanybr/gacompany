@@ -1,5 +1,9 @@
 # Roadmap
 
+- [x] Adicionar Vincular Meta no CRM geral com conta, campanha e formulário validados e seleção persistida — botão e seleção disponíveis; funções implantadas
+- [x] Aplicar vínculos à recepção sem importar anúncios de outras campanhas — 7 testes passaram; CRM atualiza a cada 15 segundos; endpoint protegido rejeita chamada sem sessão
+- [ ] Verificar seleção real e chegada de leads pela tela autenticada — sessão do solicitante indisponível; webhook Meta externo ainda não configurado; entrar no painel para validar
+
 - [x] Preparar recepção assinada dos formulários instantâneos Meta no CRM geral, com deduplicação e respostas personalizadas — implantada; 3 testes passaram; evento sem assinatura rejeitado com 401
 - [x] Salvar credenciais dedicadas pelo formulário seguro, sem substituir a conexão Meta existente
 - [ ] Configurar callback da função meta-leads-webhook e assinatura leadgen na Meta; verificar lead real e permissões — depende da configuração externa; rotação dos valores expostos ainda não confirmada

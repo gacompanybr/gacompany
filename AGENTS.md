@@ -1,6 +1,6 @@
 # Project Architecture Rules
 
-- Meta instant-form imports use a dedicated signed, page-scoped webhook and unique submission identity; retries never overwrite existing CRM workflow state, and credentials remain separate from existing Meta OAuth.
+- Meta instant-form imports use a dedicated signed webhook, validated account/campaign/form bindings and unique submission identity; server-side integration permissions protect selection, retries never overwrite CRM workflow state, and credentials remain separate from existing Meta OAuth.
 
 - Human-takeover pause creation and inbound checks share a stable portfolio-scoped policy; opted-out clients never create or honor these pauses, while other clients retain existing behavior.
 

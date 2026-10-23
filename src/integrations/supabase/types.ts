@@ -490,7 +490,9 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          meta_account_id: string | null
           meta_ad_id: string | null
+          meta_campaign_id: string | null
           meta_field_data: Json | null
           meta_form_id: string | null
           meta_leadgen_id: string | null
@@ -509,7 +511,9 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          meta_account_id?: string | null
           meta_ad_id?: string | null
+          meta_campaign_id?: string | null
           meta_field_data?: Json | null
           meta_form_id?: string | null
           meta_leadgen_id?: string | null
@@ -528,7 +532,9 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          meta_account_id?: string | null
           meta_ad_id?: string | null
+          meta_campaign_id?: string | null
           meta_field_data?: Json | null
           meta_form_id?: string | null
           meta_leadgen_id?: string | null
@@ -552,6 +558,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      crm_meta_bindings: {
+        Row: {
+          account_id: string
+          account_name: string
+          campaign_id: string
+          campaign_name: string
+          created_at: string
+          enabled: boolean
+          form_id: string
+          form_name: string
+          id: string
+          page_id: string
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          campaign_id: string
+          campaign_name: string
+          created_at?: string
+          enabled?: boolean
+          form_id: string
+          form_name: string
+          id?: string
+          page_id: string
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          campaign_id?: string
+          campaign_name?: string
+          created_at?: string
+          enabled?: boolean
+          form_id?: string
+          form_name?: string
+          id?: string
+          page_id?: string
+        }
+        Relationships: []
       }
       disparo_campanhas: {
         Row: {

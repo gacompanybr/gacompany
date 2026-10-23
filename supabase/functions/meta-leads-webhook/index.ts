@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 import { z } from "https://esm.sh/zod@3.25.76";
 import { CRM_META_PAGE_ID, mapMetaLead, verifyMetaSignature } from "../_shared/meta-instant-lead.ts";
+import { matchesMetaBinding } from "../_shared/meta-binding-policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,9 @@ Deno.serve(async req => {
   if (!parsed.success) return reply(400, "Invalid event");
   const admin = createClient(dbUrl, serviceKey);
   try {
+    const { data: bindings, error: bindingsError } = await admin.from("crm_meta_bindings").select("page_id,form_id,campaign_id,account_id,enabled").eq("enabled", true).eq("page_id", CRM_META_PAGE_ID);
+    if (bindingsError) throw new Error("Binding lookup failed");
+    if (!bindings?.length) return reply(200, "EVENT_RECEIVED");
     for (const entry of parsed.data.entry) {
       if (entry.id !== CRM_META_PAGE_ID) continue;
       for (const change of entry.changes) {
@@ -63,7 +67,16 @@ Deno.serve(async req => {
         }
         const lead = LeadSchema.safeParse(await response.json());
         if (!lead.success || lead.data.id !== value.data.leadgen_id) throw new Error("Invalid lead details");
-        const { error } = await admin.from("crm_leads").insert(mapMetaLead(lead.data));
+        if (!bindings.some(b => b.form_id === lead.data.form_id) || !lead.data.ad_id) continue;
+        if (!/^\d+$/.test(lead.data.ad_id)) throw new Error("Invalid ad identity");
+        const adUrl = new URL(`https://graph.facebook.com/v26.0/${lead.data.ad_id}`);
+        adUrl.searchParams.set("fields", "campaign_id,account_id");
+        const adResponse = await fetch(adUrl, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
+        if (!adResponse.ok) return reply(503, "Ad attribution lookup failed; delivery must be retried");
+        const ad = await adResponse.json();
+        const binding = bindings.find(b => matchesMetaBinding(b, entry.id, lead.data.form_id, ad.campaign_id) && b.account_id === `act_${ad.account_id}`);
+        if (!binding) continue;
+        const { error } = await admin.from("crm_leads").insert({ ...mapMetaLead(lead.data), meta_campaign_id: binding.campaign_id, meta_account_id: binding.account_id });
         if (error && error.code !== "23505") throw new Error("CRM insert failed");
       }
     }

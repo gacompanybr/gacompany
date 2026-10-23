@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { NovoLeadDialog } from "./NovoLeadDialog";
 import { LeadDetailSheet } from "./LeadDetailSheet";
+import { MetaBindingDialog } from "./MetaBindingDialog";
 import {
   ORIGEM_LABELS, STATUS_COLUNAS, type CrmLead, type LeadStatus,
 } from "./types";
@@ -41,6 +42,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
 
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ["crm-leads", portfolioId],
+    refetchInterval: 15000,
     queryFn: async () => {
       let query = supabase
         .from("crm_leads")
@@ -96,6 +98,7 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
           <p className="text-sm text-muted-foreground">Funil de vendas e gestão de leads.</p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
+          {!portfolioId && <MetaBindingDialog />}
           {!portfolioId && (
             <Select value={portfolioFilter} onValueChange={setPortfolioFilter}>
               <SelectTrigger className="min-w-0 flex-1 sm:w-[220px]">
