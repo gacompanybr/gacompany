@@ -67,17 +67,30 @@ Deno.serve(async req => {
         }
         const lead = LeadSchema.safeParse(await response.json());
         if (!lead.success || lead.data.id !== value.data.leadgen_id) throw new Error("Invalid lead details");
-        if (!bindings.some(b => b.form_id === lead.data.form_id) || !lead.data.ad_id) continue;
-        if (!/^\d+$/.test(lead.data.ad_id)) throw new Error("Invalid ad identity");
-        const adUrl = new URL(`https://graph.facebook.com/v26.0/${lead.data.ad_id}`);
-        adUrl.searchParams.set("fields", "campaign_id,account_id");
-        const adResponse = await fetch(adUrl, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
-        if (!adResponse.ok) return reply(503, "Ad attribution lookup failed; delivery must be retried");
-        const ad = await adResponse.json();
-        const binding = bindings.find(b => matchesMetaBinding(b, entry.id, lead.data.form_id, ad.campaign_id) && b.account_id === `act_${ad.account_id}`);
-        if (!binding) continue;
+        if (!bindings.some(b => b.form_id === lead.data.form_id)) {
+          console.log("lead ignorado: formulario sem vinculo", { leadgen_id: value.data.leadgen_id, form_id: lead.data.form_id });
+          continue;
+        }
+        let binding;
+        if (lead.data.ad_id) {
+          if (!/^\d+$/.test(lead.data.ad_id)) throw new Error("Invalid ad identity");
+          const adUrl = new URL(`https://graph.facebook.com/v26.0/${lead.data.ad_id}`);
+          adUrl.searchParams.set("fields", "campaign_id,account_id");
+          const adResponse = await fetch(adUrl, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
+          if (!adResponse.ok) return reply(503, "Ad attribution lookup failed; delivery must be retried");
+          const ad = await adResponse.json();
+          binding = bindings.find(b => matchesMetaBinding(b, entry.id, lead.data.form_id, ad.campaign_id) && b.account_id === `act_${ad.account_id}`);
+        } else {
+          // Leads de teste da Meta nao trazem anuncio: usa o vinculo do formulario.
+          binding = bindings.find(b => b.form_id === lead.data.form_id);
+        }
+        if (!binding) {
+          console.log("lead ignorado: vinculo nao corresponde", { leadgen_id: value.data.leadgen_id, form_id: lead.data.form_id, ad_id: lead.data.ad_id ?? null });
+          continue;
+        }
         const { error } = await admin.from("crm_leads").insert({ ...mapMetaLead(lead.data), meta_campaign_id: binding.campaign_id, meta_account_id: binding.account_id });
         if (error && error.code !== "23505") throw new Error("CRM insert failed");
+        if (!error) console.log("lead importado", { leadgen_id: value.data.leadgen_id, form_id: lead.data.form_id, campaign_id: binding.campaign_id });
       }
     }
     return reply(200, "EVENT_RECEIVED");
