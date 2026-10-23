@@ -52,13 +52,13 @@ export async function processInboundMessage(services: InboundServices, row: any,
     const turns = (history ?? []).reverse();
     const catalogStart = Date.now(), catalog = await catalogPromise;
     timings.catalog_wait_ms = Date.now() - catalogStart;
+    let orderResult: Awaited<ReturnType<typeof processConversationOrder>> = null;
     if (usesCommercialOrderFlow(agent.portfolio_id, agent.catalogo_url ?? "") && catalog.data) {
       const orderStart = Date.now();
-      agent._orderResult = await processConversationOrder(admin, agent, row.contato_telefone, turns, catalog.data, apiKey, evoUrl, evoKey);
+      orderResult = await processConversationOrder(admin, agent, row.contato_telefone, turns, catalog.data, apiKey, evoUrl, evoKey);
       timings.order_ms = Date.now() - orderStart;
     }
     if (!await allowed()) return;
-    const orderResult = agent._orderResult;
     agent = { ...agent, _orderResult: orderResult };
     const logSearch = (consulta: string, result: any) => {
       admin.from("catalog_search_logs").insert({ portfolio_id: row.portfolio_id, agent_id: agent.id, telefone: row.contato_telefone, consulta, consulta_normalizada: normalizeSearchText(consulta), camada: result.camada, total_encontrado: result.total, retornados: result.produtos?.length ?? 0 }).then(({ error }: any) => { if (error) console.warn("[SAFE_SEARCH] log failed", row.id); });
