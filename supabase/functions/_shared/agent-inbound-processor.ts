@@ -1,4 +1,5 @@
-import { safeAgentEnabled, handoffEnabled, stopRequested } from "./agent-safe-policy.ts";
+import { safeAgentEnabled, handoffEnabled, stopRequested, DEFAULT_SAFE_FALLBACK, extractTeamMarker } from "./agent-safe-policy.ts";
+import { deliverSafeReply } from "./agent-safe-delivery.ts";
 import { safeWithinHours } from "./agent-safe-context.ts";
 import { generateSafeAgentResponse } from "./agent-safe-response.ts";
 import { fetchProductCatalog } from "./product-catalog.ts";
@@ -12,10 +13,13 @@ export async function processInboundMessage(services: InboundServices, row: any,
   const { admin, apiKey, evoUrl, evoKey } = services;
   if (!safeAgentEnabled(agent) || row.sdr_lead_id) return;
   const start = Date.now(), timings: Record<string, number> = {};
-  let token = crypto.randomUUID(), claimed = false, sending = false;
+  const token = crypto.randomUUID();
+  let claimed = false, sending = false;
   const save = async (state: string, reason?: string, extras: Record<string, unknown> = {}) => {
     let query = admin.from("whatsapp_conversas").update({ reply_state: state, reply_state_reason: reason ?? null, reply_timings: { ...timings, total_ms: Date.now() - start }, ...extras }).eq("id", row.id);
     if (claimed) query = query.eq("reply_token", token);
+    else if (recovery && row.reply_token) query = query.eq("reply_token", row.reply_token).eq("reply_state", row.reply_state);
+    else query = query.eq("reply_state", "received");
     const { error } = await query;
     if (error) throw new Error("Falha ao registrar estado da resposta");
   };
@@ -24,6 +28,7 @@ export async function processInboundMessage(services: InboundServices, row: any,
     if (agentError || !latestAgent) throw new Error("Falha ao verificar estado do agente");
     agent = latestAgent;
     if (!safeAgentEnabled(agent) || agent.status !== "active") { await save("skipped_inactive", "Agente inativo ou melhorias desativadas"); return false; }
+    if (agent.ai_paused_reason) { await save("failed", agent.ai_paused_reason, { recovered_at: new Date().toISOString() }); return false; }
     if (stopRequested(row.mensagem)) { await save("skipped_stop", "Contato pediu para parar"); return false; }
     if (!safeWithinHours(agent) && agent.fora_horario_modo !== "responder") { await save("skipped_hours", "Fora do horário; modo silêncio"); return false; }
     if (usesHumanTakeoverPause(agent.portfolio_id)) {
@@ -71,18 +76,25 @@ export async function processInboundMessage(services: InboundServices, row: any,
     if (!result.fallback && previous.includes(normalizeSearchText(result.text)) && Date.now() - start < 60000) {
       result = await generateSafeAgentResponse({ ...agent, _replyInstruction: "O cliente insistiu ou repetiu. Responda de outro jeito, mais curto, retomando o ponto sem reiniciar." }, turns, apiKey, catalog.data, catalog.failed, logSearch);
     }
-    if (result.gatewayError && [402, 403].includes(result.gatewayError.status)) await admin.from("whatsapp_agents").update({ ai_paused_reason: result.gatewayError.message }).eq("id", agent.id);
+    if (result.gatewayError?.terminal) {
+      if ([402, 403].includes(result.gatewayError.status)) await admin.from("whatsapp_agents").update({ ai_paused_reason: result.gatewayError.message }).eq("id", agent.id);
+      await save("failed", result.gatewayError.message, { recovered_at: new Date().toISOString() });
+      if (handoffEnabled(agent)) await enqueueTeamHandoff(admin, agent, row.contato_telefone, "falha_ia", row.mensagem.slice(0, 300), turns, row.contato_nome);
+      return;
+    }
     if (result.fallback && !safeWithinHours(agent) && agent.fora_horario_msg?.trim()) result = { ...result, text: agent.fora_horario_msg, parts: [agent.fora_horario_msg] };
     if (!await allowed()) return;
     if (result.handoff && handoffEnabled(agent)) {
       const { data: portfolio } = await admin.from("portfolios").select("name").eq("id", row.portfolio_id).single();
       const handoffAgent = { ...agent, business_name: portfolio?.name ?? agent.nome };
-      const handoff = await enqueueTeamHandoff(admin, handoffAgent, row.contato_telefone, result.handoff.tipo, result.handoff.resumo, turns, row.contato_nome);
-      if (handoff?.id && handoff.status === "pending") await dispatchTeamHandoff(admin, handoffAgent, handoff.id, evoUrl, evoKey);
+      try {
+        const handoff = await enqueueTeamHandoff(admin, handoffAgent, row.contato_telefone, result.handoff.tipo, result.handoff.resumo, turns, row.contato_nome);
+        if (handoff?.id && handoff.status === "pending") await dispatchTeamHandoff(admin, handoffAgent, handoff.id, evoUrl, evoKey);
+      } catch { console.error("[HANDOFF] registro indisponível", row.id); }
     }
     if (!await allowed()) return;
     // Atomic state transition before the transport prevents overlapping recovery.
-    const { data: sendClaim, error: sendClaimError } = await admin.from("whatsapp_conversas").update({ reply_state: "sending", fallback_used: result.fallback })
+    const { data: sendClaim, error: sendClaimError } = await admin.from("whatsapp_conversas").update({ reply_state: "sending", processing_started_at: new Date().toISOString(), fallback_used: result.fallback })
       .eq("id", row.id).eq("reply_token", token).eq("reply_state", "processing").select("id");
     if (sendClaimError || !sendClaim?.length) return;
     sending = true;
@@ -91,12 +103,9 @@ export async function processInboundMessage(services: InboundServices, row: any,
       // Recheck the selected token before every bubble; no retry for ambiguous delivery.
       const { data: owned, error } = await admin.from("whatsapp_conversas").select("reply_state,reply_token").eq("id", row.id).single();
       if (error || owned?.reply_token !== token || owned?.reply_state !== "sending") return;
-      const response = await fetch(`${evoUrl}/message/sendText/${row.instance_name}`, { method: "POST", headers: { apikey: evoKey, "Content-Type": "application/json" },
-        body: JSON.stringify({ number: targets[0], text: result.parts[i].replace(/\*\*/g, "").replace(/^#+\s*/gm, "") }), signal: AbortSignal.timeout(12000) });
-      const raw = await response.text();
-      if (!response.ok) { await save(response.status >= 500 || response.status === 408 ? "uncertain" : "failed", `Envio não confirmado (${response.status})`); return; }
-      const receipt = JSON.parse(raw), messageId = receipt.key?.id ?? receipt.data?.key?.id;
-      if (!messageId || receipt.error) { await save("uncertain", "WhatsApp sem confirmação de aceitação"); return; }
+      const sent = await deliverSafeReply(evoUrl, evoKey, row.instance_name, targets, result.parts[i].replace(/\*\*/g, "").replace(/^#+\s*/gm, ""));
+      if (sent.status !== "accepted") { await save(sent.status, sent.reason); return; }
+      const messageId = sent.messageId;
       await admin.from("whatsapp_sent_messages_log").upsert({ portfolio_id: row.portfolio_id, instance_name: row.instance_name, phone: row.contato_telefone, message_id: messageId }, { onConflict: "message_id", ignoreDuplicates: true });
       const { error: persistError } = await admin.from("whatsapp_conversas").insert({ portfolio_id: row.portfolio_id, instance_name: row.instance_name, contato_telefone: row.contato_telefone, contato_nome: row.contato_nome, role: "assistant", mensagem: result.parts[i] });
       if (persistError) { await save("uncertain", "Mensagem aceita; histórico não confirmado"); return; }
@@ -106,6 +115,26 @@ export async function processInboundMessage(services: InboundServices, row: any,
     console.log("[AGENT_REPLY]", JSON.stringify({ id: row.id, agentId: agent.id, timings, fallback: result.fallback, state: "replied" }));
   } catch (error) {
     console.error("[AGENT_REPLY_ERROR]", JSON.stringify({ id: row.id, stage: sending ? "sending" : "processing", reason: error instanceof Error ? error.message : "Falha no atendimento" }));
+    // A processing exception may fall back only under the current claim and
+    // fresh response gates. Fail closed if the database cannot validate them.
+    if (claimed && !sending) {
+      try {
+        if (!await allowed()) return;
+        const fallback = extractTeamMarker(agent.mensagem_fallback || DEFAULT_SAFE_FALLBACK).text;
+        if (handoffEnabled(agent)) await enqueueTeamHandoff(admin, agent, row.contato_telefone, "falha_ia", row.mensagem.slice(0, 300), [{ role: "user", mensagem: row.mensagem }], row.contato_nome).catch(() => {});
+        const { data: reservation } = await admin.from("whatsapp_conversas").update({ reply_state: "sending", fallback_used: true, processing_started_at: new Date().toISOString() }).eq("id", row.id).eq("reply_token", token).eq("reply_state", "processing").select("id");
+        if (!reservation?.length) return;
+        sending = true;
+        const delivery = await deliverSafeReply(evoUrl, evoKey, row.instance_name, row.send_targets?.length ? row.send_targets : [row.contato_telefone], fallback);
+        if (delivery.status === "accepted") {
+          await admin.from("whatsapp_sent_messages_log").upsert({ portfolio_id: row.portfolio_id, instance_name: row.instance_name, phone: row.contato_telefone, message_id: delivery.messageId }, { onConflict: "message_id", ignoreDuplicates: true });
+          const { error: persistError } = await admin.from("whatsapp_conversas").insert({ portfolio_id: row.portfolio_id, instance_name: row.instance_name, contato_telefone: row.contato_telefone, role: "assistant", mensagem: fallback });
+          await save(persistError ? "uncertain" : "replied", persistError ? "Entrega aceita, histórico pendente" : "Mensagem de segurança enviada", { fallback_used: true });
+          return;
+        }
+        await save(delivery.status, delivery.reason); return;
+      } catch { /* Do not dispatch when gates cannot be verified. */ }
+    }
     await save(sending ? "uncertain" : "failed", sending ? "Envio interrompido; verificar antes de reenviar" : error instanceof Error ? error.message : "Falha de processamento").catch(() => {});
   }
 }

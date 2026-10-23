@@ -43,6 +43,13 @@
       "when": 1792757128873,
       "tag": "0005_agent_recovery_wake_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792757320461,
+      "tag": "0006_agent_claim_fencing_and_active_handoffs",
+      "breakpoints": true
     }
   ]
 }
