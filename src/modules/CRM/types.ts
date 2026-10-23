@@ -1,4 +1,4 @@
-export type LeadStatus = "novo" | "contato" | "proposta" | "fechado" | "perdido";
+export type LeadStatus = "novo" | "contato" | "qualificado" | "proposta" | "fechado" | "perdido";
 export type LeadOrigem = "manual" | "whatsapp" | "meta_ads" | "google_ads" | "instagram" | "indicacao";
 
 export interface CrmLead {
@@ -14,6 +14,8 @@ export interface CrmLead {
   responsavel_id: string | null;
   created_at: string;
   updated_at: string;
+  tags?: string[] | null;
+  meta_field_data?: unknown;
 }
 
 export interface CrmInteracao {
@@ -28,6 +30,7 @@ export interface CrmInteracao {
 export const STATUS_COLUNAS: { key: LeadStatus; label: string }[] = [
   { key: "novo", label: "Novo" },
   { key: "contato", label: "Em contato" },
+  { key: "qualificado", label: "Qualificado" },
   { key: "proposta", label: "Proposta enviada" },
   { key: "fechado", label: "Fechado" },
   { key: "perdido", label: "Perdido" },
@@ -41,3 +44,18 @@ export const ORIGEM_LABELS: Record<LeadOrigem, string> = {
   instagram: "Instagram",
   indicacao: "Indicação",
 };
+
+export type LeadAnswer = { pergunta: string; resposta: string };
+const HIDDEN = new Set(["full_name", "first_name", "last_name", "nome", "nome_completo", "email", "phone_number", "telefone", "phone"]);
+export function leadAnswers(lead: Pick<CrmLead, "meta_field_data">): LeadAnswer[] {
+  if (!Array.isArray(lead.meta_field_data)) return [];
+  return (lead.meta_field_data as { name?: string; values?: string[] }[])
+    .filter((f) => f?.name && !HIDDEN.has(f.name))
+    .map((f) => ({
+      pergunta: String(f.name).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+      resposta: (f.values ?? []).join(", ").replace(/_/g, " "),
+    }));
+}
+export function shortAnswer(lead: Pick<CrmLead, "meta_field_data">, re: RegExp): string | null {
+  return leadAnswers(lead).find((a) => re.test(a.pergunta.toLowerCase()))?.resposta ?? null;
+}

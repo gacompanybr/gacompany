@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Save, Trash2, MessageSquare, Phone, Mail, Users, FileText } from "lucide-react";
-import { ORIGEM_LABELS, type CrmLead, type CrmInteracao, type LeadOrigem } from "./types";
+import { ORIGEM_LABELS, STATUS_COLUNAS, leadAnswers, type CrmLead, type CrmInteracao, type LeadOrigem, type LeadStatus } from "./types";
 
 const TIPO_ICON = { nota: FileText, ligacao: Phone, whatsapp: MessageSquare, email: Mail, reuniao: Users };
 
@@ -27,6 +27,8 @@ export function LeadDetailSheet({
   const qc = useQueryClient();
   const [tipo, setTipo] = useState<CrmInteracao["tipo"]>("nota");
   const [descricao, setDescricao] = useState("");
+  const [nome, setNome] = useState("");
+  const [status, setStatus] = useState<LeadStatus>("novo");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
   const [origem, setOrigem] = useState<LeadOrigem>("manual");
@@ -35,6 +37,8 @@ export function LeadDetailSheet({
 
   useEffect(() => {
     if (!lead) return;
+    setNome(lead.nome);
+    setStatus(lead.status);
     setTelefone(lead.telefone ?? "");
     setEmail(lead.email ?? "");
     setOrigem(lead.origem);
@@ -80,7 +84,10 @@ export function LeadDetailSheet({
       if (parsedValue !== null && (!Number.isFinite(parsedValue) || parsedValue < 0)) {
         throw new Error("Informe um valor estimado válido");
       }
+      if (!nome.trim()) throw new Error("Informe o nome");
       const { error } = await supabase.from("crm_leads").update({
+        nome: nome.trim(),
+        status,
         telefone: telefone.trim() || null,
         email: email.trim() || null,
         origem,
@@ -120,8 +127,34 @@ export function LeadDetailSheet({
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
+          {leadAnswers(lead).length > 0 && (
+            <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+              <h4 className="font-semibold text-sm">Respostas do formulário</h4>
+              {leadAnswers(lead).map((a) => (
+                <div key={a.pergunta} className="text-sm">
+                  <div className="text-xs text-muted-foreground">{a.pergunta}</div>
+                  <div className="font-medium">{a.resposta || "—"}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="space-y-3">
             <h4 className="font-semibold text-sm">Dados do lead</h4>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="crm-lead-name">Nome</Label>
+                <Input id="crm-lead-name" value={nome} onChange={(e) => setNome(e.target.value)} />
+              </div>
+              <div>
+                <Label>Etapa</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as LeadStatus)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {STATUS_COLUNAS.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="crm-lead-phone">Telefone</Label>
