@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 import { z } from "https://esm.sh/zod@3.25.76";
 import { CRM_META_PAGE_ID } from "../_shared/meta-instant-lead.ts";
 import { extractLeadFormIds } from "../_shared/meta-binding-policy.ts";
+import { resolveMetaPageToken } from "../_shared/meta-page-access.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -35,24 +36,26 @@ Deno.serve(async req => {
     const connectorKey = Deno.env.get("META_ADS_API_KEY");
     const gatewayKey = Deno.env.get("LOVABLE_API_KEY");
     if (!connectorKey || !gatewayKey) return json({ error: "Vincule a conexão Meta Ads ao sistema" }, 503);
+    let pageToken: string | undefined;
     const graph = async (path: string, fields: string, after?: string) => {
       // The managed ads connection cannot grant leads_retrieval/pages_manage_ads.
       // Form discovery uses the dedicated, app-owned lead credential; no fallback on failures.
       const isFormRead = path === `${CRM_META_PAGE_ID}/leadgen_forms`;
       if (isFormRead && !token) throw new Error("Token de formulários não configurado; a conexão de anúncios não autoriza a leitura de leads");
+      if (isFormRead && token && !pageToken) pageToken = await resolveMetaPageToken(CRM_META_PAGE_ID, token);
       const url = new URL(isFormRead ? `https://graph.facebook.com/v26.0/${path}` : `https://connector-gateway.lovable.dev/meta_ads/v26.0/${path}`);
       url.searchParams.set("fields", fields);
       url.searchParams.set("limit", "100");
       if (after) url.searchParams.set("after", after);
       const headers: Record<string, string> = isFormRead
-        ? { Authorization: `Bearer ${token}` }
+        ? { Authorization: `Bearer ${pageToken}` }
         : { Authorization: `Bearer ${gatewayKey}`, "X-Connection-Api-Key": connectorKey };
       const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
       const body = await response.json();
       if (!response.ok || body.error) {
         // Only the provider error message is exposed, never tokens, paging URLs or payloads.
         const message = typeof body.error?.message === "string" ? body.error.message : "Falha ao consultar o Meta";
-        const sanitized = [token, connectorKey, gatewayKey].filter((s): s is string => !!s).reduce((text, value) => text.split(value).join("[credencial]"), message);
+        const sanitized = [token, pageToken, connectorKey, gatewayKey].filter((s): s is string => !!s).reduce((text, value) => text.split(value).join("[credencial]"), message);
         throw new Error(isFormRead ? `Meta — acesso ao formulário: ${sanitized}` : sanitized);
       }
       return body;
