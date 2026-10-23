@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { resolveMetaPageToken } from "../../supabase/functions/_shared/meta-page-access";
 
