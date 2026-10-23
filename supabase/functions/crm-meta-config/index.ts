@@ -32,18 +32,28 @@ Deno.serve(async req => {
       return json({ ok: true });
     }
     const token = Deno.env.get("META_CRM_ACCESS_TOKEN");
-    if (!token) return json({ error: "Token do Meta não configurado" }, 503);
+    const connectorKey = Deno.env.get("META_ADS_API_KEY");
+    const gatewayKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!connectorKey || !gatewayKey) return json({ error: "Vincule a conexão Meta Ads ao sistema" }, 503);
     const graph = async (path: string, fields: string, after?: string) => {
-      const url = new URL(`https://graph.facebook.com/v26.0/${path}`);
+      // The managed ads connection cannot grant leads_retrieval/pages_manage_ads.
+      // Form discovery uses the dedicated, app-owned lead credential; no fallback on failures.
+      const isFormRead = path === `${CRM_META_PAGE_ID}/leadgen_forms`;
+      if (isFormRead && !token) throw new Error("Token de formulários não configurado; a conexão de anúncios não autoriza a leitura de leads");
+      const url = new URL(isFormRead ? `https://graph.facebook.com/v26.0/${path}` : `https://connector-gateway.lovable.dev/meta_ads/v26.0/${path}`);
       url.searchParams.set("fields", fields);
       url.searchParams.set("limit", "100");
       if (after) url.searchParams.set("after", after);
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+      const headers: Record<string, string> = isFormRead
+        ? { Authorization: `Bearer ${token}` }
+        : { Authorization: `Bearer ${gatewayKey}`, "X-Connection-Api-Key": connectorKey };
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
       const body = await response.json();
       if (!response.ok || body.error) {
         // Only the provider error message is exposed, never tokens, paging URLs or payloads.
         const message = typeof body.error?.message === "string" ? body.error.message : "Falha ao consultar o Meta";
-        throw new Error(message.split(token).join("[credencial]"));
+        const sanitized = [token, connectorKey, gatewayKey].filter((s): s is string => !!s).reduce((text, value) => text.split(value).join("[credencial]"), message);
+        throw new Error(isFormRead ? `Meta — acesso ao formulário: ${sanitized}` : sanitized);
       }
       return body;
     };
@@ -60,7 +70,7 @@ Deno.serve(async req => {
       throw new Error("Há muitos resultados; não foi possível verificar a lista completa");
     };
     if (input.action === "accounts") {
-      const accounts = await list("me/assigned_ad_accounts", "id,name");
+      const accounts = await list("me/adaccounts", "id,name");
       return json({ items: accounts.map(a => ({ id: a.id, name: a.name })) });
     }
     if (!input.account_id) return json({ error: "Escolha a conta de anúncios" }, 400);
