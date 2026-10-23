@@ -46,7 +46,7 @@ Deno.serve(async req => {
           // The model may still be streaming: prefer no duplicate over unsafe replay.
           if (row.reply_state === "sending") {
             if (Date.now() - Date.parse(row.processing_started_at ?? row.created_at) > 5 * 60000) {
-              await admin.from("whatsapp_conversas").update({ reply_state: "uncertain", reply_state_reason: "Envio interrompido; verificar entrega antes de reenviar" }).eq("id", row.id).eq("reply_state", "sending");
+              await admin.from("whatsapp_conversas").update({ reply_state: "uncertain", reply_state_reason: "Envio interrompido; verificar entrega antes de reenviar" }).eq("id", row.id).eq("reply_state", "sending").eq("reply_token", row.reply_token).eq("processing_started_at", row.processing_started_at);
             }
             continue;
           }
@@ -54,7 +54,7 @@ Deno.serve(async req => {
           recovered++;
         }
       }
-      if (agent.handoff_enabled && agent.report_profile === "generico") {
+      if (agent.status === "active" && agent.handoff_enabled && agent.report_profile === "generico") {
         const { data: stale } = await admin.from("whatsapp_handoffs").select("id").eq("agent_id", agent.id).eq("status", "sending").lt("updated_at", new Date(Date.now() - 5 * 60000).toISOString());
         for (const row of stale ?? []) await admin.from("whatsapp_handoffs").update({ status: "uncertain", error: "Envio interrompido; verificar antes de reenviar" }).eq("id", row.id).eq("status", "sending");
         const { data: pending } = await admin.from("whatsapp_handoffs").select("id").eq("agent_id", agent.id).eq("status", "pending").lt("attempts", 5).lte("next_attempt_at", new Date().toISOString()).limit(10);
