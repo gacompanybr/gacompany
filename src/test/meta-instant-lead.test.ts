@@ -13,7 +13,7 @@ describe("Meta CRM integration", () => {
     const fields = [{ name: "full_name", values: ["Pessoa Teste"] }, { name: "phone_number", values: ["+5511999990000"] }, { name: "email", values: ["teste@example.com"] }, { name: "objetivo", values: ["Orçamento", "Contato"] }];
     const mapped = mapMetaLead({ id: "123", field_data: fields });
     expect(mapped.nome).toBe("Pessoa Teste");
-    expect(mapped.telefone).toBe("+5511999990000");
+    expect(mapped.telefone).toBe("5511999990000");
     expect(mapped.email).toBe("teste@example.com");
     expect(mapped.meta_field_data).toEqual(fields);
     expect(mapped.meta_field_data).toEqual(expect.arrayContaining([expect.objectContaining({ name: "objetivo" })]));
