@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Corrigir descoberta Meta após conexão GA Ads — conexão vinculada; consulta do próprio sistema retornou BM - TESTE 02 com HTTP 200; função implantada e 7 testes aprovados; formulários continuam na credencial dedicada
+
 - [x] Adicionar Vincular Meta no CRM geral com conta, campanha e formulário validados e seleção persistida — botão e seleção disponíveis; funções implantadas
 - [x] Aplicar vínculos à recepção sem importar anúncios de outras campanhas — 7 testes passaram; CRM atualiza a cada 15 segundos; endpoint protegido rejeita chamada sem sessão
 - [ ] Verificar seleção real e chegada de leads pela tela autenticada — sessão do solicitante indisponível; webhook Meta externo ainda não configurado; entrar no painel para validar
