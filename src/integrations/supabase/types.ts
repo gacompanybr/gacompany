@@ -503,6 +503,7 @@ export type Database = {
           portfolio_id: string | null
           responsavel_id: string | null
           status: string
+          tags: string[]
           telefone: string | null
           updated_at: string
           valor_estimado: number | null
@@ -524,6 +525,7 @@ export type Database = {
           portfolio_id?: string | null
           responsavel_id?: string | null
           status?: string
+          tags?: string[]
           telefone?: string | null
           updated_at?: string
           valor_estimado?: number | null
@@ -545,6 +547,7 @@ export type Database = {
           portfolio_id?: string | null
           responsavel_id?: string | null
           status?: string
+          tags?: string[]
           telefone?: string | null
           updated_at?: string
           valor_estimado?: number | null
