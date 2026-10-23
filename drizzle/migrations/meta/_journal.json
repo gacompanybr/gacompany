@@ -50,6 +50,13 @@
       "when": 1792757320461,
       "tag": "0006_agent_claim_fencing_and_active_handoffs",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792775303050,
+      "tag": "0007_meta_instant_lead_identity",
+      "breakpoints": true
     }
   ]
 }

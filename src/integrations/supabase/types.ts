@@ -490,6 +490,11 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          meta_ad_id: string | null
+          meta_field_data: Json | null
+          meta_form_id: string | null
+          meta_leadgen_id: string | null
+          meta_page_id: string | null
           nome: string
           observacoes: string | null
           origem: string
@@ -504,6 +509,11 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          meta_ad_id?: string | null
+          meta_field_data?: Json | null
+          meta_form_id?: string | null
+          meta_leadgen_id?: string | null
+          meta_page_id?: string | null
           nome: string
           observacoes?: string | null
           origem?: string
@@ -518,6 +528,11 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          meta_ad_id?: string | null
+          meta_field_data?: Json | null
+          meta_form_id?: string | null
+          meta_leadgen_id?: string | null
+          meta_page_id?: string | null
           nome?: string
           observacoes?: string | null
           origem?: string
