@@ -2548,12 +2548,17 @@ export type Database = {
       }
       whatsapp_agents: {
         Row: {
+          ai_paused_reason: string | null
+          alert_number: string | null
+          catalog_multi_enabled: boolean
           catalogo_url: string | null
           created_at: string
           dias_semana: Json
           faqs: Json
           followup_enabled: boolean
+          fora_horario_modo: string
           fora_horario_msg: string | null
+          handoff_enabled: boolean
           horario_fim: string | null
           horario_inicio: string | null
           horarios_por_dia: Json
@@ -2561,30 +2566,41 @@ export type Database = {
           instancia_id: string | null
           instrucoes_base: string | null
           max_tokens: number
+          melhorias_enabled: boolean
           mensagem_boas_vindas: string | null
+          mensagem_fallback: string
           modelo_ia: string
           n8n_webhook_path: string | null
           n8n_workflow_id: string | null
           nome: string
           nome_atendente: string
+          pedir_nome: string
           portfolio_id: string
+          recovery_after_seconds: number
           report_group_id: string | null
           report_group_name: string | null
           report_number: string | null
+          report_profile: string
           sdr_followup_enabled: boolean
           status: string
           telefone: string | null
           temperatura: number
           tom_de_voz: string
           updated_at: string
+          watchdog_enabled: boolean
         }
         Insert: {
+          ai_paused_reason?: string | null
+          alert_number?: string | null
+          catalog_multi_enabled?: boolean
           catalogo_url?: string | null
           created_at?: string
           dias_semana?: Json
           faqs?: Json
           followup_enabled?: boolean
+          fora_horario_modo?: string
           fora_horario_msg?: string | null
+          handoff_enabled?: boolean
           horario_fim?: string | null
           horario_inicio?: string | null
           horarios_por_dia?: Json
@@ -2592,30 +2608,41 @@ export type Database = {
           instancia_id?: string | null
           instrucoes_base?: string | null
           max_tokens?: number
+          melhorias_enabled?: boolean
           mensagem_boas_vindas?: string | null
+          mensagem_fallback?: string
           modelo_ia?: string
           n8n_webhook_path?: string | null
           n8n_workflow_id?: string | null
           nome: string
           nome_atendente?: string
+          pedir_nome?: string
           portfolio_id: string
+          recovery_after_seconds?: number
           report_group_id?: string | null
           report_group_name?: string | null
           report_number?: string | null
+          report_profile?: string
           sdr_followup_enabled?: boolean
           status?: string
           telefone?: string | null
           temperatura?: number
           tom_de_voz?: string
           updated_at?: string
+          watchdog_enabled?: boolean
         }
         Update: {
+          ai_paused_reason?: string | null
+          alert_number?: string | null
+          catalog_multi_enabled?: boolean
           catalogo_url?: string | null
           created_at?: string
           dias_semana?: Json
           faqs?: Json
           followup_enabled?: boolean
+          fora_horario_modo?: string
           fora_horario_msg?: string | null
+          handoff_enabled?: boolean
           horario_fim?: string | null
           horario_inicio?: string | null
           horarios_por_dia?: Json
@@ -2623,22 +2650,28 @@ export type Database = {
           instancia_id?: string | null
           instrucoes_base?: string | null
           max_tokens?: number
+          melhorias_enabled?: boolean
           mensagem_boas_vindas?: string | null
+          mensagem_fallback?: string
           modelo_ia?: string
           n8n_webhook_path?: string | null
           n8n_workflow_id?: string | null
           nome?: string
           nome_atendente?: string
+          pedir_nome?: string
           portfolio_id?: string
+          recovery_after_seconds?: number
           report_group_id?: string | null
           report_group_name?: string | null
           report_number?: string | null
+          report_profile?: string
           sdr_followup_enabled?: boolean
           status?: string
           telefone?: string | null
           temperatura?: number
           tom_de_voz?: string
           updated_at?: string
+          watchdog_enabled?: boolean
         }
         Relationships: [
           {
@@ -2756,37 +2789,67 @@ export type Database = {
       }
       whatsapp_conversas: {
         Row: {
+          agent_id: string | null
           contato_nome: string | null
           contato_telefone: string
           created_at: string
+          fallback_used: boolean
           id: string
           instance_name: string
           mensagem: string
           portfolio_id: string
+          processing_started_at: string | null
+          recovered_at: string | null
+          remote_jid: string | null
+          reply_state: string | null
+          reply_state_reason: string | null
+          reply_timings: Json | null
+          reply_token: string | null
           role: string
           sdr_lead_id: string | null
+          send_targets: Json | null
         }
         Insert: {
+          agent_id?: string | null
           contato_nome?: string | null
           contato_telefone: string
           created_at?: string
+          fallback_used?: boolean
           id?: string
           instance_name: string
           mensagem: string
           portfolio_id: string
+          processing_started_at?: string | null
+          recovered_at?: string | null
+          remote_jid?: string | null
+          reply_state?: string | null
+          reply_state_reason?: string | null
+          reply_timings?: Json | null
+          reply_token?: string | null
           role: string
           sdr_lead_id?: string | null
+          send_targets?: Json | null
         }
         Update: {
+          agent_id?: string | null
           contato_nome?: string | null
           contato_telefone?: string
           created_at?: string
+          fallback_used?: boolean
           id?: string
           instance_name?: string
           mensagem?: string
           portfolio_id?: string
+          processing_started_at?: string | null
+          recovered_at?: string | null
+          remote_jid?: string | null
+          reply_state?: string | null
+          reply_state_reason?: string | null
+          reply_timings?: Json | null
+          reply_token?: string | null
           role?: string
           sdr_lead_id?: string | null
+          send_targets?: Json | null
         }
         Relationships: [
           {
@@ -2801,6 +2864,81 @@ export type Database = {
             columns: ["sdr_lead_id"]
             isOneToOne: false
             referencedRelation: "sdr_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_handoffs: {
+        Row: {
+          agent_id: string
+          attempts: number
+          claim_token: string | null
+          created_at: string
+          dedupe_key: string
+          error: string | null
+          fora_do_horario: boolean
+          id: string
+          message_id: string | null
+          next_attempt_at: string
+          payload: Json
+          phone: string
+          portfolio_id: string
+          resumo: string
+          status: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          attempts?: number
+          claim_token?: string | null
+          created_at?: string
+          dedupe_key: string
+          error?: string | null
+          fora_do_horario?: boolean
+          id?: string
+          message_id?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          phone: string
+          portfolio_id: string
+          resumo: string
+          status?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          attempts?: number
+          claim_token?: string | null
+          created_at?: string
+          dedupe_key?: string
+          error?: string | null
+          fora_do_horario?: boolean
+          id?: string
+          message_id?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          phone?: string
+          portfolio_id?: string
+          resumo?: string
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_handoffs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_handoffs_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
             referencedColumns: ["id"]
           },
         ]
@@ -3000,6 +3138,64 @@ export type Database = {
       }
     }
     Functions: {
+      claim_agent_handoff: {
+        Args: { _id: string; _token: string }
+        Returns: {
+          agent_id: string
+          attempts: number
+          claim_token: string | null
+          created_at: string
+          dedupe_key: string
+          error: string | null
+          fora_do_horario: boolean
+          id: string
+          message_id: string | null
+          next_attempt_at: string
+          payload: Json
+          phone: string
+          portfolio_id: string
+          resumo: string
+          status: string
+          tipo: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "whatsapp_handoffs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_agent_reply: {
+        Args: { _id: string; _recovery?: boolean; _token: string }
+        Returns: {
+          agent_id: string | null
+          contato_nome: string | null
+          contato_telefone: string
+          created_at: string
+          fallback_used: boolean
+          id: string
+          instance_name: string
+          mensagem: string
+          portfolio_id: string
+          processing_started_at: string | null
+          recovered_at: string | null
+          remote_jid: string | null
+          reply_state: string | null
+          reply_state_reason: string | null
+          reply_timings: Json | null
+          reply_token: string | null
+          role: string
+          sdr_lead_id: string | null
+          send_targets: Json | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "whatsapp_conversas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       generate_task_deadline_notifications: { Args: never; Returns: number }
       get_my_permissions: {
         Args: never
@@ -3025,6 +3221,10 @@ export type Database = {
       is_task_assignee: {
         Args: { _task_id: string; _user_id: string }
         Returns: boolean
+      }
+      manage_agent_handoff: {
+        Args: { _action: string; _id: string }
+        Returns: undefined
       }
       purge_pgnet_history: { Args: never; Returns: undefined }
     }

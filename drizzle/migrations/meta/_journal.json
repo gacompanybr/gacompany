@@ -29,6 +29,13 @@
       "when": 1792610656045,
       "tag": "0003_create_catalog_search_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792756852780,
+      "tag": "0004_agent_safe_response_options",
+      "breakpoints": true
     }
   ]
 }
