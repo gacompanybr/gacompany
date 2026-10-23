@@ -14,6 +14,7 @@ export async function generateSafeAgentResponse(agent: any, turns: { role: strin
   const cap = Math.min(Math.max(Number(agent.max_tokens ?? 1200), 500), 3000);
   const model = ({ gemini: "openai/gpt-6-astra", openai: "openai/gpt-5-mini" } as Record<string,string>)[agent.modelo_ia] ?? (agent.modelo_ia?.startsWith("openai/") ? agent.modelo_ia : "openai/gpt-5-mini");
   const input: any[] = [{ role: "system", content: buildSafeAgentPrompt(agent, turns) },
+    ...(agent._replyInstruction ? [{ role: "system", content: agent._replyInstruction }] : []),
     ...(catalog ? [{ role: "system", content: safeCatalogGrounding }] : []),
     ...(catalogFailed ? [{ role: "system", content: "A leitura de produtos falhou. Não diga que não tem o item nem invente preço. Responda naturalmente deixando a informação pendente para pessoa. Use marcador falha_busca se habilitado." }] : []),
     ...turns.slice(-60).map(t => ({ role: t.role === "user" ? "user" : "assistant", content: t.mensagem })),
@@ -28,6 +29,7 @@ export async function generateSafeAgentResponse(agent: any, turns: { role: strin
   let fallback = false, gatewayError: AgentGatewayError | undefined;
   let responseText = "";
   try {
+    if (agent.ai_paused_reason) throw new AgentGatewayError(403, agent.ai_paused_reason);
     let response = await gateway(model, input, cap, catalog && agent.catalog_multi_enabled ? [multiProductTool] : undefined);
     if (response.calls.length) {
       if (response.calls.length > 8) throw new Error("Limite de consultas excedido");

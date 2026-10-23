@@ -10,6 +10,8 @@ import { usesCommercialOrderFlow } from "../_shared/order-report-scope.ts";
 import { boundedCatalogResponse, catalogResponseFallback, MAX_CATALOG_TOOL_ROUNDS } from "../_shared/catalog-response.ts";
 import { conversationMessageId } from "../_shared/conversation-record.ts";
 import { usesHumanTakeoverPause } from "../_shared/human-takeover-policy.ts";
+import { safeAgentEnabled } from "../_shared/agent-safe-policy.ts";
+import { processInboundMessage } from "../_shared/agent-inbound-processor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1295,6 +1297,19 @@ async function processPayload(payload: any) {
       sdrCampaignStatus: sdrLead?.sdr_campaigns?.status ?? null,
     }));
 
+    // Opt-in receptive path only; the existing dental/SDR path below is unchanged.
+    if (safeAgentEnabled(agent, Boolean(sdrLead))) {
+      const inbound = { id: userMessageId, portfolio_id: portfolioId, agent_id: agent.id,
+        instance_name: instance, contato_telefone: storagePhone, contato_nome: pushName,
+        mensagem: text, role: "user", created_at: userMessageCreatedAt,
+        remote_jid: remoteJid, send_targets: sendTargets, sdr_lead_id: null };
+      const { error: stateError } = await admin.from("whatsapp_conversas").update({
+        agent_id: agent.id, reply_state: "received", remote_jid: remoteJid, send_targets: sendTargets,
+      }).eq("id", userMessageId);
+      if (stateError) { console.error("[SAFE_REPLY] state unavailable", userMessageId); continue; }
+      await processInboundMessage({ admin, apiKey: LOVABLE_API_KEY, evoUrl: EVO_URL, evoKey: EVO_KEY }, inbound, agent);
+      continue;
+    }
 
     if (agent.status !== "active") {
       console.log("agente inativo, mensagem registrada sem resposta", { portfolioId });
