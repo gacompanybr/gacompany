@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
 import { deliverSafeReply } from "../../supabase/functions/_shared/agent-safe-delivery";
 import { generateSafeAgentResponse } from "../../supabase/functions/_shared/agent-safe-response";
