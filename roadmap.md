@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Corrigir erro 190 dos formulários usando autorização da Página — validar testes e implantar; seleção real depende do acesso Meta e sessão autorizada
+- [x] Ajustar erro 190 dos formulários usando autorização da Página — função implantada; 11 testes aprovados; leitura real não verificada (endpoint retorna 401 sem sessão do solicitante)
 
 - [x] Corrigir descoberta Meta após conexão GA Ads — conexão vinculada; consulta do próprio sistema retornou BM - TESTE 02 com HTTP 200; função implantada e 7 testes aprovados; formulários continuam na credencial dedicada
 
