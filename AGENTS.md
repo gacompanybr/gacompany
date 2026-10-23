@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Meta instant-form imports use a dedicated signed, page-scoped webhook and unique submission identity; retries never overwrite existing CRM workflow state, and credentials remain separate from existing Meta OAuth.
+
 - Human-takeover pause creation and inbound checks share a stable portfolio-scoped policy; opted-out clients never create or honor these pauses, while other clients retain existing behavior.
 
 - Commercial order dispatch is gated by a stable portfolio allowlist in the shared scope module; only opted-in portfolios bypass unchanged dental reporting. Orders use validated dispatch before the client response, per-agent group lookup, atomic reservation and explicit accepted/uncertain states to avoid duplicate or false-success reports.
