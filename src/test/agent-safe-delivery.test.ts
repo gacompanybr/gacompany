@@ -1,9 +1,10 @@
-// @vitest-environment node
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { deliverSafeReply } from "../../supabase/functions/_shared/agent-safe-delivery";
 import { generateSafeAgentResponse } from "../../supabase/functions/_shared/agent-safe-response";
 
 describe("safe delivery", () => {
+  beforeEach(() => vi.stubGlobal("AbortSignal", { timeout: () => new AbortController().signal }));
+  afterEach(() => vi.unstubAllGlobals());
   it("does not send to a second alias after acceptance", async () => {
     const transport = vi.fn().mockResolvedValue(new Response(JSON.stringify({ key: { id: "accepted-id" } })));
     expect((await deliverSafeReply("https://example.test", "test", "instance", ["alias1", "alias2"], "reply", transport)).status).toBe("accepted");
