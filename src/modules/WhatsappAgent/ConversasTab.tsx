@@ -18,6 +18,8 @@ type ConversaRow = {
   mensagem: string;
   sdr_lead_id: string | null;
   created_at: string;
+  reply_state: string | null;
+  reply_state_reason: string | null;
 };
 
 export function ConversasTab({ portfolioId }: { portfolioId: string }) {
@@ -39,7 +41,7 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
       return loadAllConversationRows(async (from, to) => {
       const { data, error } = await supabase
         .from("whatsapp_conversas")
-        .select("id, portfolio_id, instance_name, contato_telefone, contato_nome, role, mensagem, sdr_lead_id, created_at")
+        .select("id, portfolio_id, instance_name, contato_telefone, contato_nome, role, mensagem, sdr_lead_id, created_at, reply_state, reply_state_reason")
         .eq("portfolio_id", portfolioId)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
@@ -60,6 +62,8 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
       ultimaAt: string;
       total: number;
       sdr: boolean;
+      replyState: string | null;
+      replyReason: string | null;
     }>();
 
     for (const m of mensagens ?? []) {
@@ -73,6 +77,8 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
           ultimaAt: m.created_at,
           total: 1,
           sdr: !!m.sdr_lead_id,
+          replyState: m.reply_state,
+          replyReason: m.reply_state_reason,
         });
       } else {
         if (!g.nome && m.contato_nome) g.nome = m.contato_nome;
@@ -155,6 +161,7 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
                       SDR
                     </Badge>
                   )}
+                  {g.ultimaRole === "user" && ["received", "processing", "failed", "uncertain"].includes(g.replyState ?? "") && <Badge variant="destructive" title={g.replyReason ?? "Em processamento"}>Sem resposta</Badge>}
                   {preferenceByPhone.get(g.telefone.replace(/\D/g, ""))?.customer_status === "course_purchased" ? (
                     <Badge variant="secondary" className="text-[10px]">Cliente — Curso comprado</Badge>
                   ) : preferenceByPhone.get(g.telefone.replace(/\D/g, ""))?.followup_disabled ? (
@@ -165,6 +172,7 @@ export function ConversasTab({ portfolioId }: { portfolioId: string }) {
                   {g.ultimaRole === "assistant" ? "Você: " : ""}
                   {g.ultimaMensagem}
                 </p>
+                {g.ultimaRole === "user" && g.replyReason && <p className="text-xs text-muted-foreground truncate">{g.replyReason}</p>}
               </div>
               <div className="shrink-0 text-[10px] text-muted-foreground text-right">
                 <div>{formatDate(g.ultimaAt)}</div>
