@@ -45,7 +45,7 @@ export function normalizeBrPhone(raw: string | null): string | null {
   return digits;
 }
 
-const norm = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const norm = (v: string) => v.replace(/_/g, " ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export function isHotLead(fields: { name: string; values: string[] }[]): boolean {
   const answer = (re: RegExp) => norm(fields.find(f => re.test(norm(f.name)))?.values[0] ?? "");
