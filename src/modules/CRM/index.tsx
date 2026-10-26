@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Flame, LayoutGrid, List, MessageCircle, Search } from "lucide-react";
+import { Download, Flame, LayoutGrid, List, MessageCircle, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -142,6 +142,21 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
     onError: (e: Error) => { toast.error(e.message); qc.invalidateQueries({ queryKey }); },
   });
 
+  const [importing, setImporting] = useState(false);
+  const importMeta = async () => {
+    setImporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-leads-import", { body: {} });
+      if (error || data?.error) throw new Error(data?.error || "Não foi possível importar da Meta");
+      toast.success(data.imported ? `${data.imported} lead(s) importado(s) da Meta` : "Nenhum lead novo na Meta", { description: `${data.found} encontrados, ${data.skipped} já estavam no CRM` });
+      qc.invalidateQueries({ queryKey });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const metricas = useMemo(() => {
     const total = visibleLeads.length;
     const hoje = visibleLeads.filter((l) => new Date(l.created_at).toDateString() === new Date().toDateString()).length;
@@ -223,6 +238,9 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
             </SelectContent>
           </Select>
         )}
+        <Button variant="outline" size="sm" className="gap-1" disabled={importing} onClick={importMeta}>
+          <Download size={14} /> {importing ? "Importando..." : "Importar leads da Meta"}
+        </Button>
         <Button variant={onlyHot ? "default" : "outline"} size="sm" className="gap-1" onClick={() => setOnlyHot(!onlyHot)}>
           <Flame size={14} /> Quentes
         </Button>

@@ -61,3 +61,6 @@ verify_jwt = false
 
 [functions.email-track]
 verify_jwt = false
+
+[functions.meta-leads-import]
+verify_jwt = false
