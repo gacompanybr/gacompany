@@ -223,6 +223,9 @@ export default function CRMModule({ portfolioId }: { portfolioId?: string }) {
             </SelectContent>
           </Select>
         )}
+        <Button variant="outline" size="sm" className="gap-1" disabled={importing} onClick={importMeta}>
+          <Download size={14} /> {importing ? "Importando..." : "Importar leads da Meta"}
+        </Button>
         <Button variant={onlyHot ? "default" : "outline"} size="sm" className="gap-1" onClick={() => setOnlyHot(!onlyHot)}>
           <Flame size={14} /> Quentes
         </Button>
