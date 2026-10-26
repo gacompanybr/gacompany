@@ -23,3 +23,4 @@
 - Agent safety improvements are opt-in per agent and disabled by default, with Lopes Saúde protected server-side; the legacy path preserves existing dental, SDR and follow-up behavior.
 - Opt-in replies use streamed Responses with terminal gateway failures surfaced without substitute replies; token-fenced delivery tries recipient aliases only after explicit rejection to prevent duplicates.
 - Reply recovery wakes on eligible queue entries and unschedules after drain; ambiguous delivery is marked uncertain for manual verification instead of automatic resending.
+- Manual Meta lead import pulls each enabled bound form's leads with the Page token, skips existing meta_leadgen_id and campaign-mismatched leads, so it is safe to re-run alongside the webhook.
