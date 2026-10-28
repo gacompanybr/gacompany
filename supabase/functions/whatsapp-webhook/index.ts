@@ -1600,7 +1600,7 @@ async function processPayload(payload: any) {
       // quando a conversa usa catálogo (tools ou histórico com tool_calls), usa gpt-5-mini.
       const needsTools = toolsEnabled || messages.some((m: any) => m?.role === "tool" || m?.tool_calls);
       const requestBody: Record<string, unknown> = {
-        model: needsTools && model === "openai/gpt-6-astra" ? "openai/gpt-5-mini" : model,
+        model: needsTools && model === "openai/gpt-6-astra" ? "openai/gpt-5.4-mini" : model,
         messages,
 // temperature omitida: gpt-6-astra aceita apenas o valor padrão
         max_tokens: mt,

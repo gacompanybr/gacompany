@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: finalModel,
+        model: toolsEnabled && finalModel === "openai/gpt-6-astra" ? "openai/gpt-5.4-mini" : finalModel,
         messages: aiMessages,
         ...(toolsEnabled ? { tools: [productSearchTool] } : {}),
         // temperature omitida: gpt-6-astra aceita apenas o valor padrão
