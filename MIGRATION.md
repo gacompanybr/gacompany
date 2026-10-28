@@ -215,21 +215,21 @@ VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID
 
 ## 12. Valores (variáveis de ambiente visíveis)
 
-Somente variáveis do lado do cliente (publishable — projetadas para estar no navegador).
-Todos os valores de secrets do servidor são **valor não acessível**.
+Valores do lado do cliente apenas (publishable — projetados para ficar no navegador).
+Todos os secrets do servidor estão em valor não acessível.
 
 ```
-VITE_SUPABASE_URL = valor não acessível (auto-gerado pela plataforma; ver Seção 10)
-VITE_SUPABASE_PUBLISHABLE_KEY = valor não acessível (chave pública do projeto; regenerável no novo backend)
-VITE_SUPABASE_PROJECT_ID = valor não acessível (ver Seção 10)
-VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_APP_ID = valor não acessível (injetado pelo conector)
-VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_PROJECT_ID = valor não acessível (injetado pelo conector)
-VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_VAPID_KEY = valor não acessível (injetado pelo conector)
-VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_WEB_API_KEY = valor não acessível (injetado pelo conector)
-VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY = valor não acessível (injetado pelo conector)
-VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID = valor não acessível (injetado pelo conector)
+VITE_SUPABASE_URL = https://ouarszsnukpjbvsymmts.supabase.co
+VITE_SUPABASE_PROJECT_ID = ouarszsnukpjbvsymmts
+VITE_SUPABASE_PUBLISHABLE_KEY = valor não acessível (chave pública/anon do projeto; regenerável no novo backend)
+VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_APP_ID = 1:126796639051:web:4411e5cb2c88ac4362d6ce
+VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_PROJECT_ID = gacompany-messages
+VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_VAPID_KEY = valor não acessível (injetado pelo conector Firebase)
+VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_WEB_API_KEY = valor não acessível (injetado pelo conector Firebase)
+VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY = valor não acessível (injetado pelo conector Google Maps)
+VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID = 18704cfe384a60a60f0cc8482eb4a6a0
 ```
 
-> Nota: os valores reais dessas variáveis existem no arquivo `.env` do projeto, mas são
-> gerenciados pela plataforma e devem ser regenerados no ambiente de destino (novo projeto
-> Supabase + novas credenciais Firebase/Google Maps), não copiados.
+> Nota: os valores acima são chaves públicas do navegador (seguras por design). Mesmo assim,
+> ao migrar, prefira regenerar as credenciais no ambiente de destino (novo projeto + novas
+> credenciais Firebase/Google Maps) em vez de copiar as atuais.
